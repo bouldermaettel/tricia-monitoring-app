@@ -1,0 +1,417 @@
+openapi: 3.1.0
+info:
+  title: Monitoring Tool API
+  version: 0.1.0
+  summary: REST interface for case validation, confusion-matrix analytics, workflow oversight, and import/export.
+servers:
+  - url: http://localhost:8000/api/v1
+paths:
+  /cases/validate:
+    post:
+      summary: Validate a case before save
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseValidationRequest'
+      responses:
+        '200':
+          description: Validation succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseValidationResponse'
+        '409':
+          description: Duplicate case detected
+  /cases:
+    get:
+      summary: List cases with analytical filters
+      parameters:
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: expected_value
+          schema:
+            type: integer
+        - in: query
+          name: observed_value
+          schema:
+            type: integer
+        - in: query
+          name: problematic_only
+          schema:
+            type: boolean
+        - in: query
+          name: include_excluded
+          schema:
+            type: boolean
+        - in: query
+          name: risk_level
+          schema:
+            type: string
+            enum: [false_low, false_high, mixed, none]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Case page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseListResponse'
+    post:
+      summary: Save a validated case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseCreateRequest'
+      responses:
+        '201':
+          description: Case created
+  /cases/{case_id}/review:
+    patch:
+      summary: Update review state for a case
+      parameters:
+        - in: path
+          name: case_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseReviewUpdateRequest'
+      responses:
+        '200':
+          description: Review state updated
+  /cases/{case_id}/comments:
+    post:
+      summary: Add a case comment
+      parameters:
+        - in: path
+          name: case_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateRequest'
+      responses:
+        '201':
+          description: Comment stored
+  /matrices/confusion:
+    get:
+      summary: Get aggregated confusion matrix data
+      parameters:
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: include_excluded
+          schema:
+            type: boolean
+        - in: query
+          name: threshold_key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matrix data returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfusionMatrixResponse'
+  /control/queue:
+    get:
+      summary: List workflow oversight records
+      parameters:
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, validated, saved]
+      responses:
+        '200':
+          description: Oversight queue returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlQueueResponse'
+  /imports:
+    post:
+      summary: Import CSV or Excel data
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '202':
+          description: Import accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportJobResponse'
+  /exports/cases.csv:
+    get:
+      summary: Export filtered cases as CSV
+      responses:
+        '200':
+          description: CSV stream
+  /exports/cases.xlsx:
+    get:
+      summary: Export filtered cases as Excel
+      responses:
+        '200':
+          description: XLSX stream
+  /config/thresholds:
+    get:
+      summary: Read current thresholds
+      responses:
+        '200':
+          description: Threshold config returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThresholdConfig'
+    put:
+      summary: Update thresholds centrally
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThresholdConfigUpdateRequest'
+      responses:
+        '200':
+          description: Threshold config updated
+components:
+  schemas:
+    CaseValidationRequest:
+      type: object
+      required: [vk_number, device_name, tricia_s, tricia_p, tricia_d, user_s]
+      properties:
+        vk_number:
+          type: string
+        device_name:
+          type: string
+        tricia_s:
+          type: integer
+        tricia_p:
+          type: integer
+        tricia_d:
+          type: integer
+        user_s:
+          type: integer
+        user_d:
+          type: integer
+          nullable: true
+    CaseValidationResponse:
+      type: object
+      required: [analysis_date, auto_fill, duplicate]
+      properties:
+        analysis_date:
+          type: string
+          format: date
+        inferred_user_id:
+          type: string
+          nullable: true
+        auto_fill:
+          type: object
+          properties:
+            user_s:
+              type: integer
+            user_d:
+              type: integer
+        duplicate:
+          type: boolean
+    CaseCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CaseValidationRequest'
+        - type: object
+          properties:
+            validation_status:
+              type: string
+              enum: [validated, saved]
+    CaseReviewUpdateRequest:
+      type: object
+      properties:
+        category_code:
+          type: string
+        is_excluded:
+          type: boolean
+        is_reviewed:
+          type: boolean
+        risk_level:
+          type: string
+          enum: [false_low, false_high, mixed, none]
+    CommentCreateRequest:
+      type: object
+      required: [comment_text]
+      properties:
+        comment_text:
+          type: string
+    CaseListResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseRecord'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+    CaseRecord:
+      type: object
+      required: [id, vk_number, analysis_date, validation_status]
+      properties:
+        id:
+          type: string
+        vk_number:
+          type: string
+        device_name:
+          type: string
+        analysis_date:
+          type: string
+          format: date
+        validation_status:
+          type: string
+        category_code:
+          type: string
+          nullable: true
+        is_excluded:
+          type: boolean
+        is_reviewed:
+          type: boolean
+        comment_count:
+          type: integer
+    ConfusionMatrixResponse:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        threshold_key:
+          type: string
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              expected_value:
+                type: integer
+              observed_value:
+                type: integer
+              case_count:
+                type: integer
+              excluded_case_count:
+                type: integer
+              problem_case_count:
+                type: integer
+              within_threshold:
+                type: boolean
+    ControlQueueResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              vk_number:
+                type: string
+              analysis_date:
+                type: string
+                format: date
+              input_timestamp:
+                type: string
+                format: date-time
+              created_by_user_id:
+                type: string
+                nullable: true
+              validation_status:
+                type: string
+              delay_bucket:
+                type: string
+    ImportJobResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+        total_rows:
+          type: integer
+        imported_rows:
+          type: integer
+        error_rows:
+          type: integer
+    ThresholdConfig:
+      type: object
+      properties:
+        config_key:
+          type: string
+        acceptance_threshold:
+          type: integer
+        problem_threshold:
+          type: integer
+        include_excluded_default:
+          type: boolean
+        effective_from:
+          type: string
+          format: date-time
+    ThresholdConfigUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/ThresholdConfig'
