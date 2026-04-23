@@ -161,6 +161,10 @@
 - [x] T066 Add ACA deployment workflow using ACR images and migration step in .github/workflows/deploy-aca.yml
 - [x] T067 Run end-to-end quickstart validation and capture expected commands in specs/001-monitoring-tool/quickstart.md
 - [x] T068 [P] Update architecture and runbook docs for operations and troubleshooting in README.md and docs/architecture/monitoring-tool.md
+- [x] T069 Add admin user-management API and dashboard workflow in backend/src/api/routers/users.py, backend/src/services/user_service.py, and frontend/src/pages/UserManagement.tsx
+- [x] T070 Add admin session login source and full user lifecycle actions (update/deactivate/delete) across backend and frontend
+- [x] T071 Add password-based auth and bootstrap admin credentials from config.yml
+- [x] T072 Add bearer refresh-token flow with automatic frontend renewal and retry handling
 
 ---
 

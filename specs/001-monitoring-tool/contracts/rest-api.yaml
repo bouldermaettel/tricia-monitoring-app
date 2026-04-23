@@ -47,6 +47,11 @@ paths:
           schema:
             type: integer
         - in: query
+          name: matrix_dimension
+          schema:
+            type: string
+            enum: [severity, detectability, product]
+        - in: query
           name: problematic_only
           schema:
             type: boolean
@@ -362,6 +367,38 @@ components:
                 type: integer
               within_threshold:
                 type: boolean
+        matrices:
+          $ref: '#/components/schemas/MatrixDimensionSet'
+    MatrixDimensionSet:
+      type: object
+      properties:
+        severity:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatrixCell'
+        detectability:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatrixCell'
+        product:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatrixCell'
+    MatrixCell:
+      type: object
+      properties:
+        expected_value:
+          type: integer
+        observed_value:
+          type: integer
+        case_count:
+          type: integer
+        excluded_case_count:
+          type: integer
+        problem_case_count:
+          type: integer
+        within_threshold:
+          type: boolean
     ControlQueueResponse:
       type: object
       properties:

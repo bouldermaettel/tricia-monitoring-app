@@ -17,6 +17,7 @@ class Case(Base):
     input_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     source_type: Mapped[str] = mapped_column(String(32), default="manual")
     created_by_user_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("users.id"), nullable=True)
+    wimi_shortcut: Mapped[str | None] = mapped_column(String(32), nullable=True)
     validation_status: Mapped[str] = mapped_column(String(32), default="draft")
 
 

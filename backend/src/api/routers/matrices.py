@@ -11,7 +11,22 @@ router = APIRouter()
 @router.get("/confusion", response_model=ConfusionMatrixResponse)
 def get_confusion(
     include_excluded: bool = Query(default=False),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
+    problematic_only: bool | None = Query(default=None),
+    risk_level: str | None = Query(default=None),
     threshold_key: str = Query(default="default"),
     db: Session = Depends(get_db),
 ) -> ConfusionMatrixResponse:
-    return MatrixService(db).get_confusion_matrix(include_excluded=include_excluded, threshold_key=threshold_key)
+    from datetime import date
+
+    parsed_start = date.fromisoformat(start_date) if start_date else None
+    parsed_end = date.fromisoformat(end_date) if end_date else None
+    return MatrixService(db).get_confusion_matrix(
+        include_excluded=include_excluded,
+        threshold_key=threshold_key,
+        start_date=parsed_start,
+        end_date=parsed_end,
+        problematic_only=problematic_only,
+        risk_level=risk_level,
+    )

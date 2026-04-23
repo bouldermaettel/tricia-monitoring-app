@@ -22,9 +22,9 @@ def test_cases_create_contract(client):
         'device_name': 'dev-b',
         'tricia_s': 1,
         'tricia_p': 1,
-        'tricia_d': 2,
+        'tricia_d': 5,
         'user_s': 1,
-        'user_d': 2,
+        'user_d': 5,
         'validation_status': 'saved',
     }
     response = client.post('/api/v1/cases', json=payload)

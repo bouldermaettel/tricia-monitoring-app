@@ -4,9 +4,9 @@ def test_validate_then_save_then_list(client):
         'device_name': 'dev-flow',
         'tricia_s': 1,
         'tricia_p': 1,
-        'tricia_d': 2,
+        'tricia_d': 5,
         'user_s': 1,
-        'user_d': 2,
+        'user_d': 5,
     }
     validate = client.post('/api/v1/cases/validate', json=payload)
     assert validate.status_code == 200

@@ -1,0 +1,281 @@
+import { FormEvent, useState } from 'react';
+import { AppShell } from '../components/common/AppShell';
+import { useAuth } from '../app/auth';
+import { useCreateUser, useDeleteUser, useUpdateUser, useUsers } from '../hooks/useUsers';
+
+export function UserManagement() {
+  const { signOut, session } = useAuth();
+  const usersQuery = useUsers();
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+  const [externalKey, setExternalKey] = useState('');
+  const [shortcut, setShortcut] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState('operator');
+  const [isActive, setIsActive] = useState(true);
+  const [editing, setEditing] = useState<Record<string, { role: string; is_active: boolean; password: string; shortcut: string }>>({});
+
+  const hasError = usersQuery.isError || createUser.isError;
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!externalKey.trim() || !displayName.trim()) {
+      return;
+    }
+
+    await createUser.mutateAsync({
+      external_key: externalKey.trim(),
+      shortcut: shortcut.trim() || undefined,
+      password,
+      display_name: displayName.trim(),
+      role,
+      is_active: isActive,
+    });
+
+    setExternalKey('');
+    setShortcut('');
+    setPassword('');
+    setDisplayName('');
+    setRole('operator');
+    setIsActive(true);
+  }
+
+  function onEditRoleChange(userId: string, currentRole: string, value: string, currentActive: boolean) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        role: value || previous?.role || currentRole,
+        is_active: previous?.is_active ?? currentActive,
+        password: previous?.password ?? '',
+        shortcut: previous?.shortcut ?? '',
+      },
+    }));
+  }
+
+  function onEditActiveChange(userId: string, currentRole: string, checked: boolean, currentActive: boolean) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        role: previous?.role ?? currentRole,
+        is_active: checked,
+        password: previous?.password ?? '',
+        shortcut: previous?.shortcut ?? '',
+      },
+    }));
+  }
+
+  function onEditPasswordChange(userId: string, currentRole: string, currentActive: boolean, currentShortcut: string | undefined, value: string) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        role: previous?.role ?? currentRole,
+        is_active: previous?.is_active ?? currentActive,
+        password: value,
+        shortcut: previous?.shortcut ?? currentShortcut ?? '',
+      },
+    }));
+  }
+
+  function onEditShortcutChange(userId: string, currentRole: string, currentActive: boolean, currentShortcut: string | undefined, value: string) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        role: previous?.role ?? currentRole,
+        is_active: previous?.is_active ?? currentActive,
+        password: previous?.password ?? '',
+        shortcut: value,
+      },
+    }));
+  }
+
+  async function onSaveUser(userId: string, originalRole: string, originalActive: boolean, originalShortcut?: string) {
+    const draft = editing[userId];
+    const payload: { role?: string; is_active?: boolean; password?: string; shortcut?: string } = {};
+    const password = draft?.password?.trim() ?? '';
+    const shortcut = draft?.shortcut?.trim();
+    if (draft?.role !== undefined && draft.role !== originalRole) payload.role = draft.role;
+    if (draft?.is_active !== undefined && draft.is_active !== originalActive) payload.is_active = draft.is_active;
+    if (shortcut !== undefined && shortcut !== (originalShortcut ?? '')) payload.shortcut = shortcut || undefined;
+    if (password) {
+      payload.password = password;
+    }
+    if (!payload.role && payload.is_active === undefined && !payload.password && payload.shortcut === undefined) return;
+
+    await updateUser.mutateAsync({ userId, payload });
+    setEditing((prev) => {
+      const copy = { ...prev };
+      delete copy[userId];
+      return copy;
+    });
+  }
+
+  async function onDeleteUser(userId: string) {
+    await deleteUser.mutateAsync(userId);
+  }
+
+  return (
+    <AppShell>
+      <div className="max-w-4xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">User Management</h1>
+          <p className="text-stone-500 text-sm">Admins can add, edit, deactivate, and delete users.</p>
+          <p className="text-stone-500 text-xs mt-1">Signed in as: {session?.displayName} ({session?.externalKey})</p>
+          <button onClick={signOut} className="mt-2 text-sm text-stone-700 underline">Sign out</button>
+        </div>
+
+        <form onSubmit={onSubmit} className="bg-white border border-stone-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-5 gap-3">
+          <input
+            value={externalKey}
+            onChange={(e) => setExternalKey(e.target.value)}
+            placeholder="External key"
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+            required
+          />
+          <input
+            value={shortcut}
+            onChange={(e) => setShortcut(e.target.value)}
+            placeholder="Acronym (shortcut)"
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Display name"
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+            required
+          />
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            placeholder="Password"
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+            required
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="operator">operator</option>
+            <option value="analyst">analyst</option>
+            <option value="controller">controller</option>
+            <option value="admin">admin</option>
+          </select>
+          <label className="md:col-span-2 text-sm text-stone-600 flex items-center gap-2">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            Active user
+          </label>
+          <button
+            type="submit"
+            disabled={createUser.isPending}
+            className="md:col-span-1 bg-stone-900 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-stone-700 disabled:opacity-60"
+          >
+            {createUser.isPending ? 'Adding...' : 'Add User'}
+          </button>
+        </form>
+
+        {hasError && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {usersQuery.error instanceof Error
+              ? usersQuery.error.message
+              : createUser.error instanceof Error
+              ? createUser.error.message
+              : 'Request failed'}
+          </div>
+        )}
+
+        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-stone-600">
+              <tr>
+                <th className="text-left px-4 py-3">Display Name</th>
+                <th className="text-left px-4 py-3">External Key</th>
+                <th className="text-left px-4 py-3">Acronym</th>
+                <th className="text-left px-4 py-3">Role</th>
+                <th className="text-left px-4 py-3">Active</th>
+                <th className="text-left px-4 py-3">Reset Password</th>
+                <th className="text-left px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(usersQuery.data?.items ?? []).map((user) => (
+                <tr key={user.id} className="border-t border-stone-100">
+                  <td className="px-4 py-3">{user.display_name}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-stone-600">{user.external_key}</td>
+                  <td className="px-4 py-3">
+                    <input
+                      aria-label={`shortcut-${user.id}`}
+                      type="text"
+                      value={editing[user.id]?.shortcut ?? user.shortcut ?? ''}
+                      onChange={(e) =>
+                        onEditShortcutChange(user.id, user.role, user.is_active, user.shortcut, e.target.value)
+                      }
+                      placeholder="shortcut"
+                      className="border border-stone-300 rounded px-2 py-1 text-xs w-24"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={editing[user.id]?.role ?? user.role}
+                      onChange={(e) => onEditRoleChange(user.id, user.role, e.target.value, user.is_active)}
+                      className="border border-stone-300 rounded px-2 py-1"
+                    >
+                      <option value="operator">operator</option>
+                      <option value="analyst">analyst</option>
+                      <option value="controller">controller</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      aria-label={`active-${user.id}`}
+                      type="checkbox"
+                      checked={editing[user.id]?.is_active ?? user.is_active}
+                      onChange={(e) => onEditActiveChange(user.id, user.role, e.target.checked, user.is_active)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      aria-label={`password-${user.id}`}
+                      type="password"
+                      value={editing[user.id]?.password ?? ''}
+                      onChange={(e) => onEditPasswordChange(user.id, user.role, user.is_active, user.shortcut, e.target.value)}
+                      placeholder="Leave blank"
+                      className="border border-stone-300 rounded px-2 py-1 text-xs"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onSaveUser(user.id, user.role, user.is_active, user.shortcut)}
+                        disabled={updateUser.isPending}
+                        className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => onDeleteUser(user.id)}
+                        disabled={deleteUser.isPending}
+                        className="bg-red-600 text-white rounded px-3 py-1 text-xs hover:bg-red-500 disabled:opacity-60"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {usersQuery.isLoading && <p className="px-4 py-3 text-stone-500">Loading users...</p>}
+        </div>
+      </div>
+    </AppShell>
+  );
+}

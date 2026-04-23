@@ -9,6 +9,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
 vi.mock('../../src/hooks/useCases', () => ({
   useCases: () => ({ data: { items: [] } }),
   usePatchCaseReview: () => ({ mutate: vi.fn() }),
+  useAddCaseComment: () => ({ mutate: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useThresholds', () => ({
   useThresholds: () => ({ data: { acceptance_threshold: 1 } }),
@@ -25,7 +26,8 @@ describe('DataOps and Config', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByText('Export CSV')).toBeInTheDocument();
-    expect(screen.getByText('Save Thresholds')).toBeInTheDocument();
+    expect(screen.getByText('CSV')).toBeInTheDocument();
+    expect(screen.getByText('XLSX')).toBeInTheDocument();
+    expect(screen.getByText('Threshold Configuration')).toBeInTheDocument();
   });
 });

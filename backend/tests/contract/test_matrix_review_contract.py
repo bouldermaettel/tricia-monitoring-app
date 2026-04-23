@@ -2,6 +2,7 @@ def test_confusion_contract(client):
     response = client.get('/api/v1/matrices/confusion')
     assert response.status_code == 200
     assert 'cells' in response.json()
+    assert 'matrices' in response.json()
 
 
 def test_patch_review_contract(client):

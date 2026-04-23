@@ -13,10 +13,12 @@ from src.services.case_service import CaseService
 def test_derive_analysis_date_valid_formats(db_session: Session):
     """Test date derivation from various VK number formats."""
     test_cases = [
-        ("VK20251225001", date(2025, 12, 25)),
-        ("20230615_ABC", date(2023, 6, 15)),
-        ("2024010112345", date(2024, 1, 1)),
+        ("VK_20251225_001", date(2025, 12, 25)),
+        ("Vk_20211123_23", date(2021, 11, 23)),
+        ("vkalpha_20230615_ABC", date(2023, 6, 15)),
         ("invalid_date_vk", date.today()),  # Fallback to today
+        ("2024010112345", date.today()),  # Missing vk prefix and underscore date segment
+        ("VK-20260423-010", date.today()),  # Missing underscore before date
     ]
     for vk_number, expected_date in test_cases:
         result = ValidationService.derive_analysis_date(vk_number)
@@ -26,9 +28,9 @@ def test_derive_analysis_date_valid_formats(db_session: Session):
 def test_derive_analysis_date_invalid_month_day():
     """Test date parsing rejects invalid month/day values."""
     invalid_cases = [
-        "VK20251301001",  # Month > 12
-        "VK20250032001",  # Day > 31
-        "VK20250000001",  # Month = 0
+        "VK_20251301_001",  # Month > 12
+        "VK_20250032_001",  # Day > 31
+        "VK_20250000_001",  # Month = 0
     ]
     for vk_number in invalid_cases:
         result = ValidationService.derive_analysis_date(vk_number)
@@ -42,7 +44,7 @@ def test_duplicate_detection_fresh_vk(db_session: Session):
         vk_number="VK_FRESH_001",
         device_name="Device1",
         tricia_s=3,
-        tricia_p=2,
+        tricia_p=5,
         tricia_d=1,
         user_s=3,
         user_d=1,
@@ -61,7 +63,7 @@ def test_duplicate_detection_after_save(db_session: Session):
         vk_number=vk_number,
         device_name="Device1",
         tricia_s=3,
-        tricia_p=2,
+        tricia_p=5,
         tricia_d=1,
         user_s=3,
         user_d=1,
@@ -85,7 +87,7 @@ def test_autofill_user_d_from_tricia_d(db_session: Session):
         vk_number="VK_AUTOFILL_001",
         device_name="Device1",
         tricia_s=3,
-        tricia_p=2,
+        tricia_p=5,
         tricia_d=1,
         user_s=3,
         user_d=None,  # Explicitly None
@@ -101,24 +103,24 @@ def test_autofill_respects_provided_user_d(db_session: Session):
         vk_number="VK_PRESERVE_001",
         device_name="Device1",
         tricia_s=3,
-        tricia_p=2,
+        tricia_p=5,
         tricia_d=1,
         user_s=3,
-        user_d=2,  # Explicitly provided
+        user_d=5,  # Explicitly provided
     )
     
     response = ValidationService(db_session).validate(payload)
-    assert response.auto_fill["user_d"] == 2
+    assert response.auto_fill["user_d"] == 5
 
 
 def test_case_creation_persists_derived_metadata(db_session: Session):
     """Test that created case stores analysis_date correctly."""
-    vk_number = "VK20260115_PERSIST"
+    vk_number = "VK_20260115_PERSIST"
     payload = CaseCreateRequest(
         vk_number=vk_number,
         device_name="Device1",
         tricia_s=3,
-        tricia_p=2,
+        tricia_p=5,
         tricia_d=1,
         user_s=3,
         user_d=1,

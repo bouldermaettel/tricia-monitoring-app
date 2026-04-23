@@ -12,7 +12,14 @@ class MatrixCell(BaseModel):
     within_threshold: bool
 
 
+class MatrixDimensionSet(BaseModel):
+    severity: list[MatrixCell]
+    detectability: list[MatrixCell]
+    product: list[MatrixCell]
+
+
 class ConfusionMatrixResponse(BaseModel):
     generated_at: datetime
     threshold_key: str
     cells: list[MatrixCell]
+    matrices: MatrixDimensionSet

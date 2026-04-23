@@ -14,8 +14,8 @@ class ValidationService:
 
     @staticmethod
     def derive_analysis_date(vk_number: str) -> date:
-        """Extract YYYYMMDD from the VK identifier with validation."""
-        match = re.search(r"(20\d{2})(\d{2})(\d{2})", vk_number)
+        """Extract YYYYMMDD from VK identifiers in the form vk*_YYYYMMDD* (case-insensitive)."""
+        match = re.match(r"^vk[^_]*_(20\d{2})(\d{2})(\d{2})", vk_number.strip(), flags=re.IGNORECASE)
         if match:
             year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
             try:

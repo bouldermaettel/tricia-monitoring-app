@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models.case import Case
+from src.models.classification_snapshot import ClassificationSnapshot
 
 
 class ExportService:
@@ -12,7 +13,10 @@ class ExportService:
         self.db = db
 
     def _frame(self) -> pd.DataFrame:
-        rows = self.db.scalars(select(Case)).all()
+        rows = self.db.execute(
+            select(Case, ClassificationSnapshot)
+            .join(ClassificationSnapshot, ClassificationSnapshot.case_id == Case.id, isouter=True)
+        ).all()
         return pd.DataFrame(
             [
                 {
@@ -21,8 +25,13 @@ class ExportService:
                     "device_name": c.device_name,
                     "analysis_date": c.analysis_date.isoformat(),
                     "validation_status": c.validation_status,
+                    "TRI-S": snap.tricia_s if snap else None,
+                    "TRI-P": snap.tricia_p if snap else None,
+                    "TRI-D": snap.tricia_d if snap else None,
+                    "WIMI-S": snap.user_s if snap else None,
+                    "WIMI-D": snap.user_d if snap else None,
                 }
-                for c in rows
+                for c, snap in rows
             ]
         )
 

@@ -13,6 +13,10 @@
 3. Matrix dashboard aggregates confusion data and supports case review updates.
 4. Control dashboard reads delay buckets.
 5. Import/export and threshold configuration are centrally managed by backend services.
+6. User management allows admins to list and create users through `/api/v1/users`.
+7. Admin session identity is established via `/api/v1/auth/session`, and user lifecycle operations include update/deactivate/delete.
+8. Passwords are stored as PBKDF2 hashes, and the initial bootstrap admin is loaded from `config.yml`.
+9. Access is protected by bearer access tokens and rotated refresh tokens, with frontend auto-refresh and single retry on 401.
 
 ## Operations
 

@@ -8,6 +8,8 @@ class ControlQueueItem(BaseModel):
     analysis_date: date
     input_timestamp: datetime
     created_by_user_id: str | None = None
+    wimi_shortcut: str | None = None
+    user_id: str | None = None
     validation_status: str
     delay_bucket: str
 

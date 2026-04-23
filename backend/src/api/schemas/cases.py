@@ -1,16 +1,21 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+SeverityValue = Literal[1, 3, 5, 8, 10]
+DetectabilityValue = Literal[1, 5, 10]
+ProbabilityValue = Literal[1, 5, 10]
 
 
 class CaseValidationRequest(BaseModel):
     vk_number: str
     device_name: str
-    tricia_s: int
-    tricia_p: int
-    tricia_d: int
-    user_s: int
-    user_d: int | None = None
+    tricia_s: SeverityValue
+    tricia_p: ProbabilityValue
+    tricia_d: DetectabilityValue
+    user_s: SeverityValue
+    user_d: DetectabilityValue | None = None
 
 
 class CaseValidationResponse(BaseModel):
@@ -39,6 +44,8 @@ class CaseRecord(BaseModel):
     id: str
     vk_number: str
     device_name: str
+    wimi_shortcut: str | None = None
+    date_reported: date
     analysis_date: date
     validation_status: str
     category_code: str | None = None

@@ -10,13 +10,15 @@ def test_export_csv_and_xlsx(db_session):
             device_name='dev',
             tricia_s=1,
             tricia_p=1,
-            tricia_d=2,
+            tricia_d=5,
             user_s=1,
-            user_d=2,
+            user_d=5,
             validation_status='saved',
         ),
         actor_id='tester',
     )
     exporter = ExportService(db_session)
     assert b'vk_number' in exporter.to_csv()
+    assert b'TRI-S' in exporter.to_csv()
+    assert b'WIMI-S' in exporter.to_csv()
     assert len(exporter.to_xlsx()) > 100

@@ -4,11 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
 
 vi.mock('../../src/hooks/useMatrix', () => ({
-  useMatrix: () => ({ data: { cells: [] } }),
+  useMatrix: () => ({
+    data: {
+      cells: [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }],
+      matrices: {
+        severity: [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }],
+        detectability: [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }],
+        product: [{ expected_value: 4, observed_value: 4, case_count: 1, within_threshold: true }],
+      },
+    },
+  }),
 }));
 vi.mock('../../src/hooks/useCases', () => ({
   useCases: () => ({ data: { items: [] } }),
   usePatchCaseReview: () => ({ mutate: vi.fn() }),
+  useAddCaseComment: () => ({ mutate: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useThresholds', () => ({
   useThresholds: () => ({ data: { acceptance_threshold: 1 } }),
@@ -26,6 +36,12 @@ describe('MatrixDashboard', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Legend')).toBeInTheDocument();
+    expect(screen.getByText('Within threshold')).toBeInTheDocument();
+    expect(screen.getByText('Severity Matrix (S) - 0 selected ▲')).toBeInTheDocument();
+    expect(screen.getByText('Detectability Matrix (D) - 0 selected ▲')).toBeInTheDocument();
+    expect(screen.getByText('Product Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
+    expect(screen.getByText('Severity Matrix — WIMI-S (rows) vs TRI-S (cols)')).toBeInTheDocument();
+    expect(screen.getByText('Detectability Matrix — WIMI-D (rows) vs TRI-D (cols)')).toBeInTheDocument();
+    expect(screen.getByText('Product Matrix — WIMI (SxDxP) vs TRI (SxDxP), with WIMI-P = TRI-P')).toBeInTheDocument();
   });
 });
