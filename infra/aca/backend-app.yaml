@@ -1,0 +1,32 @@
+type: Microsoft.App/containerApps@2023-05-01
+name: tricia-monitoring-backend
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/managedEnvironments/<env>
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8000
+    secrets:
+      - name: database-url
+        value: <DATABASE_URL>
+      - name: secret-key
+        value: <SECRET_KEY>
+  template:
+    containers:
+      - name: backend
+        image: <acr>.azurecr.io/tricia-monitoring-backend:latest
+        env:
+          - name: APP_ENV
+            value: production
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: SECRET_KEY
+            secretRef: secret-key
+        command:
+          - sh
+          - -c
+          - "alembic -c backend/alembic.ini upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000"
+    scale:
+      minReplicas: 1
+      maxReplicas: 5

@@ -1,0 +1,16 @@
+type: Microsoft.App/containerApps@2023-05-01
+name: tricia-monitoring-frontend
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.App/managedEnvironments/<env>
+  configuration:
+    ingress:
+      external: true
+      targetPort: 80
+  template:
+    containers:
+      - name: frontend
+        image: <acr>.azurecr.io/tricia-monitoring-frontend:latest
+    scale:
+      minReplicas: 1
+      maxReplicas: 3

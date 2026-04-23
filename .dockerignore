@@ -1,0 +1,10 @@
+.git/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.log*
+.env*
+coverage/
+Dockerfile*
+.dockerignore
