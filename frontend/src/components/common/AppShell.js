@@ -1,10 +1,10 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { Link, useLocation } from 'react-router-dom';
 import { BarChart3, ClipboardList, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 export function AppShell({ children }) {
     const { pathname } = useLocation();
-    const { session } = useAuth();
+    const { session, signOut } = useAuth();
     const navItems = [
         { to: '/input', label: 'Input', icon: ClipboardList },
         { to: '/matrix', label: 'Matrix', icon: BarChart3 },
@@ -16,5 +16,5 @@ export function AppShell({ children }) {
                                 return (_jsxs(Link, { to: to, className: `flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${active
                                         ? 'bg-amber-400 text-stone-900'
                                         : 'text-stone-300 hover:text-white hover:bg-stone-700'}`, children: [_jsx(Icon, { size: 15 }), label] }, to));
-                            }) }), !session && (_jsx(Link, { to: "/login", className: "ml-auto text-sm text-stone-300 hover:text-white underline", children: "Sign In" }))] }) }), _jsx("main", { className: "max-w-screen-xl mx-auto px-6 py-8", children: children })] }));
+                            }) }), _jsx("div", { className: "ml-auto flex items-center gap-3", children: !session ? (_jsx(Link, { to: "/login", className: "text-sm text-stone-300 hover:text-white underline", children: "Sign In" })) : (_jsxs(_Fragment, { children: [_jsxs("span", { className: "text-xs text-stone-300", children: [session.displayName, " (", session.acronym || session.externalKey, ")"] }), _jsx("button", { onClick: signOut, className: "text-sm text-stone-300 hover:text-white underline", children: "Sign out" })] })) })] }) }), _jsx("main", { className: "max-w-screen-xl mx-auto px-6 py-8", children: children })] }));
 }

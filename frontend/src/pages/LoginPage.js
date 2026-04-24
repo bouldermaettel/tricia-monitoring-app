@@ -1,6 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { useAuth } from '../app/auth';
 export function LoginPage() {
     const navigate = useNavigate();
@@ -21,7 +22,25 @@ export function LoginPage() {
             navigate('/users', { replace: true });
         }
         catch (err) {
-            setError(err instanceof Error ? err.message : 'Login failed');
+            if (isAxiosError(err)) {
+                const apiMessage = err.response?.data?.error?.message ??
+                    err.response?.data?.detail;
+                if (apiMessage) {
+                    setError(apiMessage);
+                }
+                else if (err.response?.status === 500) {
+                    setError('Server error during sign in. Please ensure the backend API is running on port 8000.');
+                }
+                else if (err.code === 'ERR_NETWORK') {
+                    setError('Cannot reach backend API. Please start the backend service and try again.');
+                }
+                else {
+                    setError(err.message);
+                }
+            }
+            else {
+                setError(err instanceof Error ? err.message : 'Login failed');
+            }
         }
         finally {
             setSubmitting(false);

@@ -8,6 +8,7 @@ import { CaseTable } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixLegend } from '../components/matrix/MatrixLegend';
+import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
 import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
 import { MatrixDimension, RiskFilter, useFilters } from '../state/filters';
@@ -239,6 +240,8 @@ export function MatrixDashboard() {
   const displayedCases = isOverrideActive
     ? selectedCases
     : (selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? []);
+  const severityCells = isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? []);
+  const detectabilityCells = isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? []);
   const hasSelection =
     selectedCellsByDimension.severity.length > 0 ||
     selectedCellsByDimension.detectability.length > 0 ||
@@ -295,7 +298,45 @@ export function MatrixDashboard() {
     <AppShell>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Matrix Dashboard</h1>
-        <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" />
+        <div className="flex gap-2">
+          <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" />
+          <MatrixReportExportButton
+            fileNamePrefix="matrix-report"
+            generatedAt={new Date().toLocaleString('de-DE')}
+            filters={{
+              include_excluded: includeExcluded,
+              problematic_only: problematicOnly,
+              date_window: dateWindow,
+              date_from: dateFrom,
+              date_to: dateTo,
+              risk_filter: riskFilter,
+              selected_vk_number: requestedVkNumber || undefined,
+              selected_matrix_cells: selectedRequests.length > 0 ? selectedRequests.map((cell) => `${cell.dimension}:${cell.expected}->${cell.observed}`).join(', ') : 'none',
+            }}
+            matrixSections={[
+              {
+                title: 'Severity Matrix',
+                rowAxisLabel: 'WIMI-S',
+                columnAxisLabel: 'TRI-S',
+                cells: severityCells,
+              },
+              {
+                title: 'Detectability Matrix',
+                rowAxisLabel: 'WIMI-D',
+                columnAxisLabel: 'TRI-D',
+                cells: detectabilityCells,
+              },
+              {
+                title: 'RBC Matrix (SxDxP)',
+                rowAxisLabel: 'WIMI (SxDxP)',
+                columnAxisLabel: 'TRI (SxDxP)',
+                cells: productCells,
+              },
+            ]}
+            tableColumns={exportState.columns}
+            tableRows={exportState.rows}
+          />
+        </div>
       </div>
 
       {requestedVkNumber && (
@@ -349,7 +390,7 @@ export function MatrixDashboard() {
             <div className="grid gap-4 md:grid-cols-2 mt-3">
               <ConfusionMatrixGrid
                 title="Severity Matrix"
-                cells={isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? [])}
+                cells={severityCells}
                 onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
                 selectedCells={selectedCellsByDimension.severity}
                 rowAxisLabel="WIMI-S"
@@ -357,7 +398,7 @@ export function MatrixDashboard() {
               />
               <ConfusionMatrixGrid
                 title="Detectability Matrix"
-                cells={isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? [])}
+                cells={detectabilityCells}
                 onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
                 selectedCells={selectedCellsByDimension.detectability}
                 rowAxisLabel="WIMI-D"

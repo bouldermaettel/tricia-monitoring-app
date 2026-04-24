@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, MessageSquare, MinusCircle, Pencil, Tag, Trash2, X } from 'lucide-react';
+import { Check, MessageSquare, MinusCircle, Pencil, Tag, X } from 'lucide-react';
 import { useCaseAuditTrail } from '../../hooks/useCases';
 import { formatIsoDateToGerman } from '../../utils/date';
 
@@ -154,6 +154,14 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     is_reviewed: '',
     actions: '',
   });
+  const [dateFilterFrom, setDateFilterFrom] = useState('');
+  const [dateFilterTo, setDateFilterTo] = useState('');
+  const [showDateColumnPicker, setShowDateColumnPicker] = useState(false);
+  const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const emptyFilters: Record<ColumnId, string> = {
     vk_number: '',
     wimi_shortcut: '',
@@ -193,9 +201,65 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     }
   }
 
-  function handleDelete(item: CaseItem) {
-    if (window.confirm(`Delete case ${item.vk_number}? This cannot be undone.`)) {
-      onDeleteCase?.(item.id);
+  function toggleCaseSelection(itemId: string, itemIndex: number, shiftKey: boolean) {
+    setSelectedCaseIds((previous) => {
+      const next = new Set(previous);
+      const isAlreadySelected = next.has(itemId);
+      if (!shiftKey || lastSelectedIndex === null) {
+        if (isAlreadySelected) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+        }
+        return next;
+      }
+
+      const start = Math.min(lastSelectedIndex, itemIndex);
+      const end = Math.max(lastSelectedIndex, itemIndex);
+      const rangeIds = filteredItems.slice(start, end + 1).map((item) => item.id);
+      if (isAlreadySelected) {
+        rangeIds.forEach((id) => next.delete(id));
+      } else {
+        rangeIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+    setLastSelectedIndex(itemIndex);
+  }
+
+  function selectAllVisible() {
+    setSelectedCaseIds((previous) => {
+      const next = new Set(previous);
+      filteredItems.forEach((item) => next.add(item.id));
+      return next;
+    });
+    setLastSelectedIndex(filteredItems.length > 0 ? 0 : null);
+  }
+
+  function deselectAll() {
+    setSelectedCaseIds(new Set());
+    setLastSelectedIndex(null);
+  }
+
+  function deleteSelected() {
+    if (!onDeleteCase) return;
+    const selectedVisibleIds = filteredItems.filter((item) => selectedCaseIds.has(item.id)).map((item) => item.id);
+    if (selectedVisibleIds.length === 0) return;
+    setBulkDeleteIds(selectedVisibleIds);
+    setBulkDeleteModalOpen(true);
+  }
+
+  async function confirmBulkDelete() {
+    if (!onDeleteCase || bulkDeleteIds.length === 0) return;
+    setIsDeletingSelected(true);
+    try {
+      await Promise.all(bulkDeleteIds.map((id) => Promise.resolve(onDeleteCase(id))));
+      setSelectedCaseIds(new Set());
+      setLastSelectedIndex(null);
+      setBulkDeleteModalOpen(false);
+      setBulkDeleteIds([]);
+    } finally {
+      setIsDeletingSelected(false);
     }
   }
 
@@ -228,6 +292,8 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
           return false;
         }
       }
+      if (dateFilterFrom && (item.date_reported ?? '') < dateFilterFrom) return false;
+      if (dateFilterTo && (item.date_reported ?? '') > dateFilterTo) return false;
       if (normalized.device_name && !(item.device_name ?? '').toLowerCase().includes(normalized.device_name)) return false;
       if (!matchesNumeric(item.tricia_s, normalized.tricia_s)) return false;
       if (!matchesNumeric(item.user_s, normalized.user_s)) return false;
@@ -249,7 +315,16 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
       }
       return true;
     });
-  }, [changedCaseIds, commentInputs, filters, items]);
+  }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items]);
+
+  useEffect(() => {
+    const visibleSet = new Set(filteredItems.map((item) => item.id));
+    setSelectedCaseIds((previous) => {
+      const next = new Set(Array.from(previous).filter((id) => visibleSet.has(id)));
+      if (next.size === previous.size) return previous;
+      return next;
+    });
+  }, [filteredItems]);
 
   useEffect(() => {
     if (!onExportStateChange) return;
@@ -297,6 +372,8 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
 
   const S_OPTS = [1, 3, 5, 8, 10];
   const D_OPTS = [1, 5, 10];
+  const selectedVisibleCount = filteredItems.filter((item) => selectedCaseIds.has(item.id)).length;
+  const allVisibleSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length;
 
   if (items.length === 0) {
     return (
@@ -313,8 +390,16 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
           Showing {filteredItems.length} of {items.length} cases
         </span>
         <div className="flex items-center gap-2">
+          {onDeleteCase && (
+            <>
+            </>
+          )}
           <button
-            onClick={() => setFilters(emptyFilters)}
+            onClick={() => {
+              setFilters(emptyFilters);
+              setDateFilterFrom('');
+              setDateFilterTo('');
+            }}
             className="px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100"
           >
             Reset filters
@@ -347,6 +432,19 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
+              {onDeleteCase && (
+                <th className="px-3 py-2 text-left align-top min-w-[190px]">
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={deleteSelected}
+                      disabled={selectedVisibleCount === 0}
+                      className="px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
+                    >
+                      Delete selected ({selectedVisibleCount})
+                    </button>
+                  </div>
+                </th>
+              )}
               {columns.map((columnId) => (
                 <th
                   key={columnId}
@@ -361,11 +459,33 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                       : 'text-left'
                   }`}
                 >
-                  {COLUMN_LABELS[columnId]}
+                  {columnId === 'date_reported' ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowDateColumnPicker((previous) => !previous)}
+                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-stone-200 text-xs font-semibold uppercase tracking-wide"
+                      title="Toggle date range picker"
+                    >
+                      {COLUMN_LABELS[columnId]}
+                      <span className="text-[10px] text-stone-400">{showDateColumnPicker ? '▲' : '▼'}</span>
+                    </button>
+                  ) : (
+                    COLUMN_LABELS[columnId]
+                  )}
                 </th>
               ))}
             </tr>
             <tr className="border-b border-stone-200 bg-white">
+              {onDeleteCase && (
+                <th className="px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => (e.target.checked ? selectAllVisible() : deselectAll())}
+                    aria-label="select-all-visible-cases"
+                  />
+                </th>
+              )}
               {columns.map((columnId) => (
                 <th key={columnId} className="px-3 py-2">
                   {columnId === 'category_code' ? (
@@ -401,6 +521,35 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                       <option value="edited">Edited</option>
                       <option value="not_edited">Not edited</option>
                     </select>
+                  ) : columnId === 'date_reported' ? (
+                    <div className="space-y-1">
+                      {showDateColumnPicker ? (
+                        <>
+                          <input
+                            type="date"
+                            value={dateFilterFrom}
+                            onChange={(e) => setDateFilterFrom(e.target.value)}
+                            className="w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white"
+                            title="Date Reported from"
+                          />
+                          <input
+                            type="date"
+                            value={dateFilterTo}
+                            onChange={(e) => setDateFilterTo(e.target.value)}
+                            className="w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white"
+                            title="Date Reported to"
+                          />
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowDateColumnPicker(true)}
+                          className="w-full text-left text-[11px] text-stone-500 border border-dashed border-stone-300 rounded px-2 py-1 hover:bg-stone-50"
+                        >
+                          Click Date Reported above
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <input
                       value={filters[columnId]}
@@ -414,9 +563,19 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => {
+            {filteredItems.map((item, itemIndex) => {
               return (
               <tr key={item.id} className={`border-b border-stone-100 last:border-0 ${rowColor(item)}`}>
+                {onDeleteCase && (
+                  <td className="px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedCaseIds.has(item.id)}
+                      onChange={(e) => toggleCaseSelection(item.id, itemIndex, e.nativeEvent.shiftKey)}
+                      aria-label={`select-case-${item.id}`}
+                    />
+                  </td>
+                )}
                 {columns.map((columnId) => {
                   if (columnId === 'vk_number') {
                     return <td key={columnId} className="px-4 py-2.5 font-mono text-xs text-stone-700">{item.vk_number}</td>;
@@ -530,11 +689,6 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                               <Pencil size={14} />
                             </button>
                           )}
-                          {onDeleteCase && (
-                            <button onClick={() => handleDelete(item)} title="Delete" className="text-stone-300 hover:text-red-500 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
-                          )}
                         </div>
                       </td>
                     );
@@ -559,7 +713,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
             })}
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan={Math.max(columns.length, 1)} className="px-4 py-8 text-center text-sm text-stone-400">
+                <td colSpan={Math.max(columns.length + (onDeleteCase ? 1 : 0), 1)} className="px-4 py-8 text-center text-sm text-stone-400">
                   No cases match the selected table filters.
                 </td>
               </tr>
@@ -678,6 +832,42 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                   ))}
                 </div>
               </section>
+            </div>
+          </div>
+        </div>
+      )}
+      {bulkDeleteModalOpen && (
+        <div
+          role="dialog"
+          aria-label="bulk-delete-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
+          onClick={() => !isDeletingSelected && setBulkDeleteModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-stone-900">Delete selected records?</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              You are about to delete {bulkDeleteIds.length} selected case{bulkDeleteIds.length === 1 ? '' : 's'}. This cannot be undone.
+            </p>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteModalOpen(false)}
+                disabled={isDeletingSelected}
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmBulkDelete}
+                disabled={isDeletingSelected}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-60"
+              >
+                {isDeletingSelected ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { useAuth } from '../../app/auth';
 
 export function AppShell({ children }: PropsWithChildren) {
   const { pathname } = useLocation();
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const navItems = [
     { to: '/input', label: 'Input', icon: ClipboardList },
     { to: '/matrix', label: 'Matrix', icon: BarChart3 },
@@ -37,11 +37,22 @@ export function AppShell({ children }: PropsWithChildren) {
               );
             })}
           </nav>
-          {!session && (
-            <Link to="/login" className="ml-auto text-sm text-stone-300 hover:text-white underline">
-              Sign In
-            </Link>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            {!session ? (
+              <Link to="/login" className="text-sm text-stone-300 hover:text-white underline">
+                Sign In
+              </Link>
+            ) : (
+              <>
+                <span className="text-xs text-stone-300">
+                  {session.displayName} ({session.acronym || session.externalKey})
+                </span>
+                <button onClick={signOut} className="text-sm text-stone-300 hover:text-white underline">
+                  Sign out
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
       <main className="max-w-screen-xl mx-auto px-6 py-8">{children}</main>

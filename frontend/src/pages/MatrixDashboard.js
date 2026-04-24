@@ -9,6 +9,7 @@ import { CaseTable } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixLegend } from '../components/matrix/MatrixLegend';
+import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
 import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
 import { useFilters } from '../state/filters';
@@ -136,11 +137,13 @@ export function MatrixDashboard() {
             }))),
         };
     }, [filteredOverrideCases, isOverrideActive, thresholds.data?.acceptance_threshold]);
+    const productCells = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
     useEffect(() => {
-        const productCellsForRisk = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
         if (riskFilter === 'all') {
             setSelectedCellsByDimension((previous) => {
-                if (previous.severity.length === 0 && previous.detectability.length === 0 && previous.product.length === 0) {
+                if (previous.severity.length === 0 &&
+                    previous.detectability.length === 0 &&
+                    previous.product.length === 0) {
                     return previous;
                 }
                 return {
@@ -151,7 +154,7 @@ export function MatrixDashboard() {
             });
             return;
         }
-        const target = getProductRiskSelection(productCellsForRisk, riskFilter);
+        const target = getProductRiskSelection(productCells, riskFilter);
         const targetSet = new Set(target.map((cell) => `${cell.expected}-${cell.observed}`));
         setSelectedCellsByDimension((previous) => {
             const currentSet = new Set(previous.product.map((cell) => `${cell.expected}-${cell.observed}`));
@@ -164,7 +167,7 @@ export function MatrixDashboard() {
                 product: target,
             };
         });
-    }, [isOverrideActive, matrix.data?.matrices?.product, overrideMatrices.product, riskFilter]);
+    }, [productCells, riskFilter]);
     const patchReview = usePatchCaseReview();
     const addComment = useAddCaseComment();
     const updateCase = useUpdateCase();
@@ -211,6 +214,8 @@ export function MatrixDashboard() {
     const displayedCases = isOverrideActive
         ? selectedCases
         : (selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? []);
+    const severityCells = isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? []);
+    const detectabilityCells = isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? []);
     const hasSelection = selectedCellsByDimension.severity.length > 0 ||
         selectedCellsByDimension.detectability.length > 0 ||
         selectedCellsByDimension.product.length > 0;
@@ -257,5 +262,33 @@ export function MatrixDashboard() {
         next.delete('vk_number');
         setSearchParams(next, { replace: true });
     }
-    return (_jsxs(AppShell, { children: [_jsxs("div", { className: "flex items-center justify-between mb-6", children: [_jsx("h1", { className: "text-2xl font-bold text-stone-900", children: "Matrix Dashboard" }), _jsx(ExportButton, { columns: exportState.columns, rows: exportState.rows, fileNamePrefix: "matrix-table" })] }), requestedVkNumber && (_jsxs("div", { className: "mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between", children: [_jsxs("span", { children: ["Filtered to existing case: ", requestedVkNumber] }), _jsx("button", { className: "underline", onClick: clearVkFilter, children: "Clear" })] })), isOverrideActive && (_jsxs("div", { className: "mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between gap-3", children: [_jsxs("span", { children: ["Using uploaded dataset from ", overrideSourceFile, ". Matrix analysis is running on file data only."] }), _jsx("button", { className: "underline", onClick: clearPreviewData, children: "Clear" })] })), _jsxs("div", { className: "flex flex-col gap-6", children: [_jsx(FilterPanel, { includeExcluded: includeExcluded, problematicOnly: problematicOnly, dateWindow: dateWindow, dateFrom: dateFrom, dateTo: dateTo, riskFilter: riskFilter, onIncludeExcludedChange: setIncludeExcluded, onProblematicOnlyChange: setProblematicOnly, onDateWindowChange: setDateWindow, onCustomDateRangeChange: setCustomDateRange, onRiskFilterChange: setRiskFilter }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx(MatrixLegend, {}), hasSelection && (_jsx("button", { onClick: clearAllSelection, className: "ml-auto text-sm text-stone-500 hover:text-stone-800 underline", children: "Deselect all" }))] }), _jsxs("section", { className: "rounded-xl border border-stone-200 bg-white p-4", children: [_jsxs("button", { className: "w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 rounded-lg", onClick: () => setCollapsedSD((previous) => !previous), children: ["Severity and Detectability Matrices - S: ", selectedCellsByDimension.severity.length, " selected, D: ", selectedCellsByDimension.detectability.length, " selected ", collapsedSD ? '▼' : '▲'] }), !collapsedSD && (_jsxs("div", { className: "grid gap-4 md:grid-cols-2 mt-3", children: [_jsx(ConfusionMatrixGrid, { title: "Severity Matrix", cells: isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? []), onCellToggle: (expected, observed) => toggleMatrixCell('severity', expected, observed), selectedCells: selectedCellsByDimension.severity, rowAxisLabel: "WIMI-S", columnAxisLabel: "TRI-S" }), _jsx(ConfusionMatrixGrid, { title: "Detectability Matrix", cells: isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? []), onCellToggle: (expected, observed) => toggleMatrixCell('detectability', expected, observed), selectedCells: selectedCellsByDimension.detectability, rowAxisLabel: "WIMI-D", columnAxisLabel: "TRI-D" })] }))] }), _jsxs("section", { className: "rounded-xl border border-stone-200 bg-white overflow-hidden", children: [_jsxs("button", { className: "w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100", onClick: () => setCollapsedProduct((previous) => !previous), children: ["RBC Matrix (SxDxP) - ", selectedCellsByDimension.product.length, " selected ", collapsedProduct ? '▼' : '▲'] }), !collapsedProduct && (_jsx("div", { className: "p-2", children: _jsx(ConfusionMatrixGrid, { title: "RBC Matrix", cells: isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []), onCellToggle: (expected, observed) => toggleMatrixCell('product', expected, observed), selectedCells: selectedCellsByDimension.product, rowAxisLabel: "WIMI (SxDxP)", columnAxisLabel: "TRI (SxDxP)" }) }))] }), _jsx(CaseTable, { items: displayedCases, onMarkReviewed: isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } })), onToggleExcluded: isOverrideActive ? undefined : ((id, current) => patchReview.mutate({ caseId: id, payload: { is_excluded: !current } })), onSetCategory: isOverrideActive ? undefined : ((id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } })), onAddComment: isOverrideActive ? undefined : ((id, text) => addComment.mutate({ caseId: id, text })), onEditCase: isOverrideActive ? undefined : ((id, payload) => updateCase.mutateAsync({ caseId: id, payload })), onDeleteCase: isOverrideActive ? undefined : ((id) => deleteCase.mutate(id)), onExportStateChange: setExportState }), _jsx(ThresholdConfigPanel, {})] })] }));
+    return (_jsxs(AppShell, { children: [_jsxs("div", { className: "flex items-center justify-between mb-6", children: [_jsx("h1", { className: "text-2xl font-bold text-stone-900", children: "Matrix Dashboard" }), _jsxs("div", { className: "flex gap-2", children: [_jsx(ExportButton, { columns: exportState.columns, rows: exportState.rows, fileNamePrefix: "matrix-table" }), _jsx(MatrixReportExportButton, { fileNamePrefix: "matrix-report", generatedAt: new Date().toLocaleString('de-DE'), filters: {
+                                    include_excluded: includeExcluded,
+                                    problematic_only: problematicOnly,
+                                    date_window: dateWindow,
+                                    date_from: dateFrom,
+                                    date_to: dateTo,
+                                    risk_filter: riskFilter,
+                                    selected_vk_number: requestedVkNumber || undefined,
+                                    selected_matrix_cells: selectedRequests.length > 0 ? selectedRequests.map((cell) => `${cell.dimension}:${cell.expected}->${cell.observed}`).join(', ') : 'none',
+                                }, matrixSections: [
+                                    {
+                                        title: 'Severity Matrix',
+                                        rowAxisLabel: 'WIMI-S',
+                                        columnAxisLabel: 'TRI-S',
+                                        cells: severityCells,
+                                    },
+                                    {
+                                        title: 'Detectability Matrix',
+                                        rowAxisLabel: 'WIMI-D',
+                                        columnAxisLabel: 'TRI-D',
+                                        cells: detectabilityCells,
+                                    },
+                                    {
+                                        title: 'RBC Matrix (SxDxP)',
+                                        rowAxisLabel: 'WIMI (SxDxP)',
+                                        columnAxisLabel: 'TRI (SxDxP)',
+                                        cells: productCells,
+                                    },
+                                ], tableColumns: exportState.columns, tableRows: exportState.rows })] })] }), requestedVkNumber && (_jsxs("div", { className: "mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between", children: [_jsxs("span", { children: ["Filtered to existing case: ", requestedVkNumber] }), _jsx("button", { className: "underline", onClick: clearVkFilter, children: "Clear" })] })), isOverrideActive && (_jsxs("div", { className: "mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between gap-3", children: [_jsxs("span", { children: ["Using uploaded dataset from ", overrideSourceFile, ". Matrix analysis is running on file data only."] }), _jsx("button", { className: "underline", onClick: clearPreviewData, children: "Clear" })] })), _jsxs("div", { className: "flex flex-col gap-6", children: [_jsx(FilterPanel, { includeExcluded: includeExcluded, problematicOnly: problematicOnly, dateWindow: dateWindow, dateFrom: dateFrom, dateTo: dateTo, riskFilter: riskFilter, onIncludeExcludedChange: setIncludeExcluded, onProblematicOnlyChange: setProblematicOnly, onDateWindowChange: setDateWindow, onCustomDateRangeChange: setCustomDateRange, onRiskFilterChange: setRiskFilter }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx(MatrixLegend, {}), hasSelection && (_jsx("button", { onClick: clearAllSelection, className: "ml-auto text-sm text-stone-500 hover:text-stone-800 underline", children: "Deselect all" }))] }), _jsxs("section", { className: "rounded-xl border border-stone-200 bg-white p-4", children: [_jsxs("button", { className: "w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 rounded-lg", onClick: () => setCollapsedSD((previous) => !previous), children: ["Severity and Detectability Matrices - S: ", selectedCellsByDimension.severity.length, " selected, D: ", selectedCellsByDimension.detectability.length, " selected ", collapsedSD ? '▼' : '▲'] }), !collapsedSD && (_jsxs("div", { className: "grid gap-4 md:grid-cols-2 mt-3", children: [_jsx(ConfusionMatrixGrid, { title: "Severity Matrix", cells: severityCells, onCellToggle: (expected, observed) => toggleMatrixCell('severity', expected, observed), selectedCells: selectedCellsByDimension.severity, rowAxisLabel: "WIMI-S", columnAxisLabel: "TRI-S" }), _jsx(ConfusionMatrixGrid, { title: "Detectability Matrix", cells: detectabilityCells, onCellToggle: (expected, observed) => toggleMatrixCell('detectability', expected, observed), selectedCells: selectedCellsByDimension.detectability, rowAxisLabel: "WIMI-D", columnAxisLabel: "TRI-D" })] }))] }), _jsxs("section", { className: "rounded-xl border border-stone-200 bg-white overflow-hidden", children: [_jsxs("button", { className: "w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100", onClick: () => setCollapsedProduct((previous) => !previous), children: ["RBC Matrix (SxDxP) - ", selectedCellsByDimension.product.length, " selected ", collapsedProduct ? '▼' : '▲'] }), !collapsedProduct && (_jsx("div", { className: "p-2", children: _jsx(ConfusionMatrixGrid, { title: "RBC Matrix", cells: productCells, onCellToggle: (expected, observed) => toggleMatrixCell('product', expected, observed), selectedCells: selectedCellsByDimension.product, rowAxisLabel: "WIMI (SxDxP)", columnAxisLabel: "TRI (SxDxP)" }) }))] }), _jsx(CaseTable, { items: displayedCases, onMarkReviewed: isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } })), onToggleExcluded: isOverrideActive ? undefined : ((id, current) => patchReview.mutate({ caseId: id, payload: { is_excluded: !current } })), onSetCategory: isOverrideActive ? undefined : ((id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } })), onAddComment: isOverrideActive ? undefined : ((id, text) => addComment.mutate({ caseId: id, text })), onEditCase: isOverrideActive ? undefined : ((id, payload) => updateCase.mutateAsync({ caseId: id, payload })), onDeleteCase: isOverrideActive ? undefined : ((id) => deleteCase.mutate(id)), onExportStateChange: setExportState }), _jsx(ThresholdConfigPanel, {})] })] }));
 }

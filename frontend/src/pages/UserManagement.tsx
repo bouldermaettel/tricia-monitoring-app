@@ -4,7 +4,7 @@ import { useAuth } from '../app/auth';
 import { useCreateUser, useDeleteUser, useUpdateUser, useUsers } from '../hooks/useUsers';
 
 export function UserManagement() {
-  const { signOut, session } = useAuth();
+  const { session } = useAuth();
   const usersQuery = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -15,7 +15,7 @@ export function UserManagement() {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('operator');
   const [isActive, setIsActive] = useState(true);
-  const [editing, setEditing] = useState<Record<string, { acronym: string; role: string; is_active: boolean; password: string }>>({});
+  const [editing, setEditing] = useState<Record<string, { display_name: string; acronym: string; role: string; is_active: boolean; password: string }>>({});
 
   const hasError = usersQuery.isError || createUser.isError;
 
@@ -42,11 +42,40 @@ export function UserManagement() {
     setIsActive(true);
   }
 
-  function onEditAcronymChange(userId: string, currentAcronym: string, currentRole: string, currentActive: boolean, value: string) {
+  function onEditDisplayNameChange(
+    userId: string,
+    currentDisplayName: string,
+    currentAcronym: string,
+    currentRole: string,
+    currentActive: boolean,
+    value: string
+  ) {
     const previous = editing[userId];
     setEditing((prev) => ({
       ...prev,
       [userId]: {
+        display_name: value || previous?.display_name || currentDisplayName,
+        acronym: previous?.acronym ?? currentAcronym,
+        role: previous?.role ?? currentRole,
+        is_active: previous?.is_active ?? currentActive,
+        password: previous?.password ?? '',
+      },
+    }));
+  }
+
+  function onEditAcronymChange(
+    userId: string,
+    currentDisplayName: string,
+    currentAcronym: string,
+    currentRole: string,
+    currentActive: boolean,
+    value: string
+  ) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        display_name: previous?.display_name ?? currentDisplayName,
         acronym: value || previous?.acronym || currentAcronym,
         role: previous?.role ?? currentRole,
         is_active: previous?.is_active ?? currentActive,
@@ -55,12 +84,13 @@ export function UserManagement() {
     }));
   }
 
-  function onEditRoleChange(userId: string, currentRole: string, value: string, currentActive: boolean) {
+  function onEditRoleChange(userId: string, currentDisplayName: string, currentAcronym: string, currentRole: string, value: string, currentActive: boolean) {
     const previous = editing[userId];
     setEditing((prev) => ({
       ...prev,
       [userId]: {
-        acronym: previous?.acronym ?? '',
+        display_name: previous?.display_name ?? currentDisplayName,
+        acronym: previous?.acronym ?? currentAcronym,
         role: value || previous?.role || currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: previous?.password ?? '',
@@ -68,12 +98,13 @@ export function UserManagement() {
     }));
   }
 
-  function onEditActiveChange(userId: string, currentRole: string, checked: boolean, currentActive: boolean) {
+  function onEditActiveChange(userId: string, currentDisplayName: string, currentAcronym: string, currentRole: string, checked: boolean, currentActive: boolean) {
     const previous = editing[userId];
     setEditing((prev) => ({
       ...prev,
       [userId]: {
-        acronym: previous?.acronym ?? '',
+        display_name: previous?.display_name ?? currentDisplayName,
+        acronym: previous?.acronym ?? currentAcronym,
         role: previous?.role ?? currentRole,
         is_active: checked,
         password: previous?.password ?? '',
@@ -81,12 +112,20 @@ export function UserManagement() {
     }));
   }
 
-  function onEditPasswordChange(userId: string, currentRole: string, currentActive: boolean, value: string) {
+  function onEditPasswordChange(
+    userId: string,
+    currentDisplayName: string,
+    currentAcronym: string,
+    currentRole: string,
+    currentActive: boolean,
+    value: string
+  ) {
     const previous = editing[userId];
     setEditing((prev) => ({
       ...prev,
       [userId]: {
-        acronym: previous?.acronym ?? '',
+        display_name: previous?.display_name ?? currentDisplayName,
+        acronym: previous?.acronym ?? currentAcronym,
         role: previous?.role ?? currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: value,
@@ -94,18 +133,26 @@ export function UserManagement() {
     }));
   }
 
-  async function onSaveUser(userId: string, originalAcronym: string, originalRole: string, originalActive: boolean) {
+  async function onSaveUser(
+    userId: string,
+    originalDisplayName: string,
+    originalAcronym: string,
+    originalRole: string,
+    originalActive: boolean
+  ) {
     const draft = editing[userId];
-    const payload: { acronym?: string; role?: string; is_active?: boolean; password?: string } = {};
+    const payload: { display_name?: string; acronym?: string; role?: string; is_active?: boolean; password?: string } = {};
     const password = draft?.password?.trim() ?? '';
+    const displayName = draft?.display_name?.trim() ?? '';
     const acronym = draft?.acronym?.trim() ?? '';
+    if (displayName && displayName !== originalDisplayName) payload.display_name = displayName;
     if (acronym && acronym !== originalAcronym) payload.acronym = acronym;
     if (draft?.role !== undefined && draft.role !== originalRole) payload.role = draft.role;
     if (draft?.is_active !== undefined && draft.is_active !== originalActive) payload.is_active = draft.is_active;
     if (password) {
       payload.password = password;
     }
-    if (!payload.acronym && !payload.role && payload.is_active === undefined && !payload.password) return;
+    if (!payload.display_name && !payload.acronym && !payload.role && payload.is_active === undefined && !payload.password) return;
 
     await updateUser.mutateAsync({ userId, payload });
     setEditing((prev) => {
@@ -116,6 +163,7 @@ export function UserManagement() {
   }
 
   async function onDeleteUser(userId: string) {
+    if (!window.confirm('Delete this user permanently?')) return;
     await deleteUser.mutateAsync(userId);
   }
 
@@ -126,7 +174,6 @@ export function UserManagement() {
           <h1 className="text-2xl font-bold text-stone-900">User Management</h1>
           <p className="text-stone-500 text-sm">Admins can add, edit, deactivate, and delete users.</p>
           <p className="text-stone-500 text-xs mt-1">Signed in as: {session?.displayName} ({session?.externalKey})</p>
-          <button onClick={signOut} className="mt-2 text-sm text-stone-700 underline">Sign out</button>
         </div>
 
         <form onSubmit={onSubmit} className="bg-white border border-stone-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -208,19 +255,25 @@ export function UserManagement() {
             <tbody>
               {(usersQuery.data?.items ?? []).map((user) => (
                 <tr key={user.id} className="border-t border-stone-100">
-                  <td className="px-4 py-3">{user.display_name}</td>
+                  <td className="px-4 py-3">
+                    <input
+                      value={editing[user.id]?.display_name ?? user.display_name}
+                      onChange={(e) => onEditDisplayNameChange(user.id, user.display_name, user.acronym, user.role, user.is_active, e.target.value)}
+                      className="border border-stone-300 rounded px-2 py-1 text-xs w-48"
+                    />
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{user.external_key}</td>
                   <td className="px-4 py-3">
                     <input
                       value={editing[user.id]?.acronym ?? user.acronym}
-                      onChange={(e) => onEditAcronymChange(user.id, user.acronym, user.role, user.is_active, e.target.value)}
+                      onChange={(e) => onEditAcronymChange(user.id, user.display_name, user.acronym, user.role, user.is_active, e.target.value)}
                       className="border border-stone-300 rounded px-2 py-1 text-xs w-24"
                     />
                   </td>
                   <td className="px-4 py-3">
                     <select
                       value={editing[user.id]?.role ?? user.role}
-                      onChange={(e) => onEditRoleChange(user.id, user.role, e.target.value, user.is_active)}
+                      onChange={(e) => onEditRoleChange(user.id, user.display_name, user.acronym, user.role, e.target.value, user.is_active)}
                       className="border border-stone-300 rounded px-2 py-1"
                     >
                       <option value="operator">operator</option>
@@ -234,7 +287,7 @@ export function UserManagement() {
                       aria-label={`active-${user.id}`}
                       type="checkbox"
                       checked={editing[user.id]?.is_active ?? user.is_active}
-                      onChange={(e) => onEditActiveChange(user.id, user.role, e.target.checked, user.is_active)}
+                      onChange={(e) => onEditActiveChange(user.id, user.display_name, user.acronym, user.role, e.target.checked, user.is_active)}
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -242,7 +295,7 @@ export function UserManagement() {
                       aria-label={`password-${user.id}`}
                       type="password"
                       value={editing[user.id]?.password ?? ''}
-                      onChange={(e) => onEditPasswordChange(user.id, user.role, user.is_active, e.target.value)}
+                      onChange={(e) => onEditPasswordChange(user.id, user.display_name, user.acronym, user.role, user.is_active, e.target.value)}
                       placeholder="Leave blank"
                       className="border border-stone-300 rounded px-2 py-1 text-xs"
                     />
@@ -250,7 +303,7 @@ export function UserManagement() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => onSaveUser(user.id, user.acronym, user.role, user.is_active)}
+                        onClick={() => onSaveUser(user.id, user.display_name, user.acronym, user.role, user.is_active)}
                         disabled={updateUser.isPending}
                         className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
                       >
@@ -258,8 +311,9 @@ export function UserManagement() {
                       </button>
                       <button
                         onClick={() => onDeleteUser(user.id)}
-                        disabled={deleteUser.isPending}
+                        disabled={deleteUser.isPending || user.external_key === session?.externalKey}
                         className="bg-red-600 text-white rounded px-3 py-1 text-xs hover:bg-red-500 disabled:opacity-60"
+                        title={user.external_key === session?.externalKey ? 'You cannot delete your own active admin account' : 'Delete user'}
                       >
                         Delete
                       </button>

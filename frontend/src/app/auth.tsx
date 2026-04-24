@@ -9,6 +9,7 @@ export type AppSession = {
   refreshExpiresAt: number;
   actorId: string;
   externalKey: string;
+  acronym?: string;
   displayName: string;
   role: string;
 };
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           refreshExpiresAt: Date.now() + actor.refresh_expires_in * 1000,
           actorId: actor.actor_id,
           externalKey: actor.external_key,
+          acronym: actor.acronym,
           displayName: actor.display_name,
           role: actor.role,
         };

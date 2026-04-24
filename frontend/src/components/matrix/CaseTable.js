@@ -1,6 +1,6 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useMemo, useState } from 'react';
-import { Check, MessageSquare, MinusCircle, Pencil, Tag, Trash2, X } from 'lucide-react';
+import { Check, MessageSquare, MinusCircle, Pencil, Tag, X } from 'lucide-react';
 import { useCaseAuditTrail } from '../../hooks/useCases';
 import { formatIsoDateToGerman } from '../../utils/date';
 const CATEGORY_OPTIONS = [
@@ -91,6 +91,13 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
         is_reviewed: '',
         actions: '',
     });
+    const [dateFilterFrom, setDateFilterFrom] = useState('');
+    const [dateFilterTo, setDateFilterTo] = useState('');
+    const [selectedCaseIds, setSelectedCaseIds] = useState(new Set());
+    const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
+    const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+    const [bulkDeleteIds, setBulkDeleteIds] = useState([]);
+    const [isDeletingSelected, setIsDeletingSelected] = useState(false);
     const emptyFilters = {
         vk_number: '',
         wimi_shortcut: '',
@@ -129,9 +136,66 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
             setIsSavingEdit(false);
         }
     }
-    function handleDelete(item) {
-        if (window.confirm(`Delete case ${item.vk_number}? This cannot be undone.`)) {
-            onDeleteCase?.(item.id);
+    function toggleCaseSelection(itemId, itemIndex, shiftKey) {
+        setSelectedCaseIds((previous) => {
+            const next = new Set(previous);
+            const isAlreadySelected = next.has(itemId);
+            if (!shiftKey || lastSelectedIndex === null) {
+                if (isAlreadySelected) {
+                    next.delete(itemId);
+                }
+                else {
+                    next.add(itemId);
+                }
+                return next;
+            }
+            const start = Math.min(lastSelectedIndex, itemIndex);
+            const end = Math.max(lastSelectedIndex, itemIndex);
+            const rangeIds = filteredItems.slice(start, end + 1).map((item) => item.id);
+            if (isAlreadySelected) {
+                rangeIds.forEach((id) => next.delete(id));
+            }
+            else {
+                rangeIds.forEach((id) => next.add(id));
+            }
+            return next;
+        });
+        setLastSelectedIndex(itemIndex);
+    }
+    function selectAllVisible() {
+        setSelectedCaseIds((previous) => {
+            const next = new Set(previous);
+            filteredItems.forEach((item) => next.add(item.id));
+            return next;
+        });
+        setLastSelectedIndex(filteredItems.length > 0 ? 0 : null);
+    }
+    function deselectAll() {
+        setSelectedCaseIds(new Set());
+        setLastSelectedIndex(null);
+    }
+    function deleteSelected() {
+        if (!onDeleteCase)
+            return;
+        const selectedVisibleIds = filteredItems.filter((item) => selectedCaseIds.has(item.id)).map((item) => item.id);
+        if (selectedVisibleIds.length === 0)
+            return;
+        setBulkDeleteIds(selectedVisibleIds);
+        setBulkDeleteModalOpen(true);
+    }
+    async function confirmBulkDelete() {
+        if (!onDeleteCase || bulkDeleteIds.length === 0)
+            return;
+        setIsDeletingSelected(true);
+        try {
+            await Promise.all(bulkDeleteIds.map((id) => Promise.resolve(onDeleteCase(id))));
+            setSelectedCaseIds(new Set());
+            setLastSelectedIndex(null);
+            setBulkDeleteModalOpen(false);
+            setBulkDeleteIds([]);
+        }
+        finally {
+            setIsDeletingSelected(false);
         }
     }
     const columns = useMemo(() => Object.keys(COLUMN_LABELS).filter((columnId) => visibleColumns[columnId]), [visibleColumns]);
@@ -152,6 +216,10 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                     return false;
                 }
             }
+            if (dateFilterFrom && (item.date_reported ?? '') < dateFilterFrom)
+                return false;
+            if (dateFilterTo && (item.date_reported ?? '') > dateFilterTo)
+                return false;
             if (normalized.device_name && !(item.device_name ?? '').toLowerCase().includes(normalized.device_name))
                 return false;
             if (!matchesNumeric(item.tricia_s, normalized.tricia_s))
@@ -184,7 +252,16 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
             }
             return true;
         });
-    }, [changedCaseIds, commentInputs, filters, items]);
+    }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items]);
+    useEffect(() => {
+        const visibleSet = new Set(filteredItems.map((item) => item.id));
+        setSelectedCaseIds((previous) => {
+            const next = new Set(Array.from(previous).filter((id) => visibleSet.has(id)));
+            if (next.size === previous.size)
+                return previous;
+            return next;
+        });
+    }, [filteredItems]);
     useEffect(() => {
         if (!onExportStateChange)
             return;
@@ -219,71 +296,84 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
         });
     }, [auditTrail.data?.items, editingItem?.wimi_shortcut]);
     const auditEventsToShow = wimiAuditEvents.length > 0 ? wimiAuditEvents : (auditTrail.data?.items ?? []);
+    function displayActor(event) {
+        const raw = (event.actor_id ?? '').trim();
+        if (raw && raw.toLowerCase() !== 'system')
+            return raw;
+        const fallback = editingItem?.wimi_shortcut?.trim();
+        return fallback || raw || 'unknown';
+    }
     const S_OPTS = [1, 3, 5, 8, 10];
     const D_OPTS = [1, 5, 10];
+    const selectedVisibleCount = filteredItems.filter((item) => selectedCaseIds.has(item.id)).length;
+    const allVisibleSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length;
     if (items.length === 0) {
         return (_jsx("div", { className: "rounded-xl border border-stone-200 bg-white p-8 text-center text-stone-400 text-sm", children: "No cases for the selected filters." }));
     }
-    return (_jsxs("div", { className: "rounded-xl border border-stone-200 bg-white overflow-hidden", children: [_jsxs("div", { className: "px-4 py-3 border-b border-stone-200 bg-stone-50 flex items-center justify-between gap-3", children: [_jsxs("span", { className: "text-xs text-stone-500", children: ["Showing ", filteredItems.length, " of ", items.length, " cases"] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx("button", { onClick: () => setFilters(emptyFilters), className: "px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100", children: "Reset filters" }), _jsxs("details", { className: "relative", children: [_jsx("summary", { className: "list-none cursor-pointer px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100", children: "Columns" }), _jsx("div", { className: "absolute right-0 z-10 mt-1 w-60 rounded-lg border border-stone-200 bg-white shadow-lg p-3 flex flex-col gap-2", children: Object.keys(COLUMN_LABELS).map((columnId) => (_jsxs("label", { className: "flex items-center gap-2 text-sm text-stone-700", children: [_jsx("input", { type: "checkbox", checked: visibleColumns[columnId], onChange: (e) => setVisibleColumns((previous) => ({
+    return (_jsxs("div", { className: "rounded-xl border border-stone-200 bg-white overflow-hidden", children: [_jsxs("div", { className: "px-4 py-3 border-b border-stone-200 bg-stone-50 flex items-center justify-between gap-3", children: [_jsxs("span", { className: "text-xs text-stone-500", children: ["Showing ", filteredItems.length, " of ", items.length, " cases"] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("input", { type: "date", value: dateFilterFrom, onChange: (e) => setDateFilterFrom(e.target.value), className: "text-sm border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-amber-400 bg-white" }), _jsx("span", { className: "text-stone-400 text-sm", children: "\u2192" }), _jsx("input", { type: "date", value: dateFilterTo, onChange: (e) => setDateFilterTo(e.target.value), className: "text-sm border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-amber-400 bg-white" })] }), onDeleteCase && (_jsx(_Fragment, {})), _jsx("button", { onClick: () => {
+                                    setFilters(emptyFilters);
+                                    setDateFilterFrom('');
+                                    setDateFilterTo('');
+                                }, className: "px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100", children: "Reset filters" }), _jsxs("details", { className: "relative", children: [_jsx("summary", { className: "list-none cursor-pointer px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100", children: "Columns" }), _jsx("div", { className: "absolute right-0 z-10 mt-1 w-60 rounded-lg border border-stone-200 bg-white shadow-lg p-3 flex flex-col gap-2", children: Object.keys(COLUMN_LABELS).map((columnId) => (_jsxs("label", { className: "flex items-center gap-2 text-sm text-stone-700", children: [_jsx("input", { type: "checkbox", checked: visibleColumns[columnId], onChange: (e) => setVisibleColumns((previous) => ({
                                                         ...previous,
                                                         [columnId]: e.target.checked,
-                                                    })) }), _jsx("span", { children: COLUMN_LABELS[columnId] })] }, columnId))) })] })] })] }), _jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "w-full text-sm", children: [_jsxs("thead", { children: [_jsx("tr", { className: "border-b border-stone-200 bg-stone-50", children: columns.map((columnId) => (_jsx("th", { className: `px-3 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wide ${columnId === 'tricia_s' ||
-                                            columnId === 'user_s' ||
-                                            columnId === 'tricia_d' ||
-                                            columnId === 'user_d' ||
-                                            columnId === 'is_excluded' ||
-                                            columnId === 'is_reviewed'
-                                            ? 'text-center'
-                                            : 'text-left'}`, children: COLUMN_LABELS[columnId] }, columnId))) }), _jsx("tr", { className: "border-b border-stone-200 bg-white", children: columns.map((columnId) => (_jsx("th", { className: "px-3 py-2", children: columnId === 'category_code' ? (_jsxs("select", { value: filters.category_code, onChange: (e) => setFilters((previous) => ({ ...previous, category_code: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), categoryOptions.map((value) => (_jsx("option", { value: value, children: value }, value)))] })) : columnId === 'is_excluded' || columnId === 'is_reviewed' ? (_jsxs("select", { value: filters[columnId], onChange: (e) => setFilters((previous) => ({ ...previous, [columnId]: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), _jsx("option", { value: "yes", children: "Yes" }), _jsx("option", { value: "no", children: "No" })] })) : columnId === 'actions' ? (_jsxs("select", { value: filters.actions, onChange: (e) => setFilters((previous) => ({ ...previous, actions: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), _jsx("option", { value: "edited", children: "Edited" }), _jsx("option", { value: "not_edited", children: "Not edited" })] })) : (_jsx("input", { value: filters[columnId], onChange: (e) => setFilters((previous) => ({ ...previous, [columnId]: e.target.value })), placeholder: "Filter...", className: "w-full text-xs border border-stone-200 rounded px-2 py-1" })) }, columnId))) })] }), _jsxs("tbody", { children: [filteredItems.map((item) => {
-                                    return (_jsx("tr", { className: `border-b border-stone-100 last:border-0 ${rowColor(item)}`, children: columns.map((columnId) => {
-                                            if (columnId === 'vk_number') {
-                                                return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-700", children: item.vk_number }, columnId);
-                                            }
-                                            if (columnId === 'wimi_shortcut') {
-                                                return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-700", children: item.wimi_shortcut ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'date_reported') {
-                                                return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-600", children: formatIsoDateToGerman(item.date_reported) }, columnId);
-                                            }
-                                            if (columnId === 'device_name') {
-                                                return _jsx("td", { className: "px-4 py-2.5 text-stone-700", children: item.device_name ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'tricia_s') {
-                                                return _jsx("td", { className: "px-3 py-2.5 text-center font-mono", children: item.tricia_s ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'user_s') {
-                                                return _jsx("td", { className: "px-3 py-2.5 text-center font-mono font-semibold", children: item.user_s ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'tricia_d') {
-                                                return _jsx("td", { className: "px-3 py-2.5 text-center font-mono", children: item.tricia_d ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'user_d') {
-                                                return _jsx("td", { className: "px-3 py-2.5 text-center font-mono font-semibold", children: item.user_d ?? '—' }, columnId);
-                                            }
-                                            if (columnId === 'category_code') {
-                                                return (_jsx("td", { className: "px-3 py-2.5", children: onSetCategory ? (_jsx("select", { value: item.category_code ?? '', onChange: (e) => onSetCategory(item.id, e.target.value), className: "text-xs border border-stone-200 rounded px-1.5 py-1 bg-white outline-none focus:border-amber-400 cursor-pointer", children: CATEGORY_OPTIONS.map((o) => (_jsx("option", { value: o.value, children: o.label }, o.value))) })) : (_jsxs("span", { className: "flex items-center gap-1 text-xs text-stone-500", children: [_jsx(Tag, { size: 12 }), item.category_code ?? '—'] })) }, columnId));
-                                            }
-                                            if (columnId === 'comment') {
-                                                return (_jsx("td", { className: "px-3 py-2.5", children: onAddComment ? (_jsxs("div", { className: "flex gap-1", children: [_jsx("input", { value: commentInputs[item.id] ?? '', onChange: (e) => setCommentInputs((p) => ({ ...p, [item.id]: e.target.value })), onKeyDown: (e) => {
-                                                                    if (e.key === 'Enter' && commentInputs[item.id]?.trim()) {
-                                                                        onAddComment(item.id, commentInputs[item.id]);
-                                                                        setCommentInputs((p) => ({ ...p, [item.id]: '' }));
-                                                                    }
-                                                                }, placeholder: "Add\u2026", className: "text-xs border border-stone-200 rounded px-2 py-1 w-28 outline-none focus:border-amber-400" }), _jsx("button", { onClick: () => {
-                                                                    if (commentInputs[item.id]?.trim()) {
-                                                                        onAddComment(item.id, commentInputs[item.id]);
-                                                                        setCommentInputs((p) => ({ ...p, [item.id]: '' }));
-                                                                    }
-                                                                }, className: "text-stone-400 hover:text-stone-700", title: "Submit comment", children: _jsx(MessageSquare, { size: 13 }) })] })) : (_jsx("span", { className: "text-xs text-stone-400", children: "\u2014" })) }, columnId));
-                                            }
-                                            if (columnId === 'is_excluded') {
-                                                return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("button", { onClick: () => onToggleExcluded?.(item.id, item.is_excluded ?? false), title: "Toggle Streichresultat", className: `transition-colors ${item.is_excluded ? 'text-red-500 hover:text-red-700' : 'text-stone-300 hover:text-stone-500'}`, children: _jsx(MinusCircle, { size: 16 }) }) }, columnId));
-                                            }
-                                            if (columnId === 'actions') {
-                                                return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsxs("div", { className: "flex items-center gap-1 justify-center", children: [onEditCase && (_jsx("button", { onClick: () => startEdit(item), title: "Edit", className: `transition-colors ${(changedCaseIds[item.id] || item.has_edits) ? 'text-red-500 hover:text-red-700' : 'text-stone-400 hover:text-amber-600'}`, children: _jsx(Pencil, { size: 14 }) })), onDeleteCase && (_jsx("button", { onClick: () => handleDelete(item), title: "Delete", className: "text-stone-300 hover:text-red-500 transition-colors", children: _jsx(Trash2, { size: 14 }) }))] }) }, columnId));
-                                            }
-                                            // default: is_reviewed
-                                            return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("button", { onClick: () => onMarkReviewed?.(item.id, item.is_reviewed ?? false), title: item.is_reviewed ? 'Mark as not reviewed' : 'Mark reviewed', className: `transition-colors ${item.is_reviewed ? 'text-emerald-500 hover:text-emerald-700' : 'text-stone-300 hover:text-emerald-400'}`, children: _jsx(Check, { size: 16 }) }) }, columnId));
-                                        }) }, item.id));
-                                }), filteredItems.length === 0 && (_jsx("tr", { children: _jsx("td", { colSpan: Math.max(columns.length, 1), className: "px-4 py-8 text-center text-sm text-stone-400", children: "No cases match the selected table filters." }) }))] })] }) }), editingItem && (_jsx("div", { role: "dialog", "aria-label": "case-edit-dialog", className: "fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4", onClick: () => setEditingId(null), children: _jsxs("div", { className: "w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-2xl bg-white border border-stone-200 shadow-2xl", onClick: (e) => e.stopPropagation(), children: [_jsxs("div", { className: "flex items-center justify-between border-b border-stone-200 px-5 py-4", children: [_jsxs("div", { children: [_jsxs("h3", { className: "text-base font-semibold text-stone-900", children: ["Edit case ", editingItem.vk_number] }), _jsxs("p", { className: "text-xs text-stone-500", children: ["WIMI: ", editingItem.wimi_shortcut ?? '—'] })] }), _jsx("button", { onClick: () => setEditingId(null), className: "text-stone-400 hover:text-stone-700", children: _jsx(X, { size: 18 }) })] }), _jsxs("div", { className: "grid gap-0 md:grid-cols-2", children: [_jsxs("section", { className: "p-5 border-b md:border-b-0 md:border-r border-stone-200 space-y-4", children: [_jsxs("div", { className: "grid gap-3 sm:grid-cols-2", children: [_jsxs("label", { className: "text-xs text-stone-600 sm:col-span-2", children: ["Device", _jsx("input", { value: editValues.device_name, onChange: (e) => setEditValues((previous) => ({ ...previous, device_name: e.target.value })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm" })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["TRI-S", _jsx("select", { value: editValues.tricia_s, onChange: (e) => setEditValues((previous) => ({ ...previous, tricia_s: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: S_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["WIMI-S", _jsx("select", { value: editValues.user_s, onChange: (e) => setEditValues((previous) => ({ ...previous, user_s: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: S_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["TRI-D", _jsx("select", { value: editValues.tricia_d, onChange: (e) => setEditValues((previous) => ({ ...previous, tricia_d: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: D_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["WIMI-D", _jsx("select", { value: editValues.user_d, onChange: (e) => setEditValues((previous) => ({ ...previous, user_d: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: D_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] })] }), _jsxs("div", { className: "flex items-center justify-end gap-2 pt-2", children: [_jsx("button", { onClick: () => setEditingId(null), className: "rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100", children: "Cancel" }), _jsx("button", { onClick: () => commitEdit(editingItem.id), disabled: isSavingEdit, className: "rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60", children: isSavingEdit ? 'Saving...' : 'Save changes' })] })] }), _jsxs("section", { className: "p-5 max-h-[60vh] overflow-y-auto", children: [_jsx("h4", { className: "text-sm font-semibold text-stone-800 mb-2", children: "Audit trail" }), auditTrail.isLoading && _jsx("p", { className: "text-xs text-stone-500", children: "Loading audit trail..." }), !auditTrail.isLoading && auditEventsToShow.length === 0 && (_jsx("p", { className: "text-xs text-stone-500", children: "No logged updates for this case yet." })), _jsx("div", { className: "space-y-2", children: auditEventsToShow.map((event) => (_jsxs("div", { className: "rounded-lg border border-stone-200 bg-stone-50 p-3", children: [_jsxs("p", { className: "text-[11px] uppercase tracking-wide text-stone-500", children: [event.action, " by ", event.actor_id ?? 'unknown', " at ", new Date(event.created_at).toLocaleString('de-DE')] }), _jsx("ul", { className: "mt-2 space-y-1", children: Object.entries(event.changes ?? {}).map(([field, delta]) => (_jsxs("li", { className: "text-xs text-stone-700 font-mono", children: [field, ": ", String(delta?.from ?? '—'), " ", '->', " ", String(delta?.to ?? '—')] }, field))) })] }, event.id))) })] })] })] }) }))] }));
+                                                    })) }), _jsx("span", { children: COLUMN_LABELS[columnId] })] }, columnId))) })] })] })] }), _jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "w-full text-sm", children: [_jsxs("thead", { children: [_jsxs("tr", { className: "border-b border-stone-200 bg-stone-50", children: [onDeleteCase && (_jsx("th", { className: "px-3 py-2 text-left align-top min-w-[190px]", children: _jsx("div", { className: "flex flex-col gap-1", children: _jsxs("button", { onClick: deleteSelected, disabled: selectedVisibleCount === 0, className: "px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-50", children: ["Delete selected (", selectedVisibleCount, ")"] }) }) })), columns.map((columnId) => (_jsx("th", { className: `px-3 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wide ${columnId === 'tricia_s' ||
+                                                columnId === 'user_s' ||
+                                                columnId === 'tricia_d' ||
+                                                columnId === 'user_d' ||
+                                                columnId === 'is_excluded' ||
+                                                columnId === 'is_reviewed'
+                                                ? 'text-center'
+                                                : 'text-left'}`, children: COLUMN_LABELS[columnId] }, columnId)))] }), _jsxs("tr", { className: "border-b border-stone-200 bg-white", children: [onDeleteCase && (_jsx("th", { className: "px-3 py-2 text-center", children: _jsx("input", { type: "checkbox", checked: allVisibleSelected, onChange: (e) => (e.target.checked ? selectAllVisible() : deselectAll()), "aria-label": "select-all-visible-cases" }) })), columns.map((columnId) => (_jsx("th", { className: "px-3 py-2", children: columnId === 'category_code' ? (_jsxs("select", { value: filters.category_code, onChange: (e) => setFilters((previous) => ({ ...previous, category_code: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), categoryOptions.map((value) => (_jsx("option", { value: value, children: value }, value)))] })) : columnId === 'is_excluded' || columnId === 'is_reviewed' ? (_jsxs("select", { value: filters[columnId], onChange: (e) => setFilters((previous) => ({ ...previous, [columnId]: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), _jsx("option", { value: "yes", children: "Yes" }), _jsx("option", { value: "no", children: "No" })] })) : columnId === 'actions' ? (_jsxs("select", { value: filters.actions, onChange: (e) => setFilters((previous) => ({ ...previous, actions: e.target.value })), className: "w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white", children: [_jsx("option", { value: "", children: "All" }), _jsx("option", { value: "edited", children: "Edited" }), _jsx("option", { value: "not_edited", children: "Not edited" })] })) : (_jsx("input", { value: filters[columnId], onChange: (e) => setFilters((previous) => ({ ...previous, [columnId]: e.target.value })), placeholder: "Filter...", className: "w-full text-xs border border-stone-200 rounded px-2 py-1" })) }, columnId)))] })] }), _jsxs("tbody", { children: [filteredItems.map((item, itemIndex) => {
+                                    return (_jsxs("tr", { className: `border-b border-stone-100 last:border-0 ${rowColor(item)}`, children: [onDeleteCase && (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("input", { type: "checkbox", checked: selectedCaseIds.has(item.id), onChange: (e) => toggleCaseSelection(item.id, itemIndex, e.nativeEvent.shiftKey), "aria-label": `select-case-${item.id}` }) })), columns.map((columnId) => {
+                                                if (columnId === 'vk_number') {
+                                                    return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-700", children: item.vk_number }, columnId);
+                                                }
+                                                if (columnId === 'wimi_shortcut') {
+                                                    return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-700", children: item.wimi_shortcut ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'date_reported') {
+                                                    return _jsx("td", { className: "px-4 py-2.5 font-mono text-xs text-stone-600", children: formatIsoDateToGerman(item.date_reported) }, columnId);
+                                                }
+                                                if (columnId === 'device_name') {
+                                                    return _jsx("td", { className: "px-4 py-2.5 text-stone-700", children: item.device_name ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'tricia_s') {
+                                                    return _jsx("td", { className: "px-3 py-2.5 text-center font-mono", children: item.tricia_s ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'user_s') {
+                                                    return _jsx("td", { className: "px-3 py-2.5 text-center font-mono font-semibold", children: item.user_s ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'tricia_d') {
+                                                    return _jsx("td", { className: "px-3 py-2.5 text-center font-mono", children: item.tricia_d ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'user_d') {
+                                                    return _jsx("td", { className: "px-3 py-2.5 text-center font-mono font-semibold", children: item.user_d ?? '—' }, columnId);
+                                                }
+                                                if (columnId === 'category_code') {
+                                                    return (_jsx("td", { className: "px-3 py-2.5", children: onSetCategory ? (_jsx("select", { value: item.category_code ?? '', onChange: (e) => onSetCategory(item.id, e.target.value), className: "text-xs border border-stone-200 rounded px-1.5 py-1 bg-white outline-none focus:border-amber-400 cursor-pointer", children: CATEGORY_OPTIONS.map((o) => (_jsx("option", { value: o.value, children: o.label }, o.value))) })) : (_jsxs("span", { className: "flex items-center gap-1 text-xs text-stone-500", children: [_jsx(Tag, { size: 12 }), item.category_code ?? '—'] })) }, columnId));
+                                                }
+                                                if (columnId === 'comment') {
+                                                    return (_jsx("td", { className: "px-3 py-2.5", children: onAddComment ? (_jsxs("div", { className: "flex gap-1", children: [_jsx("input", { value: commentInputs[item.id] ?? '', onChange: (e) => setCommentInputs((p) => ({ ...p, [item.id]: e.target.value })), onKeyDown: (e) => {
+                                                                        if (e.key === 'Enter' && commentInputs[item.id]?.trim()) {
+                                                                            onAddComment(item.id, commentInputs[item.id]);
+                                                                            setCommentInputs((p) => ({ ...p, [item.id]: '' }));
+                                                                        }
+                                                                    }, placeholder: "Add\u2026", className: "text-xs border border-stone-200 rounded px-2 py-1 w-28 outline-none focus:border-amber-400" }), _jsx("button", { onClick: () => {
+                                                                        if (commentInputs[item.id]?.trim()) {
+                                                                            onAddComment(item.id, commentInputs[item.id]);
+                                                                            setCommentInputs((p) => ({ ...p, [item.id]: '' }));
+                                                                        }
+                                                                    }, className: "text-stone-400 hover:text-stone-700", title: "Submit comment", children: _jsx(MessageSquare, { size: 13 }) })] })) : (_jsx("span", { className: "text-xs text-stone-400", children: "\u2014" })) }, columnId));
+                                                }
+                                                if (columnId === 'is_excluded') {
+                                                    return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("button", { onClick: () => onToggleExcluded?.(item.id, item.is_excluded ?? false), title: "Toggle Streichresultat", className: `transition-colors ${item.is_excluded ? 'text-red-500 hover:text-red-700' : 'text-stone-300 hover:text-stone-500'}`, children: _jsx(MinusCircle, { size: 16 }) }) }, columnId));
+                                                }
+                                                if (columnId === 'actions') {
+                                                    return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("div", { className: "flex items-center gap-1 justify-center", children: onEditCase && (_jsx("button", { onClick: () => startEdit(item), title: "Edit", className: `transition-colors ${(changedCaseIds[item.id] || item.has_edits) ? 'text-red-500 hover:text-red-700' : 'text-stone-400 hover:text-amber-600'}`, children: _jsx(Pencil, { size: 14 }) })) }) }, columnId));
+                                                }
+                                                // default: is_reviewed
+                                                return (_jsx("td", { className: "px-3 py-2.5 text-center", children: _jsx("button", { onClick: () => onMarkReviewed?.(item.id, item.is_reviewed ?? false), title: item.is_reviewed ? 'Mark as not reviewed' : 'Mark reviewed', className: `transition-colors ${item.is_reviewed ? 'text-emerald-500 hover:text-emerald-700' : 'text-stone-300 hover:text-emerald-400'}`, children: _jsx(Check, { size: 16 }) }) }, columnId));
+                                            })] }, item.id));
+                                }), filteredItems.length === 0 && (_jsx("tr", { children: _jsx("td", { colSpan: Math.max(columns.length + (onDeleteCase ? 1 : 0), 1), className: "px-4 py-8 text-center text-sm text-stone-400", children: "No cases match the selected table filters." }) }))] })] }) }), editingItem && (_jsx("div", { role: "dialog", "aria-label": "case-edit-dialog", className: "fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4", onClick: () => setEditingId(null), children: _jsxs("div", { className: "w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-2xl bg-white border border-stone-200 shadow-2xl", onClick: (e) => e.stopPropagation(), children: [_jsxs("div", { className: "flex items-center justify-between border-b border-stone-200 px-5 py-4", children: [_jsxs("div", { children: [_jsxs("h3", { className: "text-base font-semibold text-stone-900", children: ["Edit case ", editingItem.vk_number] }), _jsxs("p", { className: "text-xs text-stone-500", children: ["WIMI: ", editingItem.wimi_shortcut ?? '—'] })] }), _jsx("button", { onClick: () => setEditingId(null), className: "text-stone-400 hover:text-stone-700", children: _jsx(X, { size: 18 }) })] }), _jsxs("div", { className: "grid gap-0 md:grid-cols-2", children: [_jsxs("section", { className: "p-5 border-b md:border-b-0 md:border-r border-stone-200 space-y-4", children: [_jsxs("div", { className: "grid gap-3 sm:grid-cols-2", children: [_jsxs("label", { className: "text-xs text-stone-600 sm:col-span-2", children: ["Device", _jsx("input", { value: editValues.device_name, onChange: (e) => setEditValues((previous) => ({ ...previous, device_name: e.target.value })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm" })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["TRI-S", _jsx("select", { value: editValues.tricia_s, onChange: (e) => setEditValues((previous) => ({ ...previous, tricia_s: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: S_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["WIMI-S", _jsx("select", { value: editValues.user_s, onChange: (e) => setEditValues((previous) => ({ ...previous, user_s: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: S_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["TRI-D", _jsx("select", { value: editValues.tricia_d, onChange: (e) => setEditValues((previous) => ({ ...previous, tricia_d: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: D_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] }), _jsxs("label", { className: "text-xs text-stone-600", children: ["WIMI-D", _jsx("select", { value: editValues.user_d, onChange: (e) => setEditValues((previous) => ({ ...previous, user_d: Number(e.target.value) })), className: "mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono", children: D_OPTS.map((value) => _jsx("option", { value: value, children: value }, value)) })] })] }), _jsxs("div", { className: "flex items-center justify-end gap-2 pt-2", children: [_jsx("button", { onClick: () => setEditingId(null), className: "rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100", children: "Cancel" }), _jsx("button", { onClick: () => commitEdit(editingItem.id), disabled: isSavingEdit, className: "rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60", children: isSavingEdit ? 'Saving...' : 'Save changes' })] })] }), _jsxs("section", { className: "p-5 max-h-[60vh] overflow-y-auto", children: [_jsx("h4", { className: "text-sm font-semibold text-stone-800 mb-2", children: "Audit trail" }), auditTrail.isLoading && _jsx("p", { className: "text-xs text-stone-500", children: "Loading audit trail..." }), !auditTrail.isLoading && auditEventsToShow.length === 0 && (_jsx("p", { className: "text-xs text-stone-500", children: "No logged updates for this case yet." })), _jsx("div", { className: "space-y-2", children: auditEventsToShow.map((event) => (_jsxs("div", { className: "rounded-lg border border-stone-200 bg-stone-50 p-3", children: [_jsxs("p", { className: "text-[11px] uppercase tracking-wide text-stone-500", children: [event.action, " by ", displayActor(event), " at ", new Date(event.created_at).toLocaleString('de-DE')] }), _jsx("ul", { className: "mt-2 space-y-1", children: Object.entries(event.changes ?? {}).map(([field, delta]) => (_jsxs("li", { className: "text-xs text-stone-700 font-mono", children: [field, ": ", String(delta?.from ?? '—'), " ", '->', " ", String(delta?.to ?? '—')] }, field))) })] }, event.id))) })] })] })] }) })), bulkDeleteModalOpen && (_jsx("div", { role: "dialog", "aria-label": "bulk-delete-dialog", className: "fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4", onClick: () => !isDeletingSelected && setBulkDeleteModalOpen(false), children: _jsxs("div", { className: "w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl", onClick: (e) => e.stopPropagation(), children: [_jsx("h3", { className: "text-base font-semibold text-stone-900", children: "Delete selected records?" }), _jsxs("p", { className: "mt-2 text-sm text-stone-600", children: ["You are about to delete ", bulkDeleteIds.length, " selected case", bulkDeleteIds.length === 1 ? '' : 's', ". This cannot be undone."] }), _jsxs("div", { className: "mt-4 flex items-center justify-end gap-2", children: [_jsx("button", { type: "button", onClick: () => setBulkDeleteModalOpen(false), disabled: isDeletingSelected, className: "rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100 disabled:opacity-60", children: "Cancel" }), _jsx("button", { type: "button", onClick: confirmBulkDelete, disabled: isDeletingSelected, className: "rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-60", children: isDeletingSelected ? 'Deleting...' : 'Delete' })] })] }) }))] }));
 }
