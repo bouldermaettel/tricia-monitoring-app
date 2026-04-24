@@ -372,12 +372,12 @@ export function MatrixDashboard() {
             className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100"
             onClick={() => setCollapsedProduct((previous) => !previous)}
           >
-            Product Matrix (SxDxP) - {selectedCellsByDimension.product.length} selected {collapsedProduct ? '▼' : '▲'}
+            RBC Matrix (SxDxP) - {selectedCellsByDimension.product.length} selected {collapsedProduct ? '▼' : '▲'}
           </button>
           {!collapsedProduct && (
             <div className="p-2">
               <ConfusionMatrixGrid
-                title="Product Matrix"
+                title="RBC Matrix"
                 cells={productCells}
                 onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
                 selectedCells={selectedCellsByDimension.product}
