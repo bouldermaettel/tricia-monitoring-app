@@ -10,18 +10,8 @@ from src.models.user import User
 
 ALLOWED_ROLES = {"operator", "analyst", "controller", "admin"}
 
-SHORTCUT_OVERRIDES = {
-    "bouldermattel@gmail.com": "mam",
-    "bouldermaettel@gmail.com": "mam",
-}
-
 
 def _build_default_shortcut(external_key: str) -> str:
-    normalized_key = external_key.strip().lower()
-    override = SHORTCUT_OVERRIDES.get(normalized_key)
-    if override:
-        return override
-
     candidate = external_key.strip()
     if "@" in candidate:
         candidate = candidate.split("@", 1)[0]
@@ -45,11 +35,6 @@ class UserService:
         )
         if user is None or not user.password_hash:
             return None
-        desired_shortcut = SHORTCUT_OVERRIDES.get(user.external_key.strip().lower())
-        if desired_shortcut and user.shortcut != desired_shortcut:
-            user.shortcut = desired_shortcut
-            self.db.commit()
-            self.db.refresh(user)
         if not verify_password(password, user.password_hash):
             return None
         return user
@@ -150,10 +135,6 @@ class UserService:
             changed = True
         if not existing.shortcut:
             existing.shortcut = _build_default_shortcut(existing.external_key)
-            changed = True
-        desired_shortcut = SHORTCUT_OVERRIDES.get(existing.external_key.strip().lower())
-        if desired_shortcut and existing.shortcut != desired_shortcut:
-            existing.shortcut = desired_shortcut
             changed = True
 
         if changed:

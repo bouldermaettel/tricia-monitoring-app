@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db.base import Base
@@ -51,3 +51,14 @@ class CaseComment(Base):
     comment_text: Mapped[str] = mapped_column(Text)
     created_by_user_id: Mapped[str | None] = mapped_column(String(64), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class CaseAuditEvent(Base):
+    __tablename__ = "case_audit_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("cases.id"), index=True)
+    action: Mapped[str] = mapped_column(String(32))
+    actor_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    changes: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)

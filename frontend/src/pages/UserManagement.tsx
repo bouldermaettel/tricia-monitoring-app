@@ -10,12 +10,11 @@ export function UserManagement() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
   const [externalKey, setExternalKey] = useState('');
-  const [shortcut, setShortcut] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('operator');
   const [isActive, setIsActive] = useState(true);
-  const [editing, setEditing] = useState<Record<string, { role: string; is_active: boolean; password: string; shortcut: string }>>({});
+  const [editing, setEditing] = useState<Record<string, { role: string; is_active: boolean; password: string }>>({});
 
   const hasError = usersQuery.isError || createUser.isError;
 
@@ -27,7 +26,6 @@ export function UserManagement() {
 
     await createUser.mutateAsync({
       external_key: externalKey.trim(),
-      shortcut: shortcut.trim() || undefined,
       password,
       display_name: displayName.trim(),
       role,
@@ -35,7 +33,6 @@ export function UserManagement() {
     });
 
     setExternalKey('');
-    setShortcut('');
     setPassword('');
     setDisplayName('');
     setRole('operator');
@@ -50,7 +47,6 @@ export function UserManagement() {
         role: value || previous?.role || currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: previous?.password ?? '',
-        shortcut: previous?.shortcut ?? '',
       },
     }));
   }
@@ -63,12 +59,11 @@ export function UserManagement() {
         role: previous?.role ?? currentRole,
         is_active: checked,
         password: previous?.password ?? '',
-        shortcut: previous?.shortcut ?? '',
       },
     }));
   }
 
-  function onEditPasswordChange(userId: string, currentRole: string, currentActive: boolean, currentShortcut: string | undefined, value: string) {
+  function onEditPasswordChange(userId: string, currentRole: string, currentActive: boolean, value: string) {
     const previous = editing[userId];
     setEditing((prev) => ({
       ...prev,
@@ -76,36 +71,20 @@ export function UserManagement() {
         role: previous?.role ?? currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: value,
-        shortcut: previous?.shortcut ?? currentShortcut ?? '',
       },
     }));
   }
 
-  function onEditShortcutChange(userId: string, currentRole: string, currentActive: boolean, currentShortcut: string | undefined, value: string) {
-    const previous = editing[userId];
-    setEditing((prev) => ({
-      ...prev,
-      [userId]: {
-        role: previous?.role ?? currentRole,
-        is_active: previous?.is_active ?? currentActive,
-        password: previous?.password ?? '',
-        shortcut: value,
-      },
-    }));
-  }
-
-  async function onSaveUser(userId: string, originalRole: string, originalActive: boolean, originalShortcut?: string) {
+  async function onSaveUser(userId: string, originalRole: string, originalActive: boolean) {
     const draft = editing[userId];
-    const payload: { role?: string; is_active?: boolean; password?: string; shortcut?: string } = {};
+    const payload: { role?: string; is_active?: boolean; password?: string } = {};
     const password = draft?.password?.trim() ?? '';
-    const shortcut = draft?.shortcut?.trim();
     if (draft?.role !== undefined && draft.role !== originalRole) payload.role = draft.role;
     if (draft?.is_active !== undefined && draft.is_active !== originalActive) payload.is_active = draft.is_active;
-    if (shortcut !== undefined && shortcut !== (originalShortcut ?? '')) payload.shortcut = shortcut || undefined;
     if (password) {
       payload.password = password;
     }
-    if (!payload.role && payload.is_active === undefined && !payload.password && payload.shortcut === undefined) return;
+    if (!payload.role && payload.is_active === undefined && !payload.password) return;
 
     await updateUser.mutateAsync({ userId, payload });
     setEditing((prev) => {
@@ -136,12 +115,6 @@ export function UserManagement() {
             placeholder="External key"
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
             required
-          />
-          <input
-            value={shortcut}
-            onChange={(e) => setShortcut(e.target.value)}
-            placeholder="Acronym (shortcut)"
-            className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
           />
           <input
             value={displayName}
@@ -197,7 +170,6 @@ export function UserManagement() {
               <tr>
                 <th className="text-left px-4 py-3">Display Name</th>
                 <th className="text-left px-4 py-3">External Key</th>
-                <th className="text-left px-4 py-3">Acronym</th>
                 <th className="text-left px-4 py-3">Role</th>
                 <th className="text-left px-4 py-3">Active</th>
                 <th className="text-left px-4 py-3">Reset Password</th>
@@ -209,18 +181,6 @@ export function UserManagement() {
                 <tr key={user.id} className="border-t border-stone-100">
                   <td className="px-4 py-3">{user.display_name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{user.external_key}</td>
-                  <td className="px-4 py-3">
-                    <input
-                      aria-label={`shortcut-${user.id}`}
-                      type="text"
-                      value={editing[user.id]?.shortcut ?? user.shortcut ?? ''}
-                      onChange={(e) =>
-                        onEditShortcutChange(user.id, user.role, user.is_active, user.shortcut, e.target.value)
-                      }
-                      placeholder="shortcut"
-                      className="border border-stone-300 rounded px-2 py-1 text-xs w-24"
-                    />
-                  </td>
                   <td className="px-4 py-3">
                     <select
                       value={editing[user.id]?.role ?? user.role}
@@ -246,7 +206,7 @@ export function UserManagement() {
                       aria-label={`password-${user.id}`}
                       type="password"
                       value={editing[user.id]?.password ?? ''}
-                      onChange={(e) => onEditPasswordChange(user.id, user.role, user.is_active, user.shortcut, e.target.value)}
+                      onChange={(e) => onEditPasswordChange(user.id, user.role, user.is_active, e.target.value)}
                       placeholder="Leave blank"
                       className="border border-stone-300 rounded px-2 py-1 text-xs"
                     />
@@ -254,7 +214,7 @@ export function UserManagement() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => onSaveUser(user.id, user.role, user.is_active, user.shortcut)}
+                        onClick={() => onSaveUser(user.id, user.role, user.is_active)}
                         disabled={updateUser.isPending}
                         className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
                       >

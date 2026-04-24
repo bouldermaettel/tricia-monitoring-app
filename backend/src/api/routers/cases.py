@@ -3,10 +3,13 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_actor_id, get_db
 from src.api.schemas.cases import (
+    BulkDeleteRequest,
+    CaseAuditTrailResponse,
     CaseCreateRequest,
     CaseListResponse,
     CaseReviewResponse,
     CaseReviewUpdateRequest,
+    CaseUpdateRequest,
     CaseValidationRequest,
     CaseValidationResponse,
 )
@@ -34,6 +37,7 @@ def create_case(payload: CaseCreateRequest, db: Session = Depends(get_db), actor
 def list_cases(
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
+    vk_number: str | None = Query(default=None),
     expected_value: int | None = Query(default=None),
     observed_value: int | None = Query(default=None),
     matrix_dimension: str = Query(default="detectability"),
@@ -53,6 +57,7 @@ def list_cases(
         page_size=page_size,
         start_date=parsed_start,
         end_date=parsed_end,
+        vk_number=vk_number,
         expected_value=expected_value,
         observed_value=observed_value,
         matrix_dimension=matrix_dimension,
@@ -78,3 +83,48 @@ def update_case_review(
         risk_level=review.risk_level,
         updated_at=review.updated_at,
     )
+
+
+@router.put("/{case_id}")
+def update_case(
+    case_id: str,
+    payload: CaseUpdateRequest,
+    db: Session = Depends(get_db),
+    actor_id: str = Depends(get_actor_id),
+):
+    try:
+        case = CaseService(db).update_case(case_id, payload, actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"id": case.id}
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(
+    case_id: str,
+    db: Session = Depends(get_db),
+    actor_id: str = Depends(get_actor_id),
+):
+    try:
+        CaseService(db).delete_case(case_id, actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("", status_code=status.HTTP_200_OK)
+def bulk_delete_cases(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    actor_id: str = Depends(get_actor_id),
+):
+    count = CaseService(db).bulk_delete_cases(payload.case_ids, actor_id)
+    return {"deleted": count}
+
+
+@router.get("/{case_id}/audit-trail", response_model=CaseAuditTrailResponse)
+def get_case_audit_trail(
+    case_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> CaseAuditTrailResponse:
+    return CaseService(db).get_audit_trail(case_id, limit)

@@ -11,6 +11,36 @@ export type CasePayload = {
     validation_status?: string;
 };
 
+export type CaseUpdatePayload = {
+    device_name?: string;
+    analysis_date?: string;
+    validation_status?: string;
+    tricia_s?: number;
+    tricia_p?: number;
+    tricia_d?: number;
+    user_s?: number;
+    user_d?: number;
+};
+
+export type CaseAuditChange = {
+    from: string | number | boolean | null;
+    to: string | number | boolean | null;
+};
+
+export type CaseAuditEvent = {
+    id: number;
+    case_id: string;
+    action: string;
+    actor_id?: string | null;
+    actor_display_name?: string | null;
+    changes: Record<string, CaseAuditChange>;
+    created_at: string;
+};
+
+export type CaseAuditTrailResponse = {
+    items: CaseAuditEvent[];
+};
+
 export async function validateCase(payload: CasePayload) {
     const { data } = await apiClient.post('/cases/validate', payload);
     return data;
@@ -33,5 +63,25 @@ export async function patchCaseReview(caseId: string, payload: Record<string, un
 
 export async function addCaseComment(caseId: string, text: string) {
     const { data } = await apiClient.post(`/cases/${caseId}/comments`, { text });
+    return data;
+}
+
+export async function updateCase(caseId: string, payload: CaseUpdatePayload) {
+    const { data } = await apiClient.put(`/cases/${caseId}`, payload);
+    return data;
+}
+
+export async function deleteCase(caseId: string) {
+    const { data } = await apiClient.delete(`/cases/${caseId}`);
+    return data;
+}
+
+export async function bulkDeleteCases(caseIds: string[]) {
+    const { data } = await apiClient.delete('/cases', { data: { case_ids: caseIds } });
+    return data;
+}
+
+export async function getCaseAuditTrail(caseId: string, limit = 100): Promise<CaseAuditTrailResponse> {
+    const { data } = await apiClient.get(`/cases/${caseId}/audit-trail`, { params: { limit } });
     return data;
 }

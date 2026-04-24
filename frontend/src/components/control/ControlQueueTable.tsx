@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatIsoDateToGerman } from '../../utils/date';
 
 type ControlItem = {
@@ -29,7 +29,13 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   delay_bucket: 'Delay',
 };
 
-export function ControlQueueTable({ items }: { items: ControlItem[] }) {
+export function ControlQueueTable({
+  items,
+  onExportStateChange,
+}: {
+  items: ControlItem[];
+  onExportStateChange?: (payload: { columns: string[]; rows: Array<Record<string, unknown>> }) => void;
+}) {
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>({
     vk_number: true,
     analysis_date: true,
@@ -85,6 +91,35 @@ export function ControlQueueTable({ items }: { items: ControlItem[] }) {
       return true;
     });
   }, [filters, items]);
+
+  useEffect(() => {
+    if (!onExportStateChange) return;
+    const exportColumns = columns.map((columnId) => COLUMN_LABELS[columnId]);
+    const exportRows = filteredItems.map((item) => {
+      const row: Record<string, unknown> = {};
+      columns.forEach((columnId) => {
+        if (columnId === 'analysis_date') {
+          row[COLUMN_LABELS[columnId]] = formatIsoDateToGerman(item.analysis_date);
+          return;
+        }
+        if (columnId === 'input_timestamp') {
+          row[COLUMN_LABELS[columnId]] = item.input_timestamp ? new Date(item.input_timestamp).toLocaleString() : '';
+          return;
+        }
+        if (columnId === 'user_id') {
+          row[COLUMN_LABELS[columnId]] = item.wimi_shortcut ?? item.user_id ?? '';
+          return;
+        }
+        if (columnId === 'delay_bucket') {
+          row[COLUMN_LABELS[columnId]] = item.delay_bucket.replace(/_/g, ' ');
+          return;
+        }
+        row[COLUMN_LABELS[columnId]] = item[columnId];
+      });
+      return row;
+    });
+    onExportStateChange({ columns: exportColumns, rows: exportRows });
+  }, [columns, filteredItems, onExportStateChange]);
 
   if (items.length === 0) {
     return (

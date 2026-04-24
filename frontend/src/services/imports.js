@@ -7,3 +7,11 @@ export async function uploadImport(file) {
     });
     return data;
 }
+export async function previewImport(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await apiClient.post('/imports/preview', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+}

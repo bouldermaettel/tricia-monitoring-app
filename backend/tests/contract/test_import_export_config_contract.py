@@ -17,3 +17,11 @@ def test_exports_contract(client):
     assert csv_response.status_code == 200
     xlsx_response = client.get('/api/v1/exports/cases.xlsx')
     assert xlsx_response.status_code == 200
+    payload = {
+        'columns': ['vk_number', 'device_name', 'has_edits'],
+        'rows': [{'vk_number': 'VK-1', 'device_name': 'Device A', 'has_edits': True}],
+    }
+    table_csv_response = client.post('/api/v1/exports/table.csv', json=payload)
+    assert table_csv_response.status_code == 200
+    table_xlsx_response = client.post('/api/v1/exports/table.xlsx', json=payload)
+    assert table_xlsx_response.status_code == 200

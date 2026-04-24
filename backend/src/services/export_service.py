@@ -45,3 +45,24 @@ class ExportService:
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             self._frame().to_excel(writer, sheet_name="cases", index=False)
         return output.getvalue()
+
+    @staticmethod
+    def _table_frame(columns: list[str], rows: list[dict]) -> pd.DataFrame:
+        frame = pd.DataFrame(rows)
+        if not columns:
+            return frame
+        # Keep requested export order and fill missing fields with empty values.
+        return frame.reindex(columns=columns, fill_value="")
+
+    @staticmethod
+    def table_to_csv(columns: list[str], rows: list[dict]) -> bytes:
+        output = StringIO()
+        ExportService._table_frame(columns, rows).to_csv(output, index=False)
+        return output.getvalue().encode("utf-8")
+
+    @staticmethod
+    def table_to_xlsx(columns: list[str], rows: list[dict]) -> bytes:
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            ExportService._table_frame(columns, rows).to_excel(writer, sheet_name="table", index=False)
+        return output.getvalue()

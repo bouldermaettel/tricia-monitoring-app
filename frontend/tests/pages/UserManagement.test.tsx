@@ -75,7 +75,6 @@ describe('UserManagement', () => {
 
     expect(createMutateAsync).toHaveBeenCalledWith({
       external_key: 'new.user.1',
-      shortcut: undefined,
       password: 'new-user-password',
       display_name: 'New User 1',
       role: 'analyst',

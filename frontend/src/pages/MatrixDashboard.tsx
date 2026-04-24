@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/common/AppShell';
 import { ExportButton } from '../components/common/ExportButton';
 import { ThresholdConfigPanel } from '../components/common/ThresholdConfigPanel';
@@ -7,10 +8,12 @@ import { CaseTable } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixLegend } from '../components/matrix/MatrixLegend';
-import { usePatchCaseReview, useCases, useAddCaseComment } from '../hooks/useCases';
+import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
 import { MatrixDimension, useFilters } from '../state/filters';
+import { useImportOverride } from '../state/importOverride';
 import { listCases } from '../services/cases';
+import { useThresholds } from '../hooks/useThresholds';
 
 function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
   if (window === 'ALL') return {};
@@ -28,8 +31,17 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
 }
 
 export function MatrixDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedSD, setCollapsedSD] = useState(false);
   const [collapsedProduct, setCollapsedProduct] = useState(false);
+  const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
+    columns: [],
+    rows: [],
+  });
+  const overrideCases = useImportOverride((s) => s.cases);
+  const overrideSourceFile = useImportOverride((s) => s.sourceFileName);
+  const clearPreviewData = useImportOverride((s) => s.clearPreviewData);
+  const isOverrideActive = Boolean(overrideSourceFile);
   const [selectedCellsByDimension, setSelectedCellsByDimension] = useState<
     Record<MatrixDimension, Array<{ expected: number; observed: number }>>
   >({
@@ -49,6 +61,12 @@ export function MatrixDashboard() {
   const setDateWindow = useFilters((s) => s.setDateWindow);
   const setCustomDateRange = useFilters((s) => s.setCustomDateRange);
   const setRiskFilter = useFilters((s) => s.setRiskFilter);
+  const requestedVkNumber = (searchParams.get('vk_number') ?? '').trim();
+
+  useEffect(() => {
+    if (!requestedVkNumber) return;
+    setDateWindow('ALL');
+  }, [requestedVkNumber, setDateWindow]);
 
   const dateParams = useMemo(() => getDateParams(dateWindow, dateFrom, dateTo), [dateWindow, dateFrom, dateTo]);
 
@@ -58,17 +76,66 @@ export function MatrixDashboard() {
     risk_level: riskFilter === 'all' ? undefined : riskFilter,
     ...dateParams,
   });
+  const thresholds = useThresholds();
 
   const caseParams = {
     include_excluded: includeExcluded,
     problematic_only: problematicOnly,
     risk_level: riskFilter === 'all' ? undefined : riskFilter,
+    vk_number: requestedVkNumber || undefined,
     ...dateParams,
   };
 
-  const baseCases = useCases(caseParams);
+  const baseCases = useCases(caseParams, { enabled: !isOverrideActive });
+  const filteredOverrideCases = useMemo(() => {
+    if (!isOverrideActive) return [];
+    return overrideCases.filter((item) => {
+      if (!includeExcluded && item.is_excluded) return false;
+      if (problematicOnly && Math.abs((item.user_d ?? 0) - (item.tricia_d ?? 0)) <= 2) return false;
+      if (riskFilter !== 'all' && (item.risk_level ?? '') !== riskFilter) return false;
+      if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
+      if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
+      if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
+      return true;
+    });
+  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskFilter]);
+
+  const overrideMatrices = useMemo(() => {
+    if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
+    const acceptance = thresholds.data?.acceptance_threshold ?? 1;
+    const aggregate = (pairs: Array<{ expected: number; observed: number }>) => {
+      const map = new Map<string, { expected_value: number; observed_value: number; case_count: number; within_threshold: boolean }>();
+      pairs.forEach(({ expected, observed }) => {
+        const key = `${expected}-${observed}`;
+        const existing = map.get(key);
+        if (existing) {
+          existing.case_count += 1;
+          return;
+        }
+        map.set(key, {
+          expected_value: expected,
+          observed_value: observed,
+          case_count: 1,
+          within_threshold: Math.abs(expected - observed) <= acceptance,
+        });
+      });
+      return Array.from(map.values());
+    };
+    return {
+      severity: aggregate(filteredOverrideCases.map((item) => ({ expected: item.user_s, observed: item.tricia_s }))),
+      detectability: aggregate(filteredOverrideCases.map((item) => ({ expected: item.user_d, observed: item.tricia_d }))),
+      product: aggregate(
+        filteredOverrideCases.map((item) => ({
+          expected: item.user_s * item.user_d * item.tricia_p,
+          observed: item.tricia_s * item.tricia_d * item.tricia_p,
+        }))
+      ),
+    };
+  }, [filteredOverrideCases, isOverrideActive, thresholds.data?.acceptance_threshold]);
   const patchReview = usePatchCaseReview();
   const addComment = useAddCaseComment();
+  const updateCase = useUpdateCase();
+  const deleteCase = useDeleteCase();
 
   const selectedRequests = useMemo(
     () => [
@@ -80,7 +147,7 @@ export function MatrixDashboard() {
   );
 
   const selectedCaseQueries = useQueries({
-    queries: selectedRequests.map((request) => ({
+    queries: (isOverrideActive ? [] : selectedRequests).map((request) => ({
       queryKey: ['cases', caseParams, request.dimension, request.expected, request.observed],
       queryFn: () =>
         listCases({
@@ -93,6 +160,24 @@ export function MatrixDashboard() {
   });
 
   const selectedCases = useMemo(() => {
+    if (isOverrideActive) {
+      return selectedRequests.length === 0
+        ? filteredOverrideCases
+        : filteredOverrideCases.filter((item) =>
+            selectedRequests.some((request) => {
+              if (request.dimension === 'severity') {
+                return item.user_s === request.expected && item.tricia_s === request.observed;
+              }
+              if (request.dimension === 'product') {
+                return (
+                  item.user_s * item.user_d * item.tricia_p === request.expected &&
+                  item.tricia_s * item.tricia_d * item.tricia_p === request.observed
+                );
+              }
+              return item.user_d === request.expected && item.tricia_d === request.observed;
+            })
+          );
+    }
     const byId = new Map<string, { id: string }>();
     selectedCaseQueries.forEach((query) => {
       (query.data?.items ?? []).forEach((item: { id: string }) => {
@@ -100,9 +185,11 @@ export function MatrixDashboard() {
       });
     });
     return Array.from(byId.values());
-  }, [selectedCaseQueries]);
+  }, [filteredOverrideCases, isOverrideActive, selectedCaseQueries, selectedRequests]);
 
-  const displayedCases = selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? [];
+  const displayedCases = isOverrideActive
+    ? selectedCases
+    : (selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? []);
   const hasSelection =
     selectedCellsByDimension.severity.length > 0 ||
     selectedCellsByDimension.detectability.length > 0 ||
@@ -149,12 +236,31 @@ export function MatrixDashboard() {
     });
   }
 
+  function clearVkFilter() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('vk_number');
+    setSearchParams(next, { replace: true });
+  }
+
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Matrix Dashboard</h1>
-        <ExportButton />
+        <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" />
       </div>
+
+      {requestedVkNumber && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between">
+          <span>Filtered to existing case: {requestedVkNumber}</span>
+          <button className="underline" onClick={clearVkFilter}>Clear</button>
+        </div>
+      )}
+      {isOverrideActive && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between gap-3">
+          <span>Using uploaded dataset from {overrideSourceFile}. Matrix analysis is running on file data only.</span>
+          <button className="underline" onClick={clearPreviewData}>Clear</button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-6">
         <FilterPanel
@@ -194,13 +300,13 @@ export function MatrixDashboard() {
             <div className="grid gap-4 md:grid-cols-2 mt-3">
               <ConfusionMatrixGrid
                 title="Severity Matrix — WIMI-S (rows) vs TRI-S (cols)"
-                cells={matrix.data?.matrices?.severity ?? []}
+                cells={isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? [])}
                 onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
                 selectedCells={selectedCellsByDimension.severity}
               />
               <ConfusionMatrixGrid
                 title="Detectability Matrix — WIMI-D (rows) vs TRI-D (cols)"
-                cells={matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? []}
+                cells={isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? [])}
                 onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
                 selectedCells={selectedCellsByDimension.detectability}
               />
@@ -219,7 +325,7 @@ export function MatrixDashboard() {
             <div className="p-2">
               <ConfusionMatrixGrid
                 title="Product Matrix — WIMI (SxDxP) vs TRI (SxDxP), with WIMI-P = TRI-P"
-                cells={matrix.data?.matrices?.product ?? []}
+                cells={isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? [])}
                 onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
                 selectedCells={selectedCellsByDimension.product}
               />
@@ -229,10 +335,13 @@ export function MatrixDashboard() {
 
         <CaseTable
           items={displayedCases}
-          onMarkReviewed={(id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } })}
-          onToggleExcluded={(id, current) => patchReview.mutate({ caseId: id, payload: { is_excluded: !current } })}
-          onSetCategory={(id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } })}
-          onAddComment={(id, text) => addComment.mutate({ caseId: id, text })}
+          onMarkReviewed={isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } }))}
+          onToggleExcluded={isOverrideActive ? undefined : ((id, current) => patchReview.mutate({ caseId: id, payload: { is_excluded: !current } }))}
+          onSetCategory={isOverrideActive ? undefined : ((id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } }))}
+          onAddComment={isOverrideActive ? undefined : ((id, text) => addComment.mutate({ caseId: id, text }))}
+          onEditCase={isOverrideActive ? undefined : ((id, payload) => updateCase.mutateAsync({ caseId: id, payload }))}
+          onDeleteCase={isOverrideActive ? undefined : ((id) => deleteCase.mutate(id))}
+          onExportStateChange={setExportState}
         />
 
         <ThresholdConfigPanel />

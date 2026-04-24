@@ -19,6 +19,9 @@ vi.mock('../../src/hooks/useCases', () => ({
     useCases: () => ({ data: { items: [] } }),
     usePatchCaseReview: () => ({ mutate: vi.fn() }),
     useAddCaseComment: () => ({ mutate: vi.fn() }),
+    useUpdateCase: () => ({ mutate: vi.fn() }),
+    useDeleteCase: () => ({ mutate: vi.fn() }),
+    useCaseAuditTrail: () => ({ data: { items: [] }, isLoading: false }),
 }));
 vi.mock('../../src/hooks/useThresholds', () => ({
     useThresholds: () => ({ data: { acceptance_threshold: 1 } }),
@@ -29,9 +32,7 @@ describe('MatrixDashboard', () => {
         const client = new QueryClient();
         render(_jsx(QueryClientProvider, { client: client, children: _jsx(MemoryRouter, { children: _jsx(MatrixDashboard, {}) }) }));
         expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
-        expect(screen.getByText('Within threshold')).toBeInTheDocument();
-        expect(screen.getByText('Severity Matrix (S) - 0 selected ▲')).toBeInTheDocument();
-        expect(screen.getByText('Detectability Matrix (D) - 0 selected ▲')).toBeInTheDocument();
+        expect(screen.getByText('Severity and Detectability Matrices - S: 0 selected, D: 0 selected ▲')).toBeInTheDocument();
         expect(screen.getByText('Product Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
         expect(screen.getByText('Severity Matrix — WIMI-S (rows) vs TRI-S (cols)')).toBeInTheDocument();
         expect(screen.getByText('Detectability Matrix — WIMI-D (rows) vs TRI-D (cols)')).toBeInTheDocument();

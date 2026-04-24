@@ -19,3 +19,19 @@ export async function addCaseComment(caseId, text) {
     const { data } = await apiClient.post(`/cases/${caseId}/comments`, { text });
     return data;
 }
+export async function updateCase(caseId, payload) {
+    const { data } = await apiClient.put(`/cases/${caseId}`, payload);
+    return data;
+}
+export async function deleteCase(caseId) {
+    const { data } = await apiClient.delete(`/cases/${caseId}`);
+    return data;
+}
+export async function bulkDeleteCases(caseIds) {
+    const { data } = await apiClient.delete('/cases', { data: { case_ids: caseIds } });
+    return data;
+}
+export async function getCaseAuditTrail(caseId, limit = 100) {
+    const { data } = await apiClient.get(`/cases/${caseId}/audit-trail`, { params: { limit } });
+    return data;
+}

@@ -2,15 +2,18 @@ import axios from 'axios';
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 const SESSION_KEY = 'monitoring.session';
 let refreshInFlight = null;
+function getAuthStorage() {
+    return window.sessionStorage;
+}
 function readSession() {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = getAuthStorage().getItem(SESSION_KEY);
     if (!raw)
         return null;
     try {
         return JSON.parse(raw);
     }
     catch {
-        localStorage.removeItem(SESSION_KEY);
+        getAuthStorage().removeItem(SESSION_KEY);
         return null;
     }
 }
@@ -18,10 +21,12 @@ function writeSessionPatch(patch) {
     const current = readSession();
     if (!current)
         return;
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, ...patch }));
+    getAuthStorage().setItem(SESSION_KEY, JSON.stringify({ ...current, ...patch }));
 }
 function clearSession() {
     localStorage.removeItem(SESSION_KEY);
+    // Session is now tab-scoped; clear current runtime token state.
+    getAuthStorage().removeItem(SESSION_KEY);
 }
 async function refreshAccessTokenIfPossible() {
     const session = readSession();

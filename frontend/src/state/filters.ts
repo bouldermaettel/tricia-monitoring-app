@@ -34,8 +34,8 @@ export const useFilters = create<FiltersState>((set) => ({
     riskFilter: 'all',
     setIncludeExcluded: (value) => set({ includeExcluded: value }),
     setProblematicOnly: (value) => set({ problematicOnly: value }),
-        setSelectedCell: (dimension, expected, observed) =>
-            set({ selectedDimension: dimension, selectedExpected: expected, selectedObserved: observed }),
+    setSelectedCell: (dimension, expected, observed) =>
+        set({ selectedDimension: dimension, selectedExpected: expected, selectedObserved: observed }),
     setDateWindow: (window) => set({ dateWindow: window }),
     setCustomDateRange: (from, to) => set({ dateFrom: from, dateTo: to }),
     setRiskFilter: (filter) => set({ riskFilter: filter }),

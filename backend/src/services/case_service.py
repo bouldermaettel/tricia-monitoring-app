@@ -3,8 +3,8 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.api.schemas.cases import CaseCreateRequest, CaseListResponse, CaseRecord, CaseReviewUpdateRequest
-from src.models.case import Case, CaseComment, CaseReview
+from src.api.schemas.cases import CaseAuditTrailResponse, CaseAuditEventRecord, CaseCreateRequest, CaseListResponse, CaseRecord, CaseReviewUpdateRequest, CaseUpdateRequest
+from src.models.case import Case, CaseAuditEvent, CaseComment, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.user import User
 from src.services.filter_service import apply_case_filters
@@ -60,6 +60,7 @@ class CaseService:
         page_size: int = 50,
         start_date=None,
         end_date=None,
+        vk_number: str | None = None,
         expected_value=None,
         observed_value=None,
         matrix_dimension: str = "detectability",
@@ -67,7 +68,11 @@ class CaseService:
         include_excluded=False,
         risk_level=None,
     ) -> CaseListResponse:
-        query = select(Case, CaseReview).join(CaseReview, CaseReview.case_id == Case.id, isouter=True)
+        query = select(Case, CaseReview, ClassificationSnapshot).join(
+            CaseReview, CaseReview.case_id == Case.id, isouter=True
+        ).join(
+            ClassificationSnapshot, ClassificationSnapshot.case_id == Case.id, isouter=True
+        )
         query = apply_case_filters(
             query,
             start_date=start_date,
@@ -79,13 +84,23 @@ class CaseService:
             include_excluded=include_excluded,
             risk_level=risk_level,
         )
+        if vk_number:
+            query = query.where(Case.vk_number == vk_number)
 
         total = self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = self.db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
 
         items = []
-        for case, review in rows:
+        for case, review, snapshot in rows:
             comment_count = self.db.scalar(select(func.count()).select_from(CaseComment).where(CaseComment.case_id == case.id)) or 0
+            has_edits = (
+                self.db.scalar(
+                    select(func.count())
+                    .select_from(CaseAuditEvent)
+                    .where(CaseAuditEvent.case_id == case.id)
+                    .where(CaseAuditEvent.action == 'update')
+                ) or 0
+            ) > 0
             items.append(
                 CaseRecord(
                     id=case.id,
@@ -95,10 +110,17 @@ class CaseService:
                     date_reported=case.analysis_date,
                     analysis_date=case.analysis_date,
                     validation_status=case.validation_status,
+                    tricia_s=snapshot.tricia_s if snapshot else None,
+                    tricia_p=snapshot.tricia_p if snapshot else None,
+                    tricia_d=snapshot.tricia_d if snapshot else None,
+                    user_s=snapshot.user_s if snapshot else None,
+                    user_d=snapshot.user_d if snapshot else None,
+                    risk_level=review.risk_level if review else None,
                     category_code=review.category_code if review else None,
                     is_excluded=review.is_excluded if review else False,
                     is_reviewed=review.is_reviewed if review else False,
                     comment_count=comment_count,
+                    has_edits=has_edits,
                 )
             )
         return CaseListResponse(items=items, page=page, page_size=page_size, total=total)
@@ -123,3 +145,92 @@ class CaseService:
         self.db.commit()
         self.db.refresh(review)
         return review
+
+    def update_case(self, case_id: str, payload: CaseUpdateRequest, actor_id: str) -> Case:
+        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        if case is None:
+            raise ValueError(f"Case {case_id} not found")
+
+        changes: dict = {}
+        if payload.device_name is not None and payload.device_name != case.device_name:
+            changes['device_name'] = {'from': case.device_name, 'to': payload.device_name}
+            case.device_name = payload.device_name
+        if payload.analysis_date is not None and payload.analysis_date != case.analysis_date:
+            changes['analysis_date'] = {'from': str(case.analysis_date), 'to': str(payload.analysis_date)}
+            case.analysis_date = payload.analysis_date
+        if payload.validation_status is not None:
+            changes['validation_status'] = {'from': case.validation_status, 'to': payload.validation_status}
+            case.validation_status = payload.validation_status
+
+        snapshot = self.db.scalar(
+            select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case_id)
+            .order_by(ClassificationSnapshot.created_at.desc())
+        )
+        if snapshot is not None:
+            for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d'):
+                new_val = getattr(payload, field, None)
+                if new_val is not None and new_val != getattr(snapshot, field):
+                    changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
+                    setattr(snapshot, field, new_val)
+            if payload.user_s is not None or payload.user_d is not None:
+                s = payload.user_s if payload.user_s is not None else snapshot.user_s
+                d = payload.user_d if payload.user_d is not None else snapshot.user_d
+                snapshot.deviation_s = abs(s - snapshot.tricia_s)
+                snapshot.deviation_d = abs(d - snapshot.tricia_d)
+                snapshot.problem_flag = snapshot.deviation_d > 2
+
+        if changes:
+            self.db.add(CaseAuditEvent(
+                case_id=case_id,
+                action='update',
+                actor_id=actor_id,
+                changes=changes,
+            ))
+
+        self.db.commit()
+        self.db.refresh(case)
+        return case
+
+    def delete_case(self, case_id: str, actor_id: str) -> None:
+        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        if case is None:
+            raise ValueError(f"Case {case_id} not found")
+        self.db.add(CaseAuditEvent(
+            case_id=case_id,
+            action='delete',
+            actor_id=actor_id,
+            changes={'vk_number': {'from': case.vk_number, 'to': None}},
+        ))
+        self.db.delete(case)
+        self.db.commit()
+
+    def bulk_delete_cases(self, case_ids: list[str], actor_id: str) -> int:
+        count = 0
+        for case_id in case_ids:
+            try:
+                self.delete_case(case_id, actor_id)
+                count += 1
+            except ValueError:
+                pass
+        return count
+
+    def get_audit_trail(self, case_id: str, limit: int = 100) -> CaseAuditTrailResponse:
+        events = self.db.execute(
+            select(CaseAuditEvent)
+            .where(CaseAuditEvent.case_id == case_id)
+            .order_by(CaseAuditEvent.created_at.desc())
+            .limit(limit)
+        ).scalars().all()
+        return CaseAuditTrailResponse(
+            items=[
+                CaseAuditEventRecord(
+                    id=e.id,
+                    case_id=e.case_id,
+                    action=e.action,
+                    actor_id=e.actor_id,
+                    changes=e.changes,
+                    created_at=e.created_at,
+                )
+                for e in events
+            ]
+        )

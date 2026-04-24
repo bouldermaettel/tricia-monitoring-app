@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppShell } from '../components/common/AppShell';
 import { ExportButton } from '../components/common/ExportButton';
 import { DelaySummary } from '../components/control/DelaySummary';
 import { ControlQueueTable } from '../components/control/ControlQueueTable';
 import { useControlQueue } from '../hooks/useControlQueue';
+import { useImportOverride } from '../state/importOverride';
+
+const EMPTY_ITEMS: never[] = [];
 
 type DateWindow = '3M' | '6M' | '12M' | 'ALL' | 'CUSTOM';
 
@@ -35,14 +38,42 @@ export function ControlDashboard() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const dateParams = getDateParams(dateWindow, dateFrom || undefined, dateTo || undefined);
-  const queue = useControlQueue(dateParams);
+  const overrideControlItems = useImportOverride((s) => s.controlItems);
+  const overrideSourceFile = useImportOverride((s) => s.sourceFileName);
+  const clearPreviewData = useImportOverride((s) => s.clearPreviewData);
+  const isOverrideActive = Boolean(overrideSourceFile);
+  const queue = useControlQueue(dateParams, { enabled: !isOverrideActive });
+  const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
+    columns: [],
+    rows: [],
+  });
+
+  const activeItems = useMemo(
+    () =>
+      isOverrideActive
+        ? overrideControlItems.filter((item) => {
+            if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
+            if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
+            return true;
+          })
+        : queue.data?.items ?? EMPTY_ITEMS,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isOverrideActive, overrideControlItems, dateParams.start_date, dateParams.end_date, queue.data]
+  );
 
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Control Dashboard</h1>
-        <ExportButton />
+        <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="control-table" />
       </div>
+
+      {isOverrideActive && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center justify-between gap-3">
+          <span>Using uploaded dataset from {overrideSourceFile ?? 'file upload'} for control queue.</span>
+          <button className="underline" onClick={clearPreviewData}>Clear</button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-6">
         <div className="bg-white border border-stone-200 rounded-xl p-4 flex flex-wrap items-end gap-4">
@@ -83,8 +114,8 @@ export function ControlDashboard() {
           </div>
         </div>
 
-        <DelaySummary items={queue.data?.items ?? []} />
-        <ControlQueueTable items={queue.data?.items ?? []} />
+        <DelaySummary items={activeItems} />
+        <ControlQueueTable items={activeItems} onExportStateChange={setExportState} />
       </div>
     </AppShell>
   );

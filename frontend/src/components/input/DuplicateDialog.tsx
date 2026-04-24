@@ -2,11 +2,23 @@ import { AlertTriangle, X } from 'lucide-react';
 
 type DuplicateDialogProps = {
   open: boolean;
+  vkNumber?: string;
   onClose: () => void;
+  onEditExisting?: (vkNumber: string) => void;
 };
 
-export function DuplicateDialog({ open, onClose }: DuplicateDialogProps) {
+export function DuplicateDialog({ open, vkNumber, onClose, onEditExisting }: DuplicateDialogProps) {
   if (!open) return null;
+
+  function handleEditExisting() {
+    const normalized = vkNumber?.trim();
+    if (!normalized || !onEditExisting) {
+      onClose();
+      return;
+    }
+    onEditExisting(normalized);
+  }
+
   return (
     <div
       role="dialog"
@@ -36,7 +48,7 @@ export function DuplicateDialog({ open, onClose }: DuplicateDialogProps) {
             Cancel
           </button>
           <button
-            onClick={onClose}
+            onClick={handleEditExisting}
             className="px-4 py-2 text-sm font-medium bg-stone-900 text-white rounded-lg hover:bg-stone-700 transition-colors"
           >
             Edit existing

@@ -15,8 +15,15 @@ export type AppSession = {
 
 const SESSION_KEY = 'monitoring.session';
 
+function getAuthStorage(): Storage {
+  return window.sessionStorage;
+}
+
 function readStoredSession(): AppSession | null {
-  const raw = localStorage.getItem(SESSION_KEY);
+  // Remove legacy persisted sessions so a fresh browser session requires login.
+  localStorage.removeItem(SESSION_KEY);
+
+  const raw = getAuthStorage().getItem(SESSION_KEY);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AppSession;
@@ -24,7 +31,7 @@ function readStoredSession(): AppSession | null {
       return null;
     }
     if (Date.now() >= parsed.refreshExpiresAt) {
-      localStorage.removeItem(SESSION_KEY);
+      getAuthStorage().removeItem(SESSION_KEY);
       return null;
     }
     return parsed;
@@ -60,11 +67,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
           displayName: actor.display_name,
           role: actor.role,
         };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+        getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
         setSession(nextSession);
       },
       signOut: () => {
         localStorage.removeItem(SESSION_KEY);
+        getAuthStorage().removeItem(SESSION_KEY);
         setSession(null);
       },
     }),

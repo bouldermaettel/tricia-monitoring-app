@@ -48,10 +48,17 @@ class CaseRecord(BaseModel):
     date_reported: date
     analysis_date: date
     validation_status: str
+    tricia_s: int | None = None
+    tricia_p: int | None = None
+    tricia_d: int | None = None
+    user_s: int | None = None
+    user_d: int | None = None
+    risk_level: str | None = None
     category_code: str | None = None
     is_excluded: bool = False
     is_reviewed: bool = False
     comment_count: int = 0
+    has_edits: bool = False
 
 
 class CaseListResponse(BaseModel):
@@ -59,6 +66,34 @@ class CaseListResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class CaseUpdateRequest(BaseModel):
+    device_name: str | None = None
+    analysis_date: date | None = None
+    validation_status: str | None = None
+    tricia_s: SeverityValue | None = None
+    tricia_p: ProbabilityValue | None = None
+    tricia_d: DetectabilityValue | None = None
+    user_s: SeverityValue | None = None
+    user_d: DetectabilityValue | None = None
+
+
+class BulkDeleteRequest(BaseModel):
+    case_ids: list[str]
+
+
+class CaseAuditEventRecord(BaseModel):
+    id: int
+    case_id: str
+    action: str
+    actor_id: str | None = None
+    changes: dict
+    created_at: datetime
+
+
+class CaseAuditTrailResponse(BaseModel):
+    items: list[CaseAuditEventRecord]
 
 
 class CaseReviewResponse(BaseModel):

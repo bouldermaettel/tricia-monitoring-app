@@ -2,8 +2,13 @@ import { jsx as _jsx } from "react/jsx-runtime";
 import { createContext, useContext, useMemo, useState } from 'react';
 import { createSession } from '../services/auth';
 const SESSION_KEY = 'monitoring.session';
+function getAuthStorage() {
+    return window.sessionStorage;
+}
 function readStoredSession() {
-    const raw = localStorage.getItem(SESSION_KEY);
+    // Remove legacy persisted sessions so a fresh browser session requires login.
+    localStorage.removeItem(SESSION_KEY);
+    const raw = getAuthStorage().getItem(SESSION_KEY);
     if (!raw)
         return null;
     try {
@@ -12,7 +17,7 @@ function readStoredSession() {
             return null;
         }
         if (Date.now() >= parsed.refreshExpiresAt) {
-            localStorage.removeItem(SESSION_KEY);
+            getAuthStorage().removeItem(SESSION_KEY);
             return null;
         }
         return parsed;
@@ -39,11 +44,12 @@ export function AuthProvider({ children }) {
                 displayName: actor.display_name,
                 role: actor.role,
             };
-            localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+            getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
             setSession(nextSession);
         },
         signOut: () => {
             localStorage.removeItem(SESSION_KEY);
+            getAuthStorage().removeItem(SESSION_KEY);
             setSession(null);
         },
     }), [session]);

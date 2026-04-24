@@ -3,7 +3,6 @@ import { apiClient } from './api';
 export type UserRecord = {
     id: string;
     external_key: string;
-    shortcut?: string;
     display_name: string;
     role: string;
     is_active: boolean;
@@ -11,7 +10,6 @@ export type UserRecord = {
 
 export type UserCreatePayload = {
     external_key: string;
-    shortcut?: string;
     password: string;
     display_name: string;
     role: string;
@@ -20,7 +18,6 @@ export type UserCreatePayload = {
 
 export type UserUpdatePayload = {
     display_name?: string;
-    shortcut?: string;
     password?: string;
     role?: string;
     is_active?: boolean;

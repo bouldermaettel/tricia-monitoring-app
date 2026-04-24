@@ -4,6 +4,10 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 const SESSION_KEY = 'monitoring.session';
 let refreshInFlight: Promise<boolean> | null = null;
 
+function getAuthStorage(): Storage {
+  return window.sessionStorage;
+}
+
 type RefreshResponse = {
   access_token: string;
   refresh_token: string;
@@ -21,12 +25,12 @@ type StoredSession = {
 };
 
 function readSession(): StoredSession | null {
-  const raw = localStorage.getItem(SESSION_KEY);
+  const raw = getAuthStorage().getItem(SESSION_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredSession;
   } catch {
-    localStorage.removeItem(SESSION_KEY);
+    getAuthStorage().removeItem(SESSION_KEY);
     return null;
   }
 }
@@ -34,11 +38,13 @@ function readSession(): StoredSession | null {
 function writeSessionPatch(patch: Partial<StoredSession>) {
   const current = readSession();
   if (!current) return;
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, ...patch }));
+  getAuthStorage().setItem(SESSION_KEY, JSON.stringify({ ...current, ...patch }));
 }
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
+  // Session is now tab-scoped; clear current runtime token state.
+  getAuthStorage().removeItem(SESSION_KEY);
 }
 
 async function refreshAccessTokenIfPossible(): Promise<boolean> {
