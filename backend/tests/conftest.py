@@ -28,6 +28,7 @@ def db_session() -> Generator[Session, None, None]:
         User(
             id="bootstrap-admin",
             external_key="bootstrap-admin",
+            shortcut="adm",
             password_hash=hash_password("bootstrap-admin-pass"),
             display_name="Bootstrap Admin",
             role="admin",

@@ -15,14 +15,19 @@ class CaseService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _resolve_actor_acronym(self, actor_id: str) -> str:
+        actor = self.db.scalar(select(User).where(User.id == actor_id))
+        if actor and actor.shortcut:
+            return actor.shortcut
+        return actor_id
+
     def create_case(self, payload: CaseCreateRequest, actor_id: str) -> Case:
         validator = ValidationService(self.db)
         checked = validator.validate(payload)
         if checked.duplicate:
             raise ValueError("Duplicate vk_number")
 
-        actor = self.db.scalar(select(User).where(User.id == actor_id))
-        wimi_shortcut = actor.shortcut if actor and actor.shortcut else (actor.external_key if actor else actor_id)
+        wimi_shortcut = self._resolve_actor_acronym(actor_id)
 
         case = Case(
             vk_number=payload.vk_number,
@@ -183,7 +188,7 @@ class CaseService:
             self.db.add(CaseAuditEvent(
                 case_id=case_id,
                 action='update',
-                actor_id=actor_id,
+                actor_id=self._resolve_actor_acronym(actor_id),
                 changes=changes,
             ))
 
@@ -198,7 +203,7 @@ class CaseService:
         self.db.add(CaseAuditEvent(
             case_id=case_id,
             action='delete',
-            actor_id=actor_id,
+            actor_id=self._resolve_actor_acronym(actor_id),
             changes={'vk_number': {'from': case.vk_number, 'to': None}},
         ))
         self.db.delete(case)

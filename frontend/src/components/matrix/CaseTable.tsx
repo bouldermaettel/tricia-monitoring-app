@@ -288,6 +288,13 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
   }, [auditTrail.data?.items, editingItem?.wimi_shortcut]);
   const auditEventsToShow = wimiAuditEvents.length > 0 ? wimiAuditEvents : ((auditTrail.data?.items ?? []) as AuditEvent[]);
 
+  function displayActor(event: AuditEvent): string {
+    const raw = (event.actor_id ?? '').trim();
+    if (raw && raw.toLowerCase() !== 'system') return raw;
+    const fallback = editingItem?.wimi_shortcut?.trim();
+    return fallback || raw || 'unknown';
+  }
+
   const S_OPTS = [1, 3, 5, 8, 10];
   const D_OPTS = [1, 5, 10];
 
@@ -658,7 +665,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                   {auditEventsToShow.map((event) => (
                     <div key={event.id} className="rounded-lg border border-stone-200 bg-stone-50 p-3">
                       <p className="text-[11px] uppercase tracking-wide text-stone-500">
-                        {event.action} by {event.actor_id ?? 'unknown'} at {new Date(event.created_at).toLocaleString('de-DE')}
+                        {event.action} by {displayActor(event)} at {new Date(event.created_at).toLocaleString('de-DE')}
                       </p>
                       <ul className="mt-2 space-y-1">
                         {Object.entries(event.changes ?? {}).map(([field, delta]) => (

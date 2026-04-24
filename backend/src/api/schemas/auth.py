@@ -14,7 +14,7 @@ class AuthSessionResponse(BaseModel):
     refresh_expires_in: int
     actor_id: str
     external_key: str
-    shortcut: str | None = None
+    acronym: str
     display_name: str
     role: str
     is_active: bool

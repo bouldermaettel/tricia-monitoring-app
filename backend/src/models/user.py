@@ -9,7 +9,7 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     external_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-    shortcut: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    shortcut: Mapped[str] = mapped_column(String(32), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(128))
     role: Mapped[str] = mapped_column(String(32), default="operator")

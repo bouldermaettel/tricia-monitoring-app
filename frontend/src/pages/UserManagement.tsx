@@ -10,22 +10,24 @@ export function UserManagement() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
   const [externalKey, setExternalKey] = useState('');
+  const [acronym, setAcronym] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('operator');
   const [isActive, setIsActive] = useState(true);
-  const [editing, setEditing] = useState<Record<string, { role: string; is_active: boolean; password: string }>>({});
+  const [editing, setEditing] = useState<Record<string, { acronym: string; role: string; is_active: boolean; password: string }>>({});
 
   const hasError = usersQuery.isError || createUser.isError;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!externalKey.trim() || !displayName.trim()) {
+    if (!externalKey.trim() || !displayName.trim() || !acronym.trim()) {
       return;
     }
 
     await createUser.mutateAsync({
       external_key: externalKey.trim(),
+      acronym: acronym.trim(),
       password,
       display_name: displayName.trim(),
       role,
@@ -33,10 +35,24 @@ export function UserManagement() {
     });
 
     setExternalKey('');
+    setAcronym('');
     setPassword('');
     setDisplayName('');
     setRole('operator');
     setIsActive(true);
+  }
+
+  function onEditAcronymChange(userId: string, currentAcronym: string, currentRole: string, currentActive: boolean, value: string) {
+    const previous = editing[userId];
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        acronym: value || previous?.acronym || currentAcronym,
+        role: previous?.role ?? currentRole,
+        is_active: previous?.is_active ?? currentActive,
+        password: previous?.password ?? '',
+      },
+    }));
   }
 
   function onEditRoleChange(userId: string, currentRole: string, value: string, currentActive: boolean) {
@@ -44,6 +60,7 @@ export function UserManagement() {
     setEditing((prev) => ({
       ...prev,
       [userId]: {
+        acronym: previous?.acronym ?? '',
         role: value || previous?.role || currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: previous?.password ?? '',
@@ -56,6 +73,7 @@ export function UserManagement() {
     setEditing((prev) => ({
       ...prev,
       [userId]: {
+        acronym: previous?.acronym ?? '',
         role: previous?.role ?? currentRole,
         is_active: checked,
         password: previous?.password ?? '',
@@ -68,6 +86,7 @@ export function UserManagement() {
     setEditing((prev) => ({
       ...prev,
       [userId]: {
+        acronym: previous?.acronym ?? '',
         role: previous?.role ?? currentRole,
         is_active: previous?.is_active ?? currentActive,
         password: value,
@@ -75,16 +94,18 @@ export function UserManagement() {
     }));
   }
 
-  async function onSaveUser(userId: string, originalRole: string, originalActive: boolean) {
+  async function onSaveUser(userId: string, originalAcronym: string, originalRole: string, originalActive: boolean) {
     const draft = editing[userId];
-    const payload: { role?: string; is_active?: boolean; password?: string } = {};
+    const payload: { acronym?: string; role?: string; is_active?: boolean; password?: string } = {};
     const password = draft?.password?.trim() ?? '';
+    const acronym = draft?.acronym?.trim() ?? '';
+    if (acronym && acronym !== originalAcronym) payload.acronym = acronym;
     if (draft?.role !== undefined && draft.role !== originalRole) payload.role = draft.role;
     if (draft?.is_active !== undefined && draft.is_active !== originalActive) payload.is_active = draft.is_active;
     if (password) {
       payload.password = password;
     }
-    if (!payload.role && payload.is_active === undefined && !payload.password) return;
+    if (!payload.acronym && !payload.role && payload.is_active === undefined && !payload.password) return;
 
     await updateUser.mutateAsync({ userId, payload });
     setEditing((prev) => {
@@ -121,6 +142,13 @@ export function UserManagement() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Display name"
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
+            required
+          />
+          <input
+            value={acronym}
+            onChange={(e) => setAcronym(e.target.value)}
+            placeholder="Acronym (e.g. mam)"
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
             required
           />
           <input
@@ -170,6 +198,7 @@ export function UserManagement() {
               <tr>
                 <th className="text-left px-4 py-3">Display Name</th>
                 <th className="text-left px-4 py-3">External Key</th>
+                <th className="text-left px-4 py-3">Acronym</th>
                 <th className="text-left px-4 py-3">Role</th>
                 <th className="text-left px-4 py-3">Active</th>
                 <th className="text-left px-4 py-3">Reset Password</th>
@@ -181,6 +210,13 @@ export function UserManagement() {
                 <tr key={user.id} className="border-t border-stone-100">
                   <td className="px-4 py-3">{user.display_name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-stone-600">{user.external_key}</td>
+                  <td className="px-4 py-3">
+                    <input
+                      value={editing[user.id]?.acronym ?? user.acronym}
+                      onChange={(e) => onEditAcronymChange(user.id, user.acronym, user.role, user.is_active, e.target.value)}
+                      className="border border-stone-300 rounded px-2 py-1 text-xs w-24"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <select
                       value={editing[user.id]?.role ?? user.role}
@@ -214,7 +250,7 @@ export function UserManagement() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => onSaveUser(user.id, user.role, user.is_active)}
+                        onClick={() => onSaveUser(user.id, user.acronym, user.role, user.is_active)}
                         disabled={updateUser.isPending}
                         className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
                       >

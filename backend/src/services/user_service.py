@@ -50,7 +50,7 @@ class UserService:
         user = User(
             id=str(uuid4()),
             external_key=payload.external_key.strip(),
-            shortcut=(payload.shortcut.strip()[:32] if payload.shortcut else _build_default_shortcut(payload.external_key)),
+            shortcut=payload.acronym.strip()[:32],
             password_hash=hash_password(payload.password),
             display_name=payload.display_name.strip(),
             role=role,
@@ -73,8 +73,8 @@ class UserService:
         if payload.display_name is not None:
             user.display_name = payload.display_name.strip()
 
-        if payload.shortcut is not None:
-            user.shortcut = payload.shortcut.strip()[:32]
+        if payload.acronym is not None:
+            user.shortcut = payload.acronym.strip()[:32]
 
         if payload.password is not None:
             user.password_hash = hash_password(payload.password)

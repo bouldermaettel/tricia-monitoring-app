@@ -15,8 +15,23 @@ def get_db(db: Session = Depends(get_db_session)) -> Session:
     return db
 
 
-def get_actor_id(x_actor_id: str | None = Header(default=None)) -> str:
-    return x_actor_id or "system"
+def get_actor_id(
+    x_actor_id: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    if x_actor_id:
+        return x_actor_id
+
+    if credentials is not None:
+        try:
+            payload = decode_access_token(credentials.credentials)
+        except InvalidTokenError:
+            payload = {}
+        subject = str(payload.get("sub", "")).strip()
+        if subject:
+            return subject
+
+    return "system"
 
 
 def get_actor_role(x_actor_role: str | None = Header(default=None)) -> str:

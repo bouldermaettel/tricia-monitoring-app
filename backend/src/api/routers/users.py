@@ -20,7 +20,7 @@ def list_users(
             UserRecord(
                 id=user.id,
                 external_key=user.external_key,
-                shortcut=user.shortcut,
+                acronym=user.shortcut or "",
                 display_name=user.display_name,
                 role=user.role,
                 is_active=user.is_active,
@@ -44,7 +44,7 @@ def create_user(
     return UserRecord(
         id=user.id,
         external_key=user.external_key,
-        shortcut=user.shortcut,
+        acronym=user.shortcut or "",
         display_name=user.display_name,
         role=user.role,
         is_active=user.is_active,
@@ -69,7 +69,7 @@ def update_user(
     return UserRecord(
         id=user.id,
         external_key=user.external_key,
-        shortcut=user.shortcut,
+        acronym=user.shortcut or "",
         display_name=user.display_name,
         role=user.role,
         is_active=user.is_active,

@@ -19,6 +19,7 @@ def test_users_create_contract(client):
         '/api/v1/users',
         json={
             'external_key': 'admin.new.user',
+            'acronym': 'anu',
             'password': 'admin-new-pass',
             'display_name': 'Admin New User',
             'role': 'operator',
@@ -29,6 +30,7 @@ def test_users_create_contract(client):
     assert response.status_code == 201
     payload = response.json()
     assert payload['external_key'] == 'admin.new.user'
+    assert payload['acronym'] == 'anu'
     assert payload['display_name'] == 'Admin New User'
     assert payload['role'] == 'operator'
     assert payload['is_active'] is True
@@ -40,6 +42,7 @@ def test_auth_session_contract(client):
         '/api/v1/users',
         json={
             'external_key': 'admin.contract.login',
+            'acronym': 'acl',
             'password': 'admin-contract-pass',
             'display_name': 'Admin Contract Login',
             'role': 'admin',
@@ -55,6 +58,7 @@ def test_auth_session_contract(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload['external_key'] == 'admin.contract.login'
+    assert payload['acronym'] == 'acl'
     assert payload['role'] == 'admin'
     assert payload['access_token']
     assert payload['refresh_token']
@@ -81,6 +85,7 @@ def test_users_update_contract(client):
         '/api/v1/users',
         json={
             'external_key': 'update.contract.user',
+            'acronym': 'ucu',
             'password': 'update-contract-pass',
             'display_name': 'Update Contract User',
             'role': 'operator',

@@ -19,7 +19,7 @@ class ControlService:
         end_date: date | None = None,
     ) -> ControlQueueResponse:
         query = (
-            select(Case, User.shortcut, User.external_key)
+            select(Case, User.shortcut)
             .select_from(Case)
             .join(User, User.id == Case.created_by_user_id, isouter=True)
         )
@@ -31,12 +31,12 @@ class ControlService:
             query = query.where(Case.analysis_date <= end_date)
         items = []
         now = datetime.utcnow()
-        for record, user_shortcut, user_external_key in self.db.execute(query).all():
+        for record, user_shortcut in self.db.execute(query).all():
             age_hours = (now - record.input_timestamp).total_seconds() / 3600
             delay_bucket = "on_time" if age_hours < 24 else "delayed_24h"
             if age_hours >= 72:
                 delay_bucket = "delayed_72h"
-            wimi_user = record.wimi_shortcut or user_shortcut or user_external_key or record.created_by_user_id
+            wimi_user = record.wimi_shortcut or user_shortcut or record.created_by_user_id
             items.append(
                 ControlQueueItem(
                     vk_number=record.vk_number,

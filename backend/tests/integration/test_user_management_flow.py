@@ -14,6 +14,7 @@ def test_admin_can_add_and_list_users(client):
         '/api/v1/users',
         json={
             'external_key': 'matrix.analyst.1',
+            'acronym': 'ma1',
             'password': 'matrix-analyst-pass',
             'display_name': 'Matrix Analyst',
             'role': 'analyst',
@@ -35,6 +36,7 @@ def test_admin_can_update_and_delete_user(client):
         '/api/v1/users',
         json={
             'external_key': 'ops.user.2',
+            'acronym': 'ou2',
             'password': 'ops-user-pass',
             'display_name': 'Ops User 2',
             'role': 'operator',
