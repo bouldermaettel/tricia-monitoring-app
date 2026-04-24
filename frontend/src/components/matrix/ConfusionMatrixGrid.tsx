@@ -10,6 +10,8 @@ type Props = {
   cells: Cell[];
   onCellToggle: (expected: number, observed: number) => void;
   selectedCells?: Array<{ expected: number; observed: number }>;
+  rowAxisLabel?: string;
+  columnAxisLabel?: string;
 };
 
 export function ConfusionMatrixGrid({
@@ -17,6 +19,8 @@ export function ConfusionMatrixGrid({
   cells,
   onCellToggle,
   selectedCells = [],
+  rowAxisLabel,
+  columnAxisLabel,
 }: Props) {
   const allValues = [...new Set(cells.flatMap((c) => [c.expected_value, c.observed_value]))].sort((a, b) => a - b);
   const cellMap = new Map<string, Cell>();
@@ -37,54 +41,69 @@ export function ConfusionMatrixGrid({
         {title}
       </h2>
       <div className="overflow-x-auto">
-        <table className="border-collapse">
-          <thead>
-            <tr>
-              <th className="p-2 text-xs text-stone-400 font-medium w-12" />
-              {allValues.map((v) => (
-                <th key={v} className="p-2 text-xs text-stone-500 font-semibold text-center w-20">
-                  {v}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {allValues.map((expected) => (
-              <tr key={expected}>
-                <th className="p-2 text-xs text-stone-500 font-semibold text-right pr-4">{expected}</th>
-                {allValues.map((observed) => {
-                  const cell = cellMap.get(`${expected}-${observed}`);
-                  const isSelected = selectedSet.has(`${expected}-${observed}`);
-                  const isDiag = expected === observed;
-                  const hasData = cell && cell.case_count > 0;
+        <div className="inline-flex items-center gap-3">
+          {rowAxisLabel && (
+            <div className="text-xs font-semibold text-stone-500 tracking-wide [writing-mode:vertical-rl] rotate-180">
+              {rowAxisLabel}
+            </div>
+          )}
+          <div className="inline-flex flex-col items-center">
+            <table className="border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-2 text-xs text-stone-400 font-medium w-12" />
+                  {allValues.map((v) => (
+                    <th key={v} className="p-2 text-xs text-stone-500 font-semibold text-center w-20">
+                      {v}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {allValues.map((expected) => (
+                  <tr key={expected}>
+                    <th className="p-2 text-xs text-stone-500 font-semibold text-right pr-4">{expected}</th>
+                    {allValues.map((observed) => {
+                      const cell = cellMap.get(`${expected}-${observed}`);
+                      const isSelected = selectedSet.has(`${expected}-${observed}`);
+                      const isDiag = expected === observed;
+                      const isWimiHigherThanTricia = expected > observed;
+                      const hasData = cell && cell.case_count > 0;
 
-                  let colorClass: string;
-                  if (!hasData) {
-                    colorClass = 'bg-stone-50 text-stone-300 border-stone-100';
-                  } else if (isDiag || cell.within_threshold) {
-                    colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100';
-                  } else {
-                    colorClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100';
-                  }
+                      let colorClass: string;
+                      if (!hasData) {
+                        colorClass = 'bg-stone-50 text-stone-300 border-stone-100';
+                      } else if (isDiag) {
+                        colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100';
+                      } else if (isWimiHigherThanTricia) {
+                        colorClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100';
+                      } else {
+                        colorClass = 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100';
+                      }
 
-                  return (
-                    <td key={observed} className="p-1">
-                      <button
-                        onClick={() => hasData && onCellToggle(expected, observed)}
-                        disabled={!hasData}
-                        className={`w-16 h-14 rounded-lg border font-mono text-sm font-semibold transition-all ${colorClass} ${
-                          isSelected ? 'ring-2 ring-amber-400 ring-offset-1 scale-105 shadow-md' : 'hover:scale-105'
-                        } disabled:cursor-default`}
-                      >
-                        {cell?.case_count ?? '—'}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      return (
+                        <td key={observed} className="p-1">
+                          <button
+                            onClick={() => hasData && onCellToggle(expected, observed)}
+                            disabled={!hasData}
+                            className={`w-16 h-14 rounded-lg border font-mono text-sm font-semibold transition-all ${colorClass} ${
+                              isSelected ? 'ring-2 ring-amber-400 ring-offset-1 scale-105 shadow-md' : 'hover:scale-105'
+                            } disabled:cursor-default`}
+                          >
+                            {cell?.case_count ?? '—'}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {columnAxisLabel && (
+              <div className="mt-2 text-xs font-semibold text-stone-500 tracking-wide">{columnAxisLabel}</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

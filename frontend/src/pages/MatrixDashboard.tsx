@@ -10,7 +10,7 @@ import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixLegend } from '../components/matrix/MatrixLegend';
 import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
-import { MatrixDimension, useFilters } from '../state/filters';
+import { MatrixDimension, RiskFilter, useFilters } from '../state/filters';
 import { useImportOverride } from '../state/importOverride';
 import { listCases } from '../services/cases';
 import { useThresholds } from '../hooks/useThresholds';
@@ -28,6 +28,24 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
     start_date: from.toISOString().slice(0, 10),
     end_date: to.toISOString().slice(0, 10),
   };
+}
+
+type MatrixCell = {
+  expected_value: number;
+  observed_value: number;
+  case_count: number;
+};
+
+function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): Array<{ expected: number; observed: number }> {
+  if (riskFilter === 'all') return [];
+  return cells
+    .filter((cell) => cell.case_count > 0)
+    .filter((cell) =>
+      riskFilter === 'false_low'
+        ? cell.expected_value > cell.observed_value
+        : cell.expected_value < cell.observed_value
+    )
+    .map((cell) => ({ expected: cell.expected_value, observed: cell.observed_value }));
 }
 
 export function MatrixDashboard() {
@@ -73,7 +91,6 @@ export function MatrixDashboard() {
   const matrix = useMatrix({
     include_excluded: includeExcluded,
     problematic_only: problematicOnly,
-    risk_level: riskFilter === 'all' ? undefined : riskFilter,
     ...dateParams,
   });
   const thresholds = useThresholds();
@@ -81,7 +98,6 @@ export function MatrixDashboard() {
   const caseParams = {
     include_excluded: includeExcluded,
     problematic_only: problematicOnly,
-    risk_level: riskFilter === 'all' ? undefined : riskFilter,
     vk_number: requestedVkNumber || undefined,
     ...dateParams,
   };
@@ -92,13 +108,12 @@ export function MatrixDashboard() {
     return overrideCases.filter((item) => {
       if (!includeExcluded && item.is_excluded) return false;
       if (problematicOnly && Math.abs((item.user_d ?? 0) - (item.tricia_d ?? 0)) <= 2) return false;
-      if (riskFilter !== 'all' && (item.risk_level ?? '') !== riskFilter) return false;
       if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
       if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
       if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
       return true;
     });
-  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskFilter]);
+  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber]);
 
   const overrideMatrices = useMemo(() => {
     if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
@@ -132,6 +147,40 @@ export function MatrixDashboard() {
       ),
     };
   }, [filteredOverrideCases, isOverrideActive, thresholds.data?.acceptance_threshold]);
+  const productCells = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
+
+  useEffect(() => {
+    if (riskFilter === 'all') {
+      setSelectedCellsByDimension((previous) => {
+        if (
+          previous.severity.length === 0 &&
+          previous.detectability.length === 0 &&
+          previous.product.length === 0
+        ) {
+          return previous;
+        }
+        return {
+          severity: [],
+          detectability: [],
+          product: [],
+        };
+      });
+      return;
+    }
+    const target = getProductRiskSelection(productCells, riskFilter);
+    const targetSet = new Set(target.map((cell) => `${cell.expected}-${cell.observed}`));
+    setSelectedCellsByDimension((previous) => {
+      const currentSet = new Set(previous.product.map((cell) => `${cell.expected}-${cell.observed}`));
+      if (targetSet.size === currentSet.size && [...targetSet].every((value) => currentSet.has(value))) {
+        return previous;
+      }
+      return {
+        severity: [],
+        detectability: [],
+        product: target,
+      };
+    });
+  }, [productCells, riskFilter]);
   const patchReview = usePatchCaseReview();
   const addComment = useAddCaseComment();
   const updateCase = useUpdateCase();
@@ -299,16 +348,20 @@ export function MatrixDashboard() {
           {!collapsedSD && (
             <div className="grid gap-4 md:grid-cols-2 mt-3">
               <ConfusionMatrixGrid
-                title="Severity Matrix — WIMI-S (rows) vs TRI-S (cols)"
+                title="Severity Matrix"
                 cells={isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? [])}
                 onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
                 selectedCells={selectedCellsByDimension.severity}
+                rowAxisLabel="WIMI-S"
+                columnAxisLabel="TRI-S"
               />
               <ConfusionMatrixGrid
-                title="Detectability Matrix — WIMI-D (rows) vs TRI-D (cols)"
+                title="Detectability Matrix"
                 cells={isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? [])}
                 onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
                 selectedCells={selectedCellsByDimension.detectability}
+                rowAxisLabel="WIMI-D"
+                columnAxisLabel="TRI-D"
               />
             </div>
           )}
@@ -324,10 +377,12 @@ export function MatrixDashboard() {
           {!collapsedProduct && (
             <div className="p-2">
               <ConfusionMatrixGrid
-                title="Product Matrix — WIMI (SxDxP) vs TRI (SxDxP), with WIMI-P = TRI-P"
-                cells={isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? [])}
+                title="Product Matrix"
+                cells={productCells}
                 onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
                 selectedCells={selectedCellsByDimension.product}
+                rowAxisLabel="WIMI (SxDxP)"
+                columnAxisLabel="TRI (SxDxP)"
               />
             </div>
           )}

@@ -86,7 +86,7 @@ export function FilterPanel({
                 riskFilter === v ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
               }`}
             >
-              {v === 'all' ? 'All' : v === 'false_low' ? 'False Low ↑' : 'False High ↓'}
+              {v === 'all' ? 'All' : v === 'false_low' ? 'False Low (Red)' : 'False High (Yellow)'}
             </button>
           ))}
         </div>
