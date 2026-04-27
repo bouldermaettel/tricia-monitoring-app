@@ -37,12 +37,14 @@ export function ControlDashboard() {
   const [dateWindow, setDateWindow] = useState<DateWindow>('3M');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [reviewWindowDays, setReviewWindowDays] = useState(28);
   const dateParams = getDateParams(dateWindow, dateFrom || undefined, dateTo || undefined);
+  const queueParams = { ...dateParams, review_window_days: reviewWindowDays };
   const overrideControlItems = useImportOverride((s) => s.controlItems);
   const overrideSourceFile = useImportOverride((s) => s.sourceFileName);
   const clearPreviewData = useImportOverride((s) => s.clearPreviewData);
   const isOverrideActive = Boolean(overrideSourceFile);
-  const queue = useControlQueue(dateParams, { enabled: !isOverrideActive });
+  const queue = useControlQueue(queueParams, { enabled: !isOverrideActive });
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
     columns: [],
     rows: [],
@@ -55,10 +57,17 @@ export function ControlDashboard() {
             if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
             if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
             return true;
+          }).map((item) => {
+            if (!item.input_timestamp) return item;
+            const now = new Date();
+            const inputTime = new Date(item.input_timestamp);
+            const elapsedMs = now.getTime() - inputTime.getTime();
+            const delayBucket = elapsedMs <= reviewWindowDays * 24 * 60 * 60 * 1000 ? 'on_time' : 'delayed_72h';
+            return { ...item, delay_bucket: delayBucket };
           })
         : queue.data?.items ?? EMPTY_ITEMS,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isOverrideActive, overrideControlItems, dateParams.start_date, dateParams.end_date, queue.data]
+    [isOverrideActive, overrideControlItems, dateParams.start_date, dateParams.end_date, queue.data, reviewWindowDays]
   );
 
   return (
@@ -111,6 +120,19 @@ export function ControlDashboard() {
                 />
               </div>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="review-window-days" className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
+              Review SLA (days)
+            </label>
+            <input
+              id="review-window-days"
+              type="number"
+              min={1}
+              value={reviewWindowDays}
+              onChange={(e) => setReviewWindowDays(Math.max(1, Number(e.target.value) || 28))}
+              className="w-28 text-sm border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-amber-400"
+            />
           </div>
         </div>
 

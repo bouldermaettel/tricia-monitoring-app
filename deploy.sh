@@ -27,14 +27,16 @@ APP_BASE="tricia-${NAMESPACE}"
 BACKEND_APP="${APP_BASE}-backend"
 FRONTEND_APP="${APP_BASE}-frontend"
 ACR_NAME="$(echo "tricia${NAMESPACE}acr" | tr -d '-')"
-BACKEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-backend:latest"
-FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-frontend:latest"
+IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d%H%M%S)}"
+BACKEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-backend:${IMAGE_TAG}"
+FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-frontend:${IMAGE_TAG}"
 
 echo "🚀 Deploying Tricia Monitoring App"
 echo "   Namespace:      $NAMESPACE"
 echo "   Resource group: $RESOURCE_GROUP"
 echo "   Location:       $LOCATION"
 echo "   ACR:            $ACR_NAME"
+echo "   Image tag:      $IMAGE_TAG"
 echo "   Project root:   $PROJECT_ROOT"
 
 echo "🔍 Checking prerequisites..."
@@ -69,7 +71,7 @@ echo "🔨 Building backend image in ACR..."
 az acr build \
   --registry "$ACR_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --image "tricia-monitoring-backend:latest" \
+  --image "tricia-monitoring-backend:${IMAGE_TAG}" \
   --file backend/Dockerfile \
   "$PROJECT_ROOT"
 echo "✅ Backend image built"
@@ -78,7 +80,7 @@ echo "🔨 Building frontend image in ACR..."
 az acr build \
   --registry "$ACR_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --image "tricia-monitoring-frontend:latest" \
+  --image "tricia-monitoring-frontend:${IMAGE_TAG}" \
   --build-arg "VITE_API_BASE_URL=/api/v1" \
   --file frontend/Dockerfile \
   "$PROJECT_ROOT"
@@ -137,7 +139,7 @@ if [ -n "$BACKEND_URL" ]; then
   az acr build \
     --registry "$ACR_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --image "tricia-monitoring-frontend:latest" \
+    --image "tricia-monitoring-frontend:${IMAGE_TAG}" \
     --build-arg "VITE_API_BASE_URL=https://${BACKEND_URL}/api/v1" \
     --file frontend/Dockerfile \
     "$PROJECT_ROOT"

@@ -25,5 +25,6 @@ describe('ControlDashboard', () => {
         expect(screen.getByText('Control Dashboard')).toBeInTheDocument();
         expect(screen.getByText('VK-1')).toBeInTheDocument();
         expect(screen.getByText('23.11.2021')).toBeInTheDocument();
+        expect(screen.getByLabelText('Review SLA (days)')).toHaveValue(28);
     });
 });

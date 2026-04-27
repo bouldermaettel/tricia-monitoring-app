@@ -1,10 +1,10 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.schemas.control import ControlQueueItem, ControlQueueResponse
-from src.models.case import Case
+from src.models.case import Case, CaseReview
 from src.models.user import User
 
 
@@ -17,11 +17,13 @@ class ControlService:
         status: str | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
+        review_window_days: int = 28,
     ) -> ControlQueueResponse:
         query = (
-            select(Case, User.shortcut)
+            select(Case, User.shortcut, CaseReview.is_reviewed, CaseReview.updated_at)
             .select_from(Case)
             .join(User, User.id == Case.created_by_user_id, isouter=True)
+            .join(CaseReview, CaseReview.case_id == Case.id, isouter=True)
         )
         if status:
             query = query.where(Case.validation_status == status)
@@ -29,13 +31,21 @@ class ControlService:
             query = query.where(Case.analysis_date >= start_date)
         if end_date:
             query = query.where(Case.analysis_date <= end_date)
+        review_window_days = max(review_window_days, 1)
+        review_window_delta = timedelta(days=review_window_days)
         items = []
-        now = datetime.utcnow()
-        for record, user_shortcut in self.db.execute(query).all():
-            age_hours = (now - record.input_timestamp).total_seconds() / 3600
-            delay_bucket = "on_time" if age_hours < 24 else "delayed_24h"
-            if age_hours >= 72:
-                delay_bucket = "delayed_72h"
+        for record, user_shortcut, is_reviewed, reviewed_at in self.db.execute(query).all():
+            now = (
+                datetime.now(record.input_timestamp.tzinfo)
+                if getattr(record.input_timestamp, "tzinfo", None) is not None
+                else datetime.utcnow()
+            )
+            if is_reviewed:
+                review_reference = reviewed_at or now
+                is_on_time = (review_reference - record.input_timestamp) <= review_window_delta
+            else:
+                is_on_time = (now - record.input_timestamp) <= review_window_delta
+            delay_bucket = "on_time" if is_on_time else "delayed_72h"
             wimi_user = record.wimi_shortcut or user_shortcut or record.created_by_user_id
             items.append(
                 ControlQueueItem(

@@ -6,34 +6,13 @@
       "value": "team-a"
     },
     "backendImage": {
-      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-backend:latest"
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-backend:20260427144500"
     },
     "frontendImage": {
-      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-frontend:latest"
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-frontend:20260427144500"
     },
     "secretKey": {
-      "value": "replace-with-strong-secret-key"
-    },
-    "postgresAdminUsername": {
-      "value": "triciaadmin"
-    },
-    "postgresAdminPassword": {
-      "value": "replace-with-postgres-password"
-    },
-    "postgresDatabaseName": {
-      "value": "tricia_monitoring"
-    },
-    "postgresSkuName": {
-      "value": "Standard_B1ms"
-    },
-    "postgresSkuTier": {
-      "value": "Burstable"
-    },
-    "postgresStorageGb": {
-      "value": 32
-    },
-    "postgresVersion": {
-      "value": "16"
+      "value": "abscuet4456438ste$$1342"
     },
     "corsOrigins": {
       "value": "https://your-frontend-fqdn"
@@ -42,10 +21,10 @@
       "value": "admin"
     },
     "bootstrapAdminPassword": {
-      "value": "replace-with-admin-password"
+      "value": "swissmedic@tricia.ch"
     },
     "bootstrapAdminDisplayName": {
-      "value": "System Admin"
+      "value": "System_Admin"
     },
     "backendCpu": {
       "value": "0.5"
