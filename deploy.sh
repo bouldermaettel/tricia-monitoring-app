@@ -1,120 +1,166 @@
 #!/bin/bash
 
-# Deploy Snippet Answer Generator to Azure Container Apps
-# Uses Azure Container Registry (ACR) build + Bicep template
-# ACR build avoids WSL2 SSL issues with Docker push
+# Deploy Tricia Monitoring App to Azure Container Apps
+# Pattern mirrors infra_example: ACR build + Bicep deployment.
+# Usage:
+#   ./deploy.sh <namespace> [resource-group] [location]
+#
+# Example:
+#   ./deploy.sh team-a monitoring-sandbox-rg switzerlandnorth
 
-set -e
+set -euo pipefail
 
-# Configuration (derived from infra/parameters.json)
-RESOURCE_GROUP="snippet-answer-rg"
-LOCATION="switzerlandnorth"
-ACR_NAME="snippetansweracr"
-ACR_IMAGE="snippetansweracr.azurecr.io/snippet-answer:latest"
+NAMESPACE="${1:-}"
+RESOURCE_GROUP="${2:-monitoring-sandbox-rg}"
+LOCATION="${3:-switzerlandnorth}"
+
+if [ -z "$NAMESPACE" ]; then
+  echo "❌ Missing namespace."
+  echo "Usage: ./deploy.sh <namespace> [resource-group] [location]"
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$SCRIPT_DIR"
 
-echo "🚀 Deploying Snippet Answer Generator to Azure using ACR build..."
-echo "   Project root: $PROJECT_ROOT"
+APP_BASE="tricia-${NAMESPACE}"
+BACKEND_APP="${APP_BASE}-backend"
+FRONTEND_APP="${APP_BASE}-frontend"
+ACR_NAME="$(echo "tricia${NAMESPACE}acr" | tr -d '-')"
+BACKEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-backend:latest"
+FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-frontend:latest"
 
-# --- Prerequisites -----------------------------------------------------------
+echo "🚀 Deploying Tricia Monitoring App"
+echo "   Namespace:      $NAMESPACE"
+echo "   Resource group: $RESOURCE_GROUP"
+echo "   Location:       $LOCATION"
+echo "   ACR:            $ACR_NAME"
+echo "   Project root:   $PROJECT_ROOT"
+
 echo "🔍 Checking prerequisites..."
-
-if ! command -v az &> /dev/null; then
-    echo "❌ Azure CLI is not installed. Please install it first."
-    exit 1
+if ! command -v az >/dev/null 2>&1; then
+  echo "❌ Azure CLI is not installed."
+  exit 1
 fi
-
-if ! az account show &> /dev/null; then
-    echo "❌ Not logged in to Azure. Please run 'az login' first."
-    exit 1
+if ! az account show >/dev/null 2>&1; then
+  echo "❌ Not logged in to Azure. Run: az login"
+  exit 1
 fi
-
-ACCOUNT=$(az account show --query '[name, id]' -o tsv)
-echo "   Azure account: $ACCOUNT"
 echo "✅ Prerequisites check passed"
 
-# --- Step 1: Resource Group ---------------------------------------------------
-echo "📦 Checking resource group: $RESOURCE_GROUP"
-if ! az group show --name "$RESOURCE_GROUP" &> /dev/null; then
-    echo "   Creating resource group in $LOCATION..."
-    az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
-    echo "   ✅ Resource group created"
-else
-    echo "   ✅ Resource group exists"
+echo "📦 Ensuring resource group exists..."
+if ! az group show --name "$RESOURCE_GROUP" >/dev/null 2>&1; then
+  az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 fi
+echo "✅ Resource group ready"
 
-# --- Step 2: Azure Container Registry ----------------------------------------
-echo "🏗️  Checking Azure Container Registry: $ACR_NAME"
-if ! az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
-    echo "   Creating Azure Container Registry..."
-    az acr create \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$ACR_NAME" \
-        --sku Basic \
-        --admin-enabled true \
-        --output none
-    echo "   ✅ ACR created"
-else
-    echo "   ✅ ACR already exists"
-fi
-
-# --- Step 3: Build image in ACR ----------------------------------------------
-echo "🔨 Building image in ACR (this may take several minutes)..."
-echo "   Building directly in Azure — no local Docker needed"
-az acr build \
-    --registry "$ACR_NAME" \
+echo "🏗️  Ensuring ACR exists..."
+if ! az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+  az acr create \
     --resource-group "$RESOURCE_GROUP" \
-    --image "snippet-answer:latest" \
-    --file Dockerfile \
-    "$PROJECT_ROOT"
-echo "✅ Image built and pushed to ACR"
-
-# --- Step 4: Deploy via Bicep template ----------------------------------------
-echo "🚀 Deploying infrastructure via Bicep template..."
-az deployment group create \
-    --resource-group "$RESOURCE_GROUP" \
-    --template-file "$PROJECT_ROOT/infra/main.bicep" \
-    --parameters "$PROJECT_ROOT/infra/parameters.json" \
+    --name "$ACR_NAME" \
+    --sku Basic \
+    --admin-enabled true \
     --output none
+fi
+echo "✅ ACR ready"
+
+echo "🔨 Building backend image in ACR..."
+az acr build \
+  --registry "$ACR_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --image "tricia-monitoring-backend:latest" \
+  --file backend/Dockerfile \
+  "$PROJECT_ROOT"
+echo "✅ Backend image built"
+
+echo "🔨 Building frontend image in ACR..."
+az acr build \
+  --registry "$ACR_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --image "tricia-monitoring-frontend:latest" \
+  --build-arg "VITE_API_BASE_URL=/api/v1" \
+  --file frontend/Dockerfile \
+  "$PROJECT_ROOT"
+echo "✅ Frontend image built"
+
+if [ -z "${SECRET_KEY:-}" ] || [ -z "${BOOTSTRAP_ADMIN_USERNAME:-}" ] || [ -z "${BOOTSTRAP_ADMIN_PASSWORD:-}" ]; then
+  echo "❌ Required env vars missing."
+  echo "Set these before running:"
+  echo "   export SECRET_KEY='...'"
+  echo "   export BOOTSTRAP_ADMIN_USERNAME='...'"
+  echo "   export BOOTSTRAP_ADMIN_PASSWORD='...'"
+  echo "Optional:"
+  echo "   export BOOTSTRAP_ADMIN_DISPLAY_NAME='System Admin'"
+  echo "   export CORS_ORIGINS='https://your-frontend-url'"
+  exit 1
+fi
+
+echo "🚀 Deploying infrastructure (Bicep)..."
+az deployment group create \
+  --resource-group "$RESOURCE_GROUP" \
+  --template-file "$PROJECT_ROOT/infra/main.bicep" \
+  --parameters namespace="$NAMESPACE" \
+               location="$LOCATION" \
+               backendImage="$BACKEND_IMAGE" \
+               frontendImage="$FRONTEND_IMAGE" \
+               secretKey="$SECRET_KEY" \
+               bootstrapAdminUsername="$BOOTSTRAP_ADMIN_USERNAME" \
+               bootstrapAdminPassword="$BOOTSTRAP_ADMIN_PASSWORD" \
+               bootstrapAdminDisplayName="${BOOTSTRAP_ADMIN_DISPLAY_NAME:-System Admin}" \
+               corsOrigins="${CORS_ORIGINS:-}" \
+  --output none
 echo "✅ Bicep deployment complete"
 
-# --- Step 4b: Force new revision to pull fresh image --------------------------
-# Container Apps caches the :latest tag; an env-var change forces a new pull.
-echo "🔄 Forcing new revision to pull fresh image..."
-az containerapp update \
-    --name "snippet-answer" \
-    --resource-group "$RESOURCE_GROUP" \
-    --set-env-vars "DEPLOY_TIMESTAMP=$(date +%s)" \
-    --output none
-echo "✅ New revision created"
+BACKEND_URL=$(az containerapp show \
+  --name "$BACKEND_APP" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.configuration.ingress.fqdn" \
+  --output tsv 2>/dev/null || echo "")
 
-# --- Step 5: Display results --------------------------------------------------
-APP_URL=$(az containerapp show \
-    --name "snippet-answer" \
+if [ -n "$BACKEND_URL" ]; then
+  echo "🔁 Rebuilding frontend with concrete backend URL..."
+  az acr build \
+    --registry "$ACR_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --query "properties.configuration.ingress.fqdn" \
-    --output tsv 2>/dev/null || echo "")
-
-echo ""
-echo "🎉 Deployment completed successfully!"
-if [ -n "$APP_URL" ]; then
-    echo "📱 Application URL: https://$APP_URL"
-else
-    echo "📱 Application URL: (run the command below to retrieve it)"
-    echo "   az containerapp show --name snippet-answer --resource-group $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv"
+    --image "tricia-monitoring-frontend:latest" \
+    --build-arg "VITE_API_BASE_URL=https://${BACKEND_URL}/api/v1" \
+    --file frontend/Dockerfile \
+    "$PROJECT_ROOT"
+  echo "✅ Frontend rebuilt for backend URL"
 fi
+
+echo "🔄 Forcing fresh revisions..."
+az containerapp update \
+  --name "$BACKEND_APP" \
+  --resource-group "$RESOURCE_GROUP" \
+  --set-env-vars "DEPLOY_TIMESTAMP=$(date +%s)" \
+  --output none
+
+az containerapp update \
+  --name "$FRONTEND_APP" \
+  --resource-group "$RESOURCE_GROUP" \
+  --set-env-vars "DEPLOY_TIMESTAMP=$(date +%s)" \
+  --output none
+echo "✅ Revisions updated"
+
+BACKEND_URL=$(az containerapp show \
+  --name "$BACKEND_APP" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.configuration.ingress.fqdn" \
+  --output tsv 2>/dev/null || echo "")
+
+FRONTEND_URL=$(az containerapp show \
+  --name "$FRONTEND_APP" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.configuration.ingress.fqdn" \
+  --output tsv 2>/dev/null || echo "")
+
 echo ""
-echo "📊 To monitor your application:"
-echo "   az containerapp logs show --name snippet-answer --resource-group $RESOURCE_GROUP --follow"
+echo "🎉 Deployment completed"
+echo "Backend:  https://${BACKEND_URL}"
+echo "Frontend: https://${FRONTEND_URL}"
 echo ""
-echo "🔧 To scale your application:"
-echo "   az containerapp update --name snippet-answer --resource-group $RESOURCE_GROUP --min-replicas 1 --max-replicas 5"
-echo ""
-echo "🔄 To update the app (after code changes):"
-echo "   az acr build --registry $ACR_NAME --image snippet-answer:latest --file Dockerfile ."
-echo "   az deployment group create -g $RESOURCE_GROUP --template-file infra/main.bicep --parameters infra/parameters.json"
-echo ""
-echo "🗑️  To clean up all resources:"
-echo "   az group delete --resource-group $RESOURCE_GROUP --yes --no-wait"
+echo "📊 Logs:"
+echo "   az containerapp logs show --name $BACKEND_APP --resource-group $RESOURCE_GROUP --follow"
+echo "   az containerapp logs show --name $FRONTEND_APP --resource-group $RESOURCE_GROUP --follow"

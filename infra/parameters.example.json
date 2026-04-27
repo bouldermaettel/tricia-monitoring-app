@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namespace": {
+      "value": "team-a"
+    },
+    "backendImage": {
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-backend:latest"
+    },
+    "frontendImage": {
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-frontend:latest"
+    },
+    "secretKey": {
+      "value": "replace-with-strong-secret-key"
+    },
+    "corsOrigins": {
+      "value": "https://your-frontend-fqdn"
+    },
+    "bootstrapAdminUsername": {
+      "value": "admin"
+    },
+    "bootstrapAdminPassword": {
+      "value": "replace-with-admin-password"
+    },
+    "bootstrapAdminDisplayName": {
+      "value": "System Admin"
+    },
+    "backendCpu": {
+      "value": "0.5"
+    },
+    "backendMemory": {
+      "value": "1Gi"
+    },
+    "frontendCpu": {
+      "value": "0.5"
+    },
+    "frontendMemory": {
+      "value": "1Gi"
+    }
+  }
+}

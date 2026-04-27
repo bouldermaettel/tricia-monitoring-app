@@ -20,3 +20,21 @@ Note: the repository currently has migration versions only and no Alembic `env.p
 ## Deployment
 
 Azure Container Apps manifests are in `infra/aca/` and deployment workflow is `.github/workflows/deploy-aca.yml`.
+
+### Namespace-based sandbox deployment
+
+This repository includes a namespace-isolated deployment flow (same sandbox, different namespace) similar to `infra_example`.
+
+1. Export required secrets:
+   - `SECRET_KEY`
+   - `BOOTSTRAP_ADMIN_USERNAME`
+   - `BOOTSTRAP_ADMIN_PASSWORD`
+2. Optional:
+   - `BOOTSTRAP_ADMIN_DISPLAY_NAME`
+   - `CORS_ORIGINS`
+3. Run:
+   - `./deploy.sh <namespace> [resource-group] [location]`
+
+Example:
+
+`./deploy.sh team-a monitoring-sandbox-rg switzerlandnorth`
