@@ -1,4 +1,5 @@
 @description('Namespace suffix to isolate resources in the same sandbox (e.g. team-a)')
+@minLength(1)
 param namespace string
 
 @description('Azure region')
@@ -66,7 +67,10 @@ var acrName = replace('tricia${namespace}acr', '-', '')
 var backendName = '${appBase}-backend'
 var frontendName = '${appBase}-frontend'
 var envName = '${appBase}-env'
-var postgresServerName = take(toLower(replace('${appBase}-pg', '_', '-')), 63)
+var postgresServerNameBase = take(toLower(replace('${appBase}-pg', '_', '-')), 63)
+var postgresServerName = length(postgresServerNameBase) < 3 ? 'pgs' : postgresServerNameBase
+var postgresAdminUsernameEncoded = uriComponent(postgresAdminUsername)
+var postgresAdminPasswordEncoded = uriComponent(postgresAdminPassword)
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${appBase}-logs'
@@ -126,7 +130,7 @@ resource postgresAllowAzureServices 'Microsoft.DBforPostgreSQL/flexibleServers/f
   }
 }
 
-var databaseUrl = 'postgresql+psycopg://${postgresAdminUsername}:${postgresAdminPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/${postgresDatabaseName}?sslmode=require'
+var databaseUrl = 'postgresql+psycopg://${postgresAdminUsernameEncoded}:${postgresAdminPasswordEncoded}@${postgresServer.properties.fullyQualifiedDomainName}:5432/${postgresDatabaseName}?sslmode=require'
 
 resource containerEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: envName

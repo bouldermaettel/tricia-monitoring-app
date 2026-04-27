@@ -12,6 +12,7 @@ export type AppSession = {
   acronym?: string;
   displayName: string;
   role: string;
+  mustChangePassword: boolean;
 };
 
 const SESSION_KEY = 'monitoring.session';
@@ -35,7 +36,10 @@ function readStoredSession(): AppSession | null {
       getAuthStorage().removeItem(SESSION_KEY);
       return null;
     }
-    return parsed;
+    return {
+      ...parsed,
+      mustChangePassword: Boolean(parsed.mustChangePassword),
+    };
   } catch {
     return null;
   }
@@ -43,7 +47,8 @@ function readStoredSession(): AppSession | null {
 
 type AuthContextValue = {
   session: AppSession | null;
-  signIn: (username: string, password: string) => Promise<void>;
+  signIn: (username: string, password: string) => Promise<AppSession>;
+  updateSession: (nextSession: AppSession) => void;
   signOut: () => void;
 };
 
@@ -68,7 +73,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
           acronym: actor.acronym,
           displayName: actor.display_name,
           role: actor.role,
+          mustChangePassword: actor.must_change_password,
         };
+        getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
+        setSession(nextSession);
+        return nextSession;
+      },
+      updateSession: (nextSession: AppSession) => {
         getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
         setSession(nextSession);
       },
@@ -89,8 +100,11 @@ export function useAuth() {
   if (!context) {
     return {
       session: null,
-      signIn: async () => {
+      signIn: async (): Promise<AppSession> => {
         throw new Error('Authentication provider missing');
+      },
+      updateSession: () => {
+        return;
       },
       signOut: () => {
         return;

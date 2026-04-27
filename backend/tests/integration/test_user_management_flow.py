@@ -17,7 +17,7 @@ def test_admin_can_add_and_list_users(client):
             'acronym': 'ma1',
             'password': 'matrix-analyst-pass',
             'display_name': 'Matrix Analyst',
-            'role': 'analyst',
+            'role': 'user',
             'is_active': True,
         },
         headers=headers,
@@ -27,7 +27,7 @@ def test_admin_can_add_and_list_users(client):
     list_response = client.get('/api/v1/users', headers=headers)
     assert list_response.status_code == 200
     items = list_response.json()['items']
-    assert any(item['external_key'] == 'matrix.analyst.1' and item['role'] == 'analyst' for item in items)
+    assert any(item['external_key'] == 'matrix.analyst.1' and item['role'] == 'user' for item in items)
 
 
 def test_admin_can_update_and_delete_user(client):
@@ -39,7 +39,7 @@ def test_admin_can_update_and_delete_user(client):
             'acronym': 'ou2',
             'password': 'ops-user-pass',
             'display_name': 'Ops User 2',
-            'role': 'operator',
+            'role': 'user',
             'is_active': True,
         },
         headers=headers,
@@ -48,13 +48,13 @@ def test_admin_can_update_and_delete_user(client):
 
     updated = client.patch(
         f'/api/v1/users/{user_id}',
-        json={'display_name': 'Ops User Updated', 'role': 'controller', 'is_active': False},
+        json={'display_name': 'Ops User Updated', 'role': 'user', 'is_active': False},
         headers=headers,
     )
     assert updated.status_code == 200
     payload = updated.json()
     assert payload['display_name'] == 'Ops User Updated'
-    assert payload['role'] == 'controller'
+    assert payload['role'] == 'user'
     assert payload['is_active'] is False
 
     deleted = client.delete(

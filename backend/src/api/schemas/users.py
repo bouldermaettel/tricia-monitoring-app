@@ -19,7 +19,7 @@ class UserCreateRequest(BaseModel):
     acronym: str = Field(min_length=1, max_length=32)
     password: str = Field(min_length=1, max_length=256)
     display_name: str = Field(min_length=1, max_length=128)
-    role: str = Field(default="operator", min_length=3, max_length=32)
+    role: str = Field(default="user", min_length=3, max_length=32)
     is_active: bool = True
 
 

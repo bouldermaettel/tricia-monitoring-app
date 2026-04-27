@@ -8,7 +8,7 @@ from src.api.schemas.users import UserCreateRequest, UserUpdateRequest
 from src.core.security import hash_password, verify_password
 from src.models.user import User
 
-ALLOWED_ROLES = {"operator", "analyst", "controller", "admin"}
+ALLOWED_ROLES = {"user", "admin"}
 
 
 def _build_default_shortcut(external_key: str) -> str:
@@ -54,6 +54,7 @@ class UserService:
             password_hash=hash_password(payload.password),
             display_name=payload.display_name.strip(),
             role=role,
+            must_change_password=True,
             is_active=payload.is_active,
         )
         self.db.add(user)
@@ -78,6 +79,7 @@ class UserService:
 
         if payload.password is not None:
             user.password_hash = hash_password(payload.password)
+            user.must_change_password = True
 
         if payload.role is not None:
             role = payload.role.lower().strip()
@@ -100,6 +102,15 @@ class UserService:
         self.db.commit()
         return True
 
+    def change_password(self, user: User, current_password: str, new_password: str) -> User:
+        if not verify_password(current_password, user.password_hash or ""):
+            raise ValueError("Current password is incorrect")
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
     def ensure_bootstrap_admin(self, username: str, password: str, display_name: str) -> None:
         if not username or not password:
             return
@@ -114,6 +125,7 @@ class UserService:
                     password_hash=hash_password(password),
                     display_name=display_name.strip() or "System Admin",
                     role="admin",
+                    must_change_password=False,
                     is_active=True,
                 )
             )
@@ -135,6 +147,9 @@ class UserService:
             changed = True
         if not existing.shortcut:
             existing.shortcut = _build_default_shortcut(existing.external_key)
+            changed = True
+        if existing.must_change_password:
+            existing.must_change_password = False
             changed = True
 
         if changed:

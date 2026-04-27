@@ -25,7 +25,7 @@ vi.mock('../../src/hooks/useUsers', () => ({
                     id: 'u-1',
                     external_key: 'matrix.user.1',
                     display_name: 'Matrix User',
-                    role: 'operator',
+                    role: 'user',
                     is_active: true,
                 },
             ],
@@ -42,11 +42,12 @@ describe('UserManagement', () => {
         createMutateAsync.mockClear();
         updateMutateAsync.mockClear();
         deleteMutateAsync.mockClear();
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
     });
     it('renders users table and add form', () => {
         render(_jsx(MemoryRouter, { children: _jsx(UserManagement, {}) }));
         expect(screen.getByText('User Management')).toBeInTheDocument();
-        expect(screen.getByText('Matrix User')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Matrix User')).toBeInTheDocument();
         expect(screen.getByText('Add User')).toBeInTheDocument();
     });
     it('creates a user from form input', async () => {
@@ -54,26 +55,28 @@ describe('UserManagement', () => {
         render(_jsx(MemoryRouter, { children: _jsx(UserManagement, {}) }));
         await user.type(screen.getByPlaceholderText('External key'), 'new.user.1');
         await user.type(screen.getByPlaceholderText('Display name'), 'New User 1');
+        await user.type(screen.getByPlaceholderText('Acronym (e.g. mam)'), 'nu1');
         await user.type(screen.getByPlaceholderText('Password'), 'new-user-password');
-        await user.selectOptions(screen.getAllByRole('combobox')[0], 'analyst');
+        await user.selectOptions(screen.getAllByRole('combobox')[0], 'user');
         await user.click(screen.getByText('Add User'));
         expect(createMutateAsync).toHaveBeenCalledWith({
             external_key: 'new.user.1',
+            acronym: 'nu1',
             password: 'new-user-password',
             display_name: 'New User 1',
-            role: 'analyst',
+            role: 'user',
             is_active: true,
         });
     });
     it('updates and deletes an existing user', async () => {
         const user = userEvent.setup();
         render(_jsx(MemoryRouter, { children: _jsx(UserManagement, {}) }));
-        await user.selectOptions(screen.getAllByRole('combobox')[1], 'controller');
+        await user.selectOptions(screen.getAllByRole('combobox')[1], 'admin');
         await user.click(screen.getByLabelText('active-u-1'));
         await user.click(screen.getByText('Save'));
         expect(updateMutateAsync).toHaveBeenCalledWith({
             userId: 'u-1',
-            payload: { role: 'controller', is_active: false },
+            payload: { role: 'admin', is_active: false },
         });
         await user.click(screen.getByText('Delete'));
         expect(deleteMutateAsync).toHaveBeenCalledWith('u-1');

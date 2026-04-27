@@ -17,8 +17,14 @@ class AuthSessionResponse(BaseModel):
     acronym: str
     display_name: str
     role: str
+    must_change_password: bool
     is_active: bool
 
 
 class AuthRefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
+
+
+class AuthPasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)

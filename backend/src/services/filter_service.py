@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
@@ -14,6 +14,7 @@ def apply_case_filters(
     observed_value: int | None = None,
     matrix_dimension: str = "detectability",
     problematic_only: bool | None = None,
+    problem_threshold: int | None = None,
     include_excluded: bool = False,
     risk_level: str | None = None,
 ) -> Select:
@@ -36,7 +37,16 @@ def apply_case_filters(
     if observed_value is not None:
         query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(observed_field == observed_value)))
     if problematic_only:
-        query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(ClassificationSnapshot.problem_flag.is_(True))))
+        if problem_threshold is not None:
+            query = query.where(
+                Case.id.in_(
+                    select(ClassificationSnapshot.case_id).where(
+                        func.abs(ClassificationSnapshot.user_d - ClassificationSnapshot.tricia_d) > problem_threshold
+                    )
+                )
+            )
+        else:
+            query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(ClassificationSnapshot.problem_flag.is_(True))))
     if not include_excluded:
         query = query.where((CaseReview.is_excluded.is_(False)) | (CaseReview.is_excluded.is_(None)))
     if risk_level:

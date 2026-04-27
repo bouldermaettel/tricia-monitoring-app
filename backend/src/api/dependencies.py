@@ -35,7 +35,7 @@ def get_actor_id(
 
 
 def get_actor_role(x_actor_role: str | None = Header(default=None)) -> str:
-    return (x_actor_role or "operator").lower()
+    return (x_actor_role or "user").lower()
 
 
 def get_current_actor(db: Session = Depends(get_db), x_actor_id: str | None = Header(default=None)) -> User:

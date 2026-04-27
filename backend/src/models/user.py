@@ -12,5 +12,6 @@ class User(Base):
     shortcut: Mapped[str] = mapped_column(String(32), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(128))
-    role: Mapped[str] = mapped_column(String(32), default="operator")
+    role: Mapped[str] = mapped_column(String(32), default="user")
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

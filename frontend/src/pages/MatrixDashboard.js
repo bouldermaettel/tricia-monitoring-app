@@ -92,10 +92,11 @@ export function MatrixDashboard() {
     const filteredOverrideCases = useMemo(() => {
         if (!isOverrideActive)
             return [];
+        const problemThreshold = thresholds.data?.problem_threshold ?? 3;
         return overrideCases.filter((item) => {
             if (!includeExcluded && item.is_excluded)
                 return false;
-            if (problematicOnly && Math.abs((item.user_d ?? 0) - (item.tricia_d ?? 0)) <= 2)
+            if (problematicOnly && Math.abs((item.user_d ?? 0) - (item.tricia_d ?? 0)) <= problemThreshold)
                 return false;
             if (requestedVkNumber && item.vk_number !== requestedVkNumber)
                 return false;
@@ -105,7 +106,7 @@ export function MatrixDashboard() {
                 return false;
             return true;
         });
-    }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber]);
+    }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, thresholds.data?.problem_threshold]);
     const overrideMatrices = useMemo(() => {
         if (!isOverrideActive)
             return { severity: [], detectability: [], product: [] };

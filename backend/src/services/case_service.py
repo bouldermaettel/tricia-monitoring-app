@@ -8,12 +8,16 @@ from src.models.case import Case, CaseAuditEvent, CaseComment, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.user import User
 from src.services.filter_service import apply_case_filters
+from src.services.threshold_service import ThresholdService
 from src.services.validation_service import ValidationService
 
 
 class CaseService:
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_problem_threshold(self) -> int:
+        return ThresholdService(self.db).get("default").problem_threshold
 
     def _resolve_actor_acronym(self, actor_id: str) -> str:
         actor = self.db.scalar(select(User).where(User.id == actor_id))
@@ -41,6 +45,7 @@ class CaseService:
         self.db.add(case)
         self.db.flush()
 
+        problem_threshold = self._get_problem_threshold()
         user_d = payload.user_d if payload.user_d is not None else payload.tricia_d
         snapshot = ClassificationSnapshot(
             case_id=case.id,
@@ -51,7 +56,7 @@ class CaseService:
             user_d=user_d,
             deviation_s=abs(payload.user_s - payload.tricia_s),
             deviation_d=abs(user_d - payload.tricia_d),
-            problem_flag=abs(user_d - payload.tricia_d) > 2,
+            problem_flag=abs(user_d - payload.tricia_d) > problem_threshold,
         )
         self.db.add(snapshot)
         self.db.add(CaseReview(case_id=case.id, updated_by_user_id=actor_id, updated_at=datetime.utcnow()))
@@ -73,6 +78,7 @@ class CaseService:
         include_excluded=False,
         risk_level=None,
     ) -> CaseListResponse:
+        problem_threshold = self._get_problem_threshold() if problematic_only else None
         query = select(Case, CaseReview, ClassificationSnapshot).join(
             CaseReview, CaseReview.case_id == Case.id, isouter=True
         ).join(
@@ -86,6 +92,7 @@ class CaseService:
             observed_value=observed_value,
             matrix_dimension=matrix_dimension,
             problematic_only=problematic_only,
+            problem_threshold=problem_threshold,
             include_excluded=include_excluded,
             risk_level=risk_level,
         )
@@ -172,6 +179,7 @@ class CaseService:
             .order_by(ClassificationSnapshot.created_at.desc())
         )
         if snapshot is not None:
+            problem_threshold = self._get_problem_threshold()
             for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d'):
                 new_val = getattr(payload, field, None)
                 if new_val is not None and new_val != getattr(snapshot, field):
@@ -182,7 +190,7 @@ class CaseService:
                 d = payload.user_d if payload.user_d is not None else snapshot.user_d
                 snapshot.deviation_s = abs(s - snapshot.tricia_s)
                 snapshot.deviation_d = abs(d - snapshot.tricia_d)
-                snapshot.problem_flag = snapshot.deviation_d > 2
+                snapshot.problem_flag = snapshot.deviation_d > problem_threshold
 
         if changes:
             self.db.add(CaseAuditEvent(

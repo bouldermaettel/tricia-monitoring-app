@@ -11,6 +11,7 @@ export type AuthSession = {
   acronym?: string;
   display_name: string;
   role: string;
+  must_change_password: boolean;
   is_active: boolean;
 };
 
@@ -25,6 +26,14 @@ export async function createSession(username: string, password: string) {
 export async function refreshSession(refreshToken: string) {
   const { data } = await apiClient.post<AuthSession>('/auth/refresh', {
     refresh_token: refreshToken,
+  });
+  return data;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const { data } = await apiClient.post<AuthSession>('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
   });
   return data;
 }

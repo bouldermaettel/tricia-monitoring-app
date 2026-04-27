@@ -8,11 +8,15 @@ from sqlalchemy.orm import Session
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.import_job import ImportJob
+from src.services.threshold_service import ThresholdService
 
 
 class ImportService:
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_problem_threshold(self) -> int:
+        return ThresholdService(self.db).get("default").problem_threshold
 
     @staticmethod
     def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -122,6 +126,7 @@ class ImportService:
 
     def process_file(self, file_name: str, content: bytes, actor_id: str) -> ImportJob:
         frame, fmt = self._read_frame(file_name, content)
+        problem_threshold = self._get_problem_threshold()
         total_rows = len(frame.index)
         imported_rows = 0
         error_rows = 0
@@ -164,7 +169,7 @@ class ImportService:
                         user_d=int(parsed["user_d"]),
                         deviation_s=abs(int(parsed["user_s"]) - int(parsed["tricia_s"])),
                         deviation_d=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])),
-                        problem_flag=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])) > 2,
+                        problem_flag=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])) > problem_threshold,
                     )
                     self.db.add(snapshot)
                 else:
@@ -175,7 +180,7 @@ class ImportService:
                     snapshot.user_d = int(parsed["user_d"])
                     snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                     snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
-                    snapshot.problem_flag = snapshot.deviation_d > 2
+                    snapshot.problem_flag = snapshot.deviation_d > problem_threshold
 
                 review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
                 if review is None:

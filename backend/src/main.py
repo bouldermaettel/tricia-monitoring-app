@@ -1,7 +1,12 @@
+import logging
+import os
+import time
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import make_url
+from sqlalchemy import inspect, text
 
 from src.api import api_router
 from src.api.errors import register_exception_handlers
@@ -14,15 +19,83 @@ from src.db.session import SessionLocal, engine
 from src.services.user_service import UserService
 
 
+logger = logging.getLogger(__name__)
+
+
 def _uses_sqlite(database_url: str) -> bool:
     return make_url(database_url).drivername == "sqlite"
 
 
 def _ensure_schema() -> None:
-    """Keep local SQLite convenient; production schema changes should use Alembic."""
+    """Ensure baseline tables exist when Alembic runtime isn't available."""
+    Base.metadata.create_all(bind=engine)
+
+
+def _initialize_database() -> None:
+    """Initialize DB objects with retries to tolerate transient Postgres cold starts."""
     settings = get_settings()
-    if _uses_sqlite(settings.database_url):
-        Base.metadata.create_all(bind=engine)
+    max_attempts = 1 if _uses_sqlite(settings.database_url) else int(os.getenv("DB_INIT_MAX_ATTEMPTS", "30"))
+    retry_delay_seconds = int(os.getenv("DB_INIT_RETRY_DELAY_SECONDS", "2"))
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            _ensure_schema()
+            _ensure_user_policy_schema()
+            _ensure_bootstrap_admin()
+            return
+        except SQLAlchemyError as exc:
+            if attempt == max_attempts:
+                logger.exception(
+                    "Database initialization failed after %s attempts; app will start without verified DB readiness",
+                    max_attempts,
+                )
+                return
+
+            logger.warning(
+                "Database initialization attempt %s/%s failed (%s). Retrying in %ss",
+                attempt,
+                max_attempts,
+                exc.__class__.__name__,
+                retry_delay_seconds,
+            )
+            time.sleep(retry_delay_seconds)
+
+
+def _ensure_user_policy_schema() -> None:
+    """Apply minimal compatibility migration for user role policy changes."""
+    settings = get_settings()
+    dialect = make_url(settings.database_url).drivername
+
+    try:
+        with engine.begin() as connection:
+            inspector = inspect(connection)
+            if "users" not in inspector.get_table_names():
+                return
+
+            user_columns = {column["name"] for column in inspector.get_columns("users")}
+
+            if "must_change_password" not in user_columns:
+                if dialect.startswith("postgresql"):
+                    connection.execute(
+                        text(
+                            "ALTER TABLE users "
+                            "ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE"
+                        )
+                    )
+                else:
+                    connection.execute(
+                        text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0")
+                    )
+
+            connection.execute(
+                text(
+                    "UPDATE users SET role = 'user' "
+                    "WHERE role IS NULL OR LOWER(role) NOT IN ('admin', 'user')"
+                )
+            )
+    except SQLAlchemyError:
+        # If the database is temporarily unavailable during cold start, continue boot.
+        return
 
 
 def _ensure_bootstrap_admin() -> None:
@@ -44,8 +117,7 @@ def _ensure_bootstrap_admin() -> None:
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging()
-    _ensure_schema()
-    _ensure_bootstrap_admin()
+    _initialize_database()
 
     app = FastAPI(title="Monitoring Tool API", version="0.1.0")
     app.add_middleware(RequestContextMiddleware)

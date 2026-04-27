@@ -20,7 +20,10 @@ function readStoredSession() {
             getAuthStorage().removeItem(SESSION_KEY);
             return null;
         }
-        return parsed;
+        return {
+            ...parsed,
+            mustChangePassword: Boolean(parsed.mustChangePassword),
+        };
     }
     catch {
         return null;
@@ -44,7 +47,13 @@ export function AuthProvider({ children }) {
                 acronym: actor.acronym,
                 displayName: actor.display_name,
                 role: actor.role,
+                mustChangePassword: actor.must_change_password,
             };
+            getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
+            setSession(nextSession);
+            return nextSession;
+        },
+        updateSession: (nextSession) => {
             getAuthStorage().setItem(SESSION_KEY, JSON.stringify(nextSession));
             setSession(nextSession);
         },
@@ -63,6 +72,9 @@ export function useAuth() {
             session: null,
             signIn: async () => {
                 throw new Error('Authentication provider missing');
+            },
+            updateSession: () => {
+                return;
             },
             signOut: () => {
                 return;

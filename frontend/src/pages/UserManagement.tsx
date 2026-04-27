@@ -13,7 +13,7 @@ export function UserManagement() {
   const [acronym, setAcronym] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState('operator');
+  const [role, setRole] = useState('user');
   const [isActive, setIsActive] = useState(true);
   const [editing, setEditing] = useState<Record<string, { display_name: string; acronym: string; role: string; is_active: boolean; password: string }>>({});
 
@@ -38,7 +38,7 @@ export function UserManagement() {
     setAcronym('');
     setPassword('');
     setDisplayName('');
-    setRole('operator');
+    setRole('user');
     setIsActive(true);
   }
 
@@ -211,9 +211,7 @@ export function UserManagement() {
             onChange={(e) => setRole(e.target.value)}
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
           >
-            <option value="operator">operator</option>
-            <option value="analyst">analyst</option>
-            <option value="controller">controller</option>
+            <option value="user">user</option>
             <option value="admin">admin</option>
           </select>
           <label className="md:col-span-2 text-sm text-stone-600 flex items-center gap-2">
@@ -276,9 +274,7 @@ export function UserManagement() {
                       onChange={(e) => onEditRoleChange(user.id, user.display_name, user.acronym, user.role, e.target.value, user.is_active)}
                       className="border border-stone-300 rounded px-2 py-1"
                     >
-                      <option value="operator">operator</option>
-                      <option value="analyst">analyst</option>
-                      <option value="controller">controller</option>
+                      <option value="user">user</option>
                       <option value="admin">admin</option>
                     </select>
                   </td>

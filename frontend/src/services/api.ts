@@ -14,6 +14,7 @@ type RefreshResponse = {
   token_type: string;
   expires_in: number;
   refresh_expires_in: number;
+  must_change_password: boolean;
 };
 
 type StoredSession = {
@@ -22,6 +23,7 @@ type StoredSession = {
   tokenType?: string;
   expiresAt?: number;
   refreshExpiresAt?: number;
+  mustChangePassword?: boolean;
 };
 
 function readSession(): StoredSession | null {
@@ -64,6 +66,7 @@ async function refreshAccessTokenIfPossible(): Promise<boolean> {
       tokenType: refreshed.token_type,
       expiresAt: Date.now() + refreshed.expires_in * 1000,
       refreshExpiresAt: Date.now() + refreshed.refresh_expires_in * 1000,
+      mustChangePassword: refreshed.must_change_password,
     });
     return true;
   } catch {

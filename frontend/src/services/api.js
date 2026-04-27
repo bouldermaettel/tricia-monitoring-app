@@ -44,6 +44,7 @@ async function refreshAccessTokenIfPossible() {
             tokenType: refreshed.token_type,
             expiresAt: Date.now() + refreshed.expires_in * 1000,
             refreshExpiresAt: Date.now() + refreshed.refresh_expires_in * 1000,
+            mustChangePassword: refreshed.must_change_password,
         });
         return true;
     }

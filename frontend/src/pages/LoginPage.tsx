@@ -3,6 +3,11 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../app/auth';
 
+function getDefaultRoute(session: { role: string; mustChangePassword: boolean }): string {
+  if (session.mustChangePassword) return '/change-password';
+  return session.role === 'admin' ? '/users' : '/input';
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { session, signIn } = useAuth();
@@ -12,7 +17,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (session) {
-    return <Navigate to="/users" replace />;
+    return <Navigate to={getDefaultRoute(session)} replace />;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -20,8 +25,8 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await signIn(username, password);
-      navigate('/users', { replace: true });
+      const nextSession = await signIn(username, password);
+      navigate(getDefaultRoute(nextSession), { replace: true });
     } catch (err) {
       if (isAxiosError(err)) {
         const apiMessage =
@@ -49,8 +54,8 @@ export function LoginPage() {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center px-6">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white border border-stone-200 rounded-xl p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Admin Sign In</h1>
-          <p className="text-sm text-stone-500">Sign in with your external key to manage users.</p>
+          <h1 className="text-2xl font-bold text-stone-900">Sign In</h1>
+          <p className="text-sm text-stone-500">Sign in with your external key.</p>
         </div>
         <input
           value={username}

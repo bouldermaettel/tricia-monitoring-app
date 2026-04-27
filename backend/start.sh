@@ -8,8 +8,12 @@ case "$database_url" in
     echo "Starting backend with SQLite schema auto-create"
     ;;
   *)
-    echo "Running Alembic migrations"
-    alembic -c /app/backend/alembic.ini upgrade head
+    if [ -f /app/backend/src/db/migrations/env.py ]; then
+      echo "Running Alembic migrations"
+      alembic -c /app/backend/alembic.ini upgrade head
+    else
+      echo "Alembic env.py not found, skipping runtime migrations"
+    fi
     ;;
 esac
 

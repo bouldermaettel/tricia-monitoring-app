@@ -6,11 +6,21 @@ import { MatrixDashboard } from '../pages/MatrixDashboard';
 import { ControlDashboard } from '../pages/ControlDashboard';
 import { UserManagement } from '../pages/UserManagement';
 import { LoginPage } from '../pages/LoginPage';
+import { ChangePasswordPage } from '../pages/ChangePasswordPage';
+
+function getDefaultRoute(session: { role: string; mustChangePassword: boolean } | null): string {
+  if (!session) return '/login';
+  if (session.mustChangePassword) return '/change-password';
+  return session.role === 'admin' ? '/users' : '/input';
+}
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { session } = useAuth();
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+  if (session.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
   }
   return children;
 }
@@ -23,6 +33,20 @@ function AdminRoute({ children }: { children: ReactElement }) {
   if (session.role !== 'admin') {
     return <Navigate to="/input" replace />;
   }
+  if (session.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+  return children;
+}
+
+function PasswordChangeRoute({ children }: { children: ReactElement }) {
+  const { session } = useAuth();
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!session.mustChangePassword) {
+    return <Navigate to={getDefaultRoute(session)} replace />;
+  }
   return children;
 }
 
@@ -32,8 +56,16 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to={session ? '/input' : '/login'} replace />} />
+        <Route path="/" element={<Navigate to={getDefaultRoute(session)} replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/change-password"
+          element={(
+            <PasswordChangeRoute>
+              <ChangePasswordPage />
+            </PasswordChangeRoute>
+          )}
+        />
         <Route
           path="/input"
           element={(

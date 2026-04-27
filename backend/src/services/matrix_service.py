@@ -21,6 +21,7 @@ class MatrixService:
         start_date: date | None,
         end_date: date | None,
         problematic_only: bool | None,
+        problem_threshold: int | None,
         risk_level: str | None,
     ):
         base_query = (
@@ -34,19 +35,33 @@ class MatrixService:
             start_date=start_date,
             end_date=end_date,
             problematic_only=problematic_only,
+            problem_threshold=problem_threshold,
             include_excluded=include_excluded,
             risk_level=risk_level,
         )
         return filtered_query.subquery()
 
-    def _get_cells_for_dimension(self, expected_expr, observed_expr, include_excluded: bool, acceptance: int, filtered_case_ids) -> list[MatrixCell]:
+    def _get_cells_for_dimension(
+        self,
+        expected_expr,
+        observed_expr,
+        include_excluded: bool,
+        acceptance: int,
+        problem_threshold: int,
+        filtered_case_ids,
+    ) -> list[MatrixCell]:
         query = (
             select(
                 expected_expr.label("expected_value"),
                 observed_expr.label("observed_value"),
                 func.count().label("case_count"),
                 func.sum(case((CaseReview.is_excluded.is_(True), 1), else_=0)).label("excluded_case_count"),
-                func.sum(case((ClassificationSnapshot.problem_flag.is_(True), 1), else_=0)).label("problem_case_count"),
+                func.sum(
+                    case(
+                        (func.abs(ClassificationSnapshot.user_d - ClassificationSnapshot.tricia_d) > problem_threshold, 1),
+                        else_=0,
+                    )
+                ).label("problem_case_count"),
             )
             .select_from(ClassificationSnapshot)
             .join(CaseReview, CaseReview.case_id == ClassificationSnapshot.case_id, isouter=True)
@@ -78,11 +93,13 @@ class MatrixService:
     ) -> ConfusionMatrixResponse:
         threshold = self.db.scalar(select(ThresholdConfig).where(ThresholdConfig.config_key == threshold_key))
         acceptance = threshold.acceptance_threshold if threshold else 1
+        problem_threshold = threshold.problem_threshold if threshold else 3
         filtered_case_ids = self._filtered_case_ids(
             include_excluded=include_excluded,
             start_date=start_date,
             end_date=end_date,
             problematic_only=problematic_only,
+            problem_threshold=problem_threshold,
             risk_level=risk_level,
         )
 
@@ -91,6 +108,7 @@ class MatrixService:
             ClassificationSnapshot.tricia_s,
             include_excluded,
             acceptance,
+            problem_threshold,
             filtered_case_ids,
         )
         detectability_cells = self._get_cells_for_dimension(
@@ -98,6 +116,7 @@ class MatrixService:
             ClassificationSnapshot.tricia_d,
             include_excluded,
             acceptance,
+            problem_threshold,
             filtered_case_ids,
         )
         # WIMI-P is treated as TRI-P, so both expected and observed products use tricia_p.
@@ -106,6 +125,7 @@ class MatrixService:
             ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p,
             include_excluded,
             acceptance,
+            problem_threshold,
             filtered_case_ids,
         )
 
