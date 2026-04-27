@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import make_url
 
 from src.api import api_router
 from src.api.errors import register_exception_handlers
@@ -13,9 +14,15 @@ from src.db.session import SessionLocal, engine
 from src.services.user_service import UserService
 
 
+def _uses_sqlite(database_url: str) -> bool:
+    return make_url(database_url).drivername == "sqlite"
+
+
 def _ensure_schema() -> None:
-    """Ensure local/dev databases have the required tables before first query."""
-    Base.metadata.create_all(bind=engine)
+    """Keep local SQLite convenient; production schema changes should use Alembic."""
+    settings = get_settings()
+    if _uses_sqlite(settings.database_url):
+        Base.metadata.create_all(bind=engine)
 
 
 def _ensure_bootstrap_admin() -> None:

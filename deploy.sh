@@ -84,13 +84,20 @@ az acr build \
   "$PROJECT_ROOT"
 echo "✅ Frontend image built"
 
-if [ -z "${SECRET_KEY:-}" ] || [ -z "${BOOTSTRAP_ADMIN_USERNAME:-}" ] || [ -z "${BOOTSTRAP_ADMIN_PASSWORD:-}" ]; then
+if [ -z "${SECRET_KEY:-}" ] || [ -z "${BOOTSTRAP_ADMIN_USERNAME:-}" ] || [ -z "${BOOTSTRAP_ADMIN_PASSWORD:-}" ] || [ -z "${POSTGRES_ADMIN_PASSWORD:-}" ]; then
   echo "❌ Required env vars missing."
   echo "Set these before running:"
   echo "   export SECRET_KEY='...'"
   echo "   export BOOTSTRAP_ADMIN_USERNAME='...'"
   echo "   export BOOTSTRAP_ADMIN_PASSWORD='...'"
+  echo "   export POSTGRES_ADMIN_PASSWORD='...'"
   echo "Optional:"
+  echo "   export POSTGRES_ADMIN_USERNAME='triciaadmin'"
+  echo "   export POSTGRES_DATABASE_NAME='tricia_monitoring'"
+  echo "   export POSTGRES_SKU_NAME='Standard_B1ms'"
+  echo "   export POSTGRES_SKU_TIER='Burstable'"
+  echo "   export POSTGRES_STORAGE_GB='32'"
+  echo "   export POSTGRES_VERSION='16'"
   echo "   export BOOTSTRAP_ADMIN_DISPLAY_NAME='System Admin'"
   echo "   export CORS_ORIGINS='https://your-frontend-url'"
   exit 1
@@ -105,6 +112,13 @@ az deployment group create \
                backendImage="$BACKEND_IMAGE" \
                frontendImage="$FRONTEND_IMAGE" \
                secretKey="$SECRET_KEY" \
+               postgresAdminUsername="${POSTGRES_ADMIN_USERNAME:-triciaadmin}" \
+               postgresAdminPassword="$POSTGRES_ADMIN_PASSWORD" \
+               postgresDatabaseName="${POSTGRES_DATABASE_NAME:-tricia_monitoring}" \
+               postgresSkuName="${POSTGRES_SKU_NAME:-Standard_B1ms}" \
+               postgresSkuTier="${POSTGRES_SKU_TIER:-Burstable}" \
+               postgresStorageGb="${POSTGRES_STORAGE_GB:-32}" \
+               postgresVersion="${POSTGRES_VERSION:-16}" \
                bootstrapAdminUsername="$BOOTSTRAP_ADMIN_USERNAME" \
                bootstrapAdminPassword="$BOOTSTRAP_ADMIN_PASSWORD" \
                bootstrapAdminDisplayName="${BOOTSTRAP_ADMIN_DISPLAY_NAME:-System Admin}" \

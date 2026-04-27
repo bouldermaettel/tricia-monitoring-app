@@ -1,0 +1,397 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "9327999663595616255"
+    }
+  },
+  "parameters": {
+    "namespace": {
+      "type": "string",
+      "metadata": {
+        "description": "Namespace suffix to isolate resources in the same sandbox (e.g. team-a)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region"
+      }
+    },
+    "backendImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Backend container image (full ACR path)"
+      }
+    },
+    "frontendImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Frontend container image (full ACR path)"
+      }
+    },
+    "secretKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "App secret key for backend"
+      }
+    },
+    "postgresAdminUsername": {
+      "type": "string",
+      "defaultValue": "triciaadmin",
+      "metadata": {
+        "description": "PostgreSQL admin username (letters/numbers only)"
+      }
+    },
+    "postgresAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "PostgreSQL admin password"
+      }
+    },
+    "postgresDatabaseName": {
+      "type": "string",
+      "defaultValue": "tricia_monitoring",
+      "metadata": {
+        "description": "PostgreSQL database name for the app"
+      }
+    },
+    "postgresSkuName": {
+      "type": "string",
+      "defaultValue": "Standard_B1ms",
+      "metadata": {
+        "description": "PostgreSQL flexible server SKU name"
+      }
+    },
+    "postgresSkuTier": {
+      "type": "string",
+      "defaultValue": "Burstable",
+      "metadata": {
+        "description": "PostgreSQL flexible server SKU tier"
+      }
+    },
+    "postgresStorageGb": {
+      "type": "int",
+      "defaultValue": 32,
+      "metadata": {
+        "description": "PostgreSQL storage size in GB"
+      }
+    },
+    "postgresVersion": {
+      "type": "string",
+      "defaultValue": "16",
+      "metadata": {
+        "description": "PostgreSQL major version"
+      }
+    },
+    "corsOrigins": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Allowed CORS origins for backend (comma-separated)"
+      }
+    },
+    "bootstrapAdminUsername": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Bootstrap admin username"
+      }
+    },
+    "bootstrapAdminPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Bootstrap admin password"
+      }
+    },
+    "bootstrapAdminDisplayName": {
+      "type": "string",
+      "defaultValue": "System Admin",
+      "metadata": {
+        "description": "Bootstrap admin display name"
+      }
+    },
+    "backendCpu": {
+      "type": "string",
+      "defaultValue": "0.5",
+      "metadata": {
+        "description": "Backend CPU"
+      }
+    },
+    "backendMemory": {
+      "type": "string",
+      "defaultValue": "1Gi",
+      "metadata": {
+        "description": "Backend memory"
+      }
+    },
+    "frontendCpu": {
+      "type": "string",
+      "defaultValue": "0.5",
+      "metadata": {
+        "description": "Frontend CPU"
+      }
+    },
+    "frontendMemory": {
+      "type": "string",
+      "defaultValue": "1Gi",
+      "metadata": {
+        "description": "Frontend memory"
+      }
+    }
+  },
+  "variables": {
+    "appBase": "[format('tricia-{0}', parameters('namespace'))]",
+    "acrName": "[replace(format('tricia{0}acr', parameters('namespace')), '-', '')]",
+    "backendName": "[format('{0}-backend', variables('appBase'))]",
+    "frontendName": "[format('{0}-frontend', variables('appBase'))]",
+    "envName": "[format('{0}-env', variables('appBase'))]",
+    "postgresServerName": "[take(toLower(replace(format('{0}-pg', variables('appBase')), '_', '-')), 63)]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}-logs', variables('appBase'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+      "apiVersion": "2023-06-01-preview",
+      "name": "[variables('postgresServerName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('postgresSkuName')]",
+        "tier": "[parameters('postgresSkuTier')]"
+      },
+      "properties": {
+        "createMode": "Create",
+        "version": "[parameters('postgresVersion')]",
+        "administratorLogin": "[parameters('postgresAdminUsername')]",
+        "administratorLoginPassword": "[parameters('postgresAdminPassword')]",
+        "storage": {
+          "storageSizeGB": "[parameters('postgresStorageGb')]"
+        },
+        "backup": {
+          "backupRetentionDays": 7,
+          "geoRedundantBackup": "Disabled"
+        },
+        "network": {
+          "publicNetworkAccess": "Enabled"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+      "apiVersion": "2023-06-01-preview",
+      "name": "[format('{0}/{1}', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
+      "properties": {
+        "charset": "UTF8",
+        "collation": "en_US.utf8"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+      "apiVersion": "2023-06-01-preview",
+      "name": "[format('{0}/{1}', variables('postgresServerName'), 'allow-azure-services')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('envName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', variables('appBase'))), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', variables('appBase'))), '2023-09-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', variables('appBase')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('backendName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "http",
+            "allowInsecure": false
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            },
+            {
+              "name": "secret-key",
+              "value": "[parameters('secretKey')]"
+            },
+            {
+              "name": "database-url",
+              "value": "[format('postgresql+psycopg://{0}:{1}@{2}:5432/{3}?sslmode=require', parameters('postgresAdminUsername'), parameters('postgresAdminPassword'), reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '2023-06-01-preview').fullyQualifiedDomainName, parameters('postgresDatabaseName'))]"
+            },
+            {
+              "name": "bootstrap-admin-password",
+              "value": "[parameters('bootstrapAdminPassword')]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "backend",
+              "image": "[parameters('backendImage')]",
+              "resources": {
+                "cpu": "[json(parameters('backendCpu'))]",
+                "memory": "[parameters('backendMemory')]"
+              },
+              "env": [
+                {
+                  "name": "APP_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "secretRef": "database-url"
+                },
+                {
+                  "name": "SECRET_KEY",
+                  "secretRef": "secret-key"
+                },
+                {
+                  "name": "CORS_ORIGINS",
+                  "value": "[parameters('corsOrigins')]"
+                },
+                {
+                  "name": "BOOTSTRAP_ADMIN_USERNAME",
+                  "value": "[parameters('bootstrapAdminUsername')]"
+                },
+                {
+                  "name": "BOOTSTRAP_ADMIN_PASSWORD",
+                  "secretRef": "bootstrap-admin-password"
+                },
+                {
+                  "name": "BOOTSTRAP_ADMIN_DISPLAY_NAME",
+                  "value": "[parameters('bootstrapAdminDisplayName')]"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('frontendName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 80,
+            "transport": "http",
+            "allowInsecure": false
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ],
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "frontend",
+              "image": "[parameters('frontendImage')]",
+              "resources": {
+                "cpu": "[json(parameters('frontendCpu'))]",
+                "memory": "[parameters('frontendMemory')]"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 3
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "backendFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', variables('backendName')), '2024-03-01').configuration.ingress.fqdn]"
+    },
+    "frontendFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', variables('frontendName')), '2024-03-01').configuration.ingress.fqdn]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]"
+    },
+    "postgresServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '2023-06-01-preview').fullyQualifiedDomainName]"
+    }
+  }
+}

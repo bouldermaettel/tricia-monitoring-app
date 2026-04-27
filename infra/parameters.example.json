@@ -14,6 +14,27 @@
     "secretKey": {
       "value": "replace-with-strong-secret-key"
     },
+    "postgresAdminUsername": {
+      "value": "triciaadmin"
+    },
+    "postgresAdminPassword": {
+      "value": "replace-with-postgres-password"
+    },
+    "postgresDatabaseName": {
+      "value": "tricia_monitoring"
+    },
+    "postgresSkuName": {
+      "value": "Standard_B1ms"
+    },
+    "postgresSkuTier": {
+      "value": "Burstable"
+    },
+    "postgresStorageGb": {
+      "value": 32
+    },
+    "postgresVersion": {
+      "value": "16"
+    },
     "corsOrigins": {
       "value": "https://your-frontend-fqdn"
     },
