@@ -571,7 +571,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                     <input
                       type="checkbox"
                       checked={selectedCaseIds.has(item.id)}
-                      onChange={(e) => toggleCaseSelection(item.id, itemIndex, e.nativeEvent.shiftKey)}
+                      onChange={(e) => toggleCaseSelection(item.id, itemIndex, (e.nativeEvent as MouseEvent).shiftKey)}
                       aria-label={`select-case-${item.id}`}
                     />
                   </td>

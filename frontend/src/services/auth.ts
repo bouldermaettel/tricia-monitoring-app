@@ -8,6 +8,7 @@ export type AuthSession = {
   refresh_expires_in: number;
   actor_id: string;
   external_key: string;
+  acronym?: string;
   display_name: string;
   role: string;
   is_active: boolean;

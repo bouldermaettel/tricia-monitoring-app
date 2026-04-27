@@ -23,6 +23,8 @@ type Props = {
   tableRows: Array<Record<string, unknown>>;
 };
 
+type ReportHtmlParams = Omit<Props, 'fileNamePrefix'> & { matrixImageData: (string | null)[] };
+
 function triggerDownload(blob: Blob, fileName: string) {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
@@ -162,7 +164,7 @@ function buildReportHtml({
   tableColumns,
   tableRows,
   matrixImageData,
-}: Omit<Props, 'fileNamePrefix'>): string {
+}: ReportHtmlParams): string {
   const filterRows = Object.entries(filters)
     .map(([key, value]) => `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(value)}</td></tr>`)
     .join('');

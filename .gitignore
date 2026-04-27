@@ -15,6 +15,9 @@ build/
 .env*
 *.log
 
+# Deployment secrets (contains credentials — never commit)
+infra/parameters.json
+
 # Universal
 .DS_Store
 Thumbs.db
