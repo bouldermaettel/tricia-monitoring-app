@@ -30,6 +30,13 @@ vi.mock('../../src/hooks/useUsers', () => ({
           role: 'user',
           is_active: true,
         },
+        {
+          id: 'bootstrap-admin',
+          external_key: 'bootstrap-admin',
+          display_name: 'Bootstrap Admin',
+          role: 'admin',
+          is_active: true,
+        },
       ],
     },
     isLoading: false,
@@ -56,6 +63,7 @@ describe('UserManagement', () => {
     );
 
     expect(screen.getByText('User Management')).toBeInTheDocument();
+    expect(screen.getByText(/set temporary passwords/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Matrix User')).toBeInTheDocument();
     expect(screen.getByText('Add User')).toBeInTheDocument();
   });
@@ -95,14 +103,43 @@ describe('UserManagement', () => {
 
     await user.selectOptions(screen.getAllByRole('combobox')[1], 'admin');
     await user.click(screen.getByLabelText('active-u-1'));
-    await user.click(screen.getByText('Save'));
+    await user.click(screen.getAllByRole('button', { name: 'Save' })[0]);
 
     expect(updateMutateAsync).toHaveBeenCalledWith({
       userId: 'u-1',
       payload: { role: 'admin', is_active: false },
     });
 
-    await user.click(screen.getByText('Delete'));
+    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
     expect(deleteMutateAsync).toHaveBeenCalledWith('u-1');
+  });
+
+  it('resets a user password with an explicit action', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <UserManagement />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText('password-u-1'), 'temporary-reset-pass');
+    await user.click(screen.getAllByRole('button', { name: 'Reset Password' })[0]);
+
+    expect(updateMutateAsync).toHaveBeenCalledWith({
+      userId: 'u-1',
+      payload: { password: 'temporary-reset-pass' },
+    });
+  });
+
+  it('does not allow the signed-in admin to reset or delete their own user', () => {
+    render(
+      <MemoryRouter>
+        <UserManagement />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText('password-bootstrap-admin')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Reset Password' })[1]).toBeDisabled();
+    expect(screen.getAllByRole('button', { name: 'Delete' })[1]).toBeDisabled();
   });
 });

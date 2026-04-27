@@ -17,7 +17,16 @@ export function UserManagement() {
   const [isActive, setIsActive] = useState(true);
   const [editing, setEditing] = useState<Record<string, { display_name: string; acronym: string; role: string; is_active: boolean; password: string }>>({});
 
-  const hasError = usersQuery.isError || createUser.isError;
+  const hasError = usersQuery.isError || createUser.isError || updateUser.isError || deleteUser.isError;
+  const errorMessage = usersQuery.error instanceof Error
+    ? usersQuery.error.message
+    : createUser.error instanceof Error
+    ? createUser.error.message
+    : updateUser.error instanceof Error
+    ? updateUser.error.message
+    : deleteUser.error instanceof Error
+    ? deleteUser.error.message
+    : 'Request failed';
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -167,12 +176,42 @@ export function UserManagement() {
     await deleteUser.mutateAsync(userId);
   }
 
+  async function onResetPassword(
+    userId: string,
+    originalDisplayName: string,
+    originalAcronym: string,
+    originalRole: string,
+    originalActive: boolean
+  ) {
+    const nextPassword = editing[userId]?.password?.trim() ?? '';
+    if (!nextPassword) return;
+
+    await updateUser.mutateAsync({
+      userId,
+      payload: { password: nextPassword },
+    });
+
+    setEditing((prev) => ({
+      ...prev,
+      [userId]: {
+        display_name: prev[userId]?.display_name ?? originalDisplayName,
+        acronym: prev[userId]?.acronym ?? originalAcronym,
+        role: prev[userId]?.role ?? originalRole,
+        is_active: prev[userId]?.is_active ?? originalActive,
+        password: '',
+      },
+    }));
+  }
+
   return (
     <AppShell>
       <div className="max-w-4xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">User Management</h1>
-          <p className="text-stone-500 text-sm">Admins can add, edit, deactivate, and delete users.</p>
+          <p className="text-stone-500 text-sm">Admins can add, edit, deactivate, delete users, and set temporary passwords.</p>
+          <p className="text-stone-500 text-xs mt-1">
+            Entering a password in a user row and selecting Reset Password will force that user to choose a new password after their next sign-in.
+          </p>
           <p className="text-stone-500 text-xs mt-1">Signed in as: {session?.displayName} ({session?.externalKey})</p>
         </div>
 
@@ -229,16 +268,12 @@ export function UserManagement() {
 
         {hasError && (
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {usersQuery.error instanceof Error
-              ? usersQuery.error.message
-              : createUser.error instanceof Error
-              ? createUser.error.message
-              : 'Request failed'}
+            {errorMessage}
           </div>
         )}
 
-        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-stone-200 rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="bg-stone-50 text-stone-600">
               <tr>
                 <th className="text-left px-4 py-3">Display Name</th>
@@ -292,13 +327,14 @@ export function UserManagement() {
                       type="password"
                       value={editing[user.id]?.password ?? ''}
                       onChange={(e) => onEditPasswordChange(user.id, user.display_name, user.acronym, user.role, user.is_active, e.target.value)}
-                      placeholder="Leave blank"
+                      placeholder="Temporary password"
                       className="border border-stone-300 rounded px-2 py-1 text-xs"
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 whitespace-nowrap">
                       <button
+                        type="button"
                         onClick={() => onSaveUser(user.id, user.display_name, user.acronym, user.role, user.is_active)}
                         disabled={updateUser.isPending}
                         className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
@@ -306,6 +342,16 @@ export function UserManagement() {
                         Save
                       </button>
                       <button
+                        type="button"
+                        onClick={() => onResetPassword(user.id, user.display_name, user.acronym, user.role, user.is_active)}
+                        disabled={updateUser.isPending || !editing[user.id]?.password?.trim() || user.external_key === session?.externalKey}
+                        className="bg-amber-500 text-stone-900 rounded px-3 py-1 text-xs font-medium hover:bg-amber-400 disabled:opacity-60"
+                        title={user.external_key === session?.externalKey ? 'Use the Password page to change your own password' : 'Reset password and require a change on next sign-in'}
+                      >
+                        Reset Password
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onDeleteUser(user.id)}
                         disabled={deleteUser.isPending || user.external_key === session?.externalKey}
                         className="bg-red-600 text-white rounded px-3 py-1 text-xs hover:bg-red-500 disabled:opacity-60"

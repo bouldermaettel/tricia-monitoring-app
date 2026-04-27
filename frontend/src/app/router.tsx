@@ -44,9 +44,6 @@ function PasswordChangeRoute({ children }: { children: ReactElement }) {
   if (!session) {
     return <Navigate to="/login" replace />;
   }
-  if (!session.mustChangePassword) {
-    return <Navigate to={getDefaultRoute(session)} replace />;
-  }
   return children;
 }
 

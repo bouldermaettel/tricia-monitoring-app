@@ -17,6 +17,20 @@ export function ChangePasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  function onCancel() {
+    if (!session) {
+      signOut();
+      return;
+    }
+
+    if (session.mustChangePassword) {
+      signOut();
+      return;
+    }
+
+    navigate(getDefaultRoute(session.role), { replace: true });
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -73,7 +87,9 @@ export function ChangePasswordPage() {
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Change Your Password</h1>
           <p className="text-sm text-stone-500">
-            Your account uses a temporary password. Set a new password to continue.
+            {session?.mustChangePassword
+              ? 'Your account uses a temporary password. Set a new password to continue.'
+              : 'Update your password at any time from this page.'}
           </p>
         </div>
         <input
@@ -111,10 +127,10 @@ export function ChangePasswordPage() {
           </button>
           <button
             type="button"
-            onClick={signOut}
+            onClick={onCancel}
             className="bg-white border border-stone-300 text-stone-700 rounded-lg px-4 py-2 text-sm font-medium hover:bg-stone-100"
           >
-            Sign Out
+            Cancel
           </button>
         </div>
       </form>

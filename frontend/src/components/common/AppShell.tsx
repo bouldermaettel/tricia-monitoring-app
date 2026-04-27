@@ -1,6 +1,6 @@
 import { PropsWithChildren } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, ClipboardList, ShieldCheck, Users } from 'lucide-react';
+import { BarChart3, ClipboardList, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -10,6 +10,7 @@ export function AppShell({ children }: PropsWithChildren) {
     { to: '/input', label: 'Input', icon: ClipboardList },
     { to: '/matrix', label: 'Matrix', icon: BarChart3 },
     { to: '/control', label: 'Control', icon: ShieldCheck },
+    { to: '/change-password', label: 'Password', icon: KeyRound },
     ...(session?.role === 'admin' ? [{ to: '/users', label: 'Users', icon: Users }] : []),
   ];
 
