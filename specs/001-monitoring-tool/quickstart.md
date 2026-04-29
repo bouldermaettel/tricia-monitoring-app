@@ -76,12 +76,16 @@ specs/001-monitoring-tool/
 - Use `docker-compose.yml` at the repo root for full container-stack testing with PostgreSQL.
 
 ### Azure Container Apps (target)
-- Push images to Azure Container Registry.
+- Build and deploy through `deploy.sh` (which calls `infra/main.bicep`).
 - Deploy backend and frontend as separate ACA container apps.
-- Database: Azure Database for PostgreSQL (Flexible Server).
+- Database: Azure Database for PostgreSQL (Flexible Server) provisioned by Bicep.
 - Inject all config via ACA environment variables or secrets — nothing baked into images.
-- Run Alembic migrations as a startup command or init container before the API starts.
+- Runtime migrations are handled in backend startup (`backend/start.sh`) for non-SQLite `DATABASE_URL` values.
 - Frontend served from a container (Nginx) or Azure Static Web Apps.
+
+### Notes on infra templates
+- `infra/main.bicep` is the canonical infrastructure definition.
+- Files under `infra/aca/` are legacy reference examples and are not used by the current deploy path.
 
 ### Future scaling on ACA
 - Set API minimum replicas to 1 to avoid cold starts.

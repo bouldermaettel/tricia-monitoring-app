@@ -78,3 +78,23 @@ def test_control_delay_bucket_uses_review_timestamp(db_session):
     queue = ControlService(db_session).get_queue(review_window_days=28)
     reviewed_case = next(item for item in queue.items if item.vk_number == 'VK-20260423-032')
     assert reviewed_case.delay_bucket == 'on_time'
+
+
+def test_control_delay_bucket_zero_days_marks_unreviewed_delayed(db_session):
+    CaseService(db_session).create_case(
+        CaseCreateRequest(
+            vk_number='VK-20260423-033',
+            device_name='dev',
+            tricia_s=1,
+            tricia_p=1,
+            tricia_d=5,
+            user_s=1,
+            user_d=5,
+            validation_status='saved',
+        ),
+        actor_id='tester',
+    )
+
+    queue = ControlService(db_session).get_queue(review_window_days=0)
+    item = next(case for case in queue.items if case.vk_number == 'VK-20260423-033')
+    assert item.delay_bucket == 'delayed_72h'

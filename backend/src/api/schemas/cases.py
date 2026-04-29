@@ -37,7 +37,7 @@ class CaseReviewUpdateRequest(BaseModel):
 
 
 class CommentCreateRequest(BaseModel):
-    comment_text: str
+    text: str
 
 
 class CaseRecord(BaseModel):
@@ -58,6 +58,7 @@ class CaseRecord(BaseModel):
     is_excluded: bool = False
     is_reviewed: bool = False
     comment_count: int = 0
+    comment_text: str | None = None
     has_edits: bool = False
 
 

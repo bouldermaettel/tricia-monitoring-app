@@ -25,6 +25,10 @@ class CaseService:
             return actor.shortcut
         return actor_id
 
+    def _resolve_actor_user_id(self, actor_id: str) -> str | None:
+        actor = self.db.scalar(select(User.id).where(User.id == actor_id))
+        return actor if actor is not None else None
+
     def create_case(self, payload: CaseCreateRequest, actor_id: str) -> Case:
         validator = ValidationService(self.db)
         checked = validator.validate(payload)
@@ -38,7 +42,7 @@ class CaseService:
             device_name=payload.device_name,
             analysis_date=checked.analysis_date,
             source_type="manual",
-            created_by_user_id=actor_id,
+            created_by_user_id=self._resolve_actor_user_id(actor_id),
             wimi_shortcut=wimi_shortcut,
             validation_status=payload.validation_status,
         )
@@ -59,10 +63,51 @@ class CaseService:
             problem_flag=abs(user_d - payload.tricia_d) > problem_threshold,
         )
         self.db.add(snapshot)
-        self.db.add(CaseReview(case_id=case.id, updated_by_user_id=actor_id, updated_at=datetime.utcnow()))
+        self.db.add(
+            CaseReview(
+                case_id=case.id,
+                updated_by_user_id=self._resolve_actor_user_id(actor_id),
+                updated_at=datetime.utcnow(),
+            )
+        )
+        self.db.add(
+            CaseAuditEvent(
+                case_id=case.id,
+                action='created',
+                actor_id=self._resolve_actor_acronym(actor_id),
+                changes={'vk_number': {'from': None, 'to': payload.vk_number}},
+            )
+        )
         self.db.commit()
         self.db.refresh(case)
         return case
+
+    def add_comment(self, case_id: str, text: str, actor_id: str) -> CaseComment:
+        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        if case is None:
+            raise ValueError(f"Case {case_id} not found")
+
+        comment_text = text.strip()
+        if not comment_text:
+            raise ValueError("Comment text cannot be empty")
+
+        comment = CaseComment(
+            case_id=case_id,
+            comment_text=comment_text,
+            created_by_user_id=self._resolve_actor_user_id(actor_id),
+        )
+        self.db.add(comment)
+        self.db.add(
+            CaseAuditEvent(
+                case_id=case_id,
+                action='commented',
+                actor_id=self._resolve_actor_acronym(actor_id),
+                changes={'comment_text': {'from': None, 'to': comment_text}},
+            )
+        )
+        self.db.commit()
+        self.db.refresh(comment)
+        return comment
 
     def list_cases(
         self,
@@ -105,12 +150,18 @@ class CaseService:
         items = []
         for case, review, snapshot in rows:
             comment_count = self.db.scalar(select(func.count()).select_from(CaseComment).where(CaseComment.case_id == case.id)) or 0
+            comment_text = self.db.scalar(
+                select(CaseComment.comment_text)
+                .where(CaseComment.case_id == case.id)
+                .order_by(CaseComment.created_at.desc())
+                .limit(1)
+            )
             has_edits = (
                 self.db.scalar(
                     select(func.count())
                     .select_from(CaseAuditEvent)
                     .where(CaseAuditEvent.case_id == case.id)
-                    .where(CaseAuditEvent.action == 'update')
+                    .where(CaseAuditEvent.action.in_(['update', 'updated']))
                 ) or 0
             ) > 0
             items.append(
@@ -132,6 +183,7 @@ class CaseService:
                     is_excluded=review.is_excluded if review else False,
                     is_reviewed=review.is_reviewed if review else False,
                     comment_count=comment_count,
+                    comment_text=comment_text,
                     has_edits=has_edits,
                 )
             )
@@ -143,16 +195,35 @@ class CaseService:
             review = CaseReview(case_id=case_id)
             self.db.add(review)
 
+        changes: dict = {}
         if payload.category_code is not None:
+            if payload.category_code != review.category_code:
+                changes['category_code'] = {'from': review.category_code, 'to': payload.category_code}
             review.category_code = payload.category_code
         if payload.is_excluded is not None:
+            if payload.is_excluded != review.is_excluded:
+                changes['is_excluded'] = {'from': review.is_excluded, 'to': payload.is_excluded}
             review.is_excluded = payload.is_excluded
         if payload.is_reviewed is not None:
+            if payload.is_reviewed != review.is_reviewed:
+                changes['is_reviewed'] = {'from': review.is_reviewed, 'to': payload.is_reviewed}
             review.is_reviewed = payload.is_reviewed
         if payload.risk_level is not None:
+            if payload.risk_level != review.risk_level:
+                changes['risk_level'] = {'from': review.risk_level, 'to': payload.risk_level}
             review.risk_level = payload.risk_level
-        review.updated_by_user_id = actor_id
+        review.updated_by_user_id = self._resolve_actor_user_id(actor_id)
         review.updated_at = datetime.utcnow()
+
+        if changes:
+            self.db.add(
+                CaseAuditEvent(
+                    case_id=case_id,
+                    action='reviewed',
+                    actor_id=self._resolve_actor_acronym(actor_id),
+                    changes=changes,
+                )
+            )
 
         self.db.commit()
         self.db.refresh(review)
@@ -195,7 +266,7 @@ class CaseService:
         if changes:
             self.db.add(CaseAuditEvent(
                 case_id=case_id,
-                action='update',
+                action='updated',
                 actor_id=self._resolve_actor_acronym(actor_id),
                 changes=changes,
             ))

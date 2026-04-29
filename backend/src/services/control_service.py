@@ -31,7 +31,6 @@ class ControlService:
             query = query.where(Case.analysis_date >= start_date)
         if end_date:
             query = query.where(Case.analysis_date <= end_date)
-        review_window_days = max(review_window_days, 1)
         review_window_delta = timedelta(days=review_window_days)
         items = []
         for record, user_shortcut, is_reviewed, reviewed_at in self.db.execute(query).all():
@@ -40,7 +39,9 @@ class ControlService:
                 if getattr(record.input_timestamp, "tzinfo", None) is not None
                 else datetime.utcnow()
             )
-            if is_reviewed:
+            if review_window_days == 0:
+                is_on_time = bool(is_reviewed)
+            elif is_reviewed:
                 review_reference = reviewed_at or now
                 is_on_time = (review_reference - record.input_timestamp) <= review_window_delta
             else:

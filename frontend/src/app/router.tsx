@@ -11,7 +11,7 @@ import { ChangePasswordPage } from '../pages/ChangePasswordPage';
 function getDefaultRoute(session: { role: string; mustChangePassword: boolean } | null): string {
   if (!session) return '/login';
   if (session.mustChangePassword) return '/change-password';
-  return session.role === 'admin' ? '/users' : '/input';
+  return '/input';
 }
 
 function ProtectedRoute({ children }: { children: ReactElement }) {

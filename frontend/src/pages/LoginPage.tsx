@@ -5,7 +5,7 @@ import { useAuth } from '../app/auth';
 
 function getDefaultRoute(session: { role: string; mustChangePassword: boolean }): string {
   if (session.mustChangePassword) return '/change-password';
-  return session.role === 'admin' ? '/users' : '/input';
+  return '/input';
 }
 
 export function LoginPage() {

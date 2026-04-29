@@ -13,7 +13,7 @@ def get_control_queue(
     status: str | None = Query(default=None),
     start_date: str | None = Query(default=None),
     end_date: str | None = Query(default=None),
-    review_window_days: int = Query(default=28, ge=1),
+    review_window_days: int = Query(default=28, ge=0),
     db: Session = Depends(get_db),
 ) -> ControlQueueResponse:
     from datetime import date

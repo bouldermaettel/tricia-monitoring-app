@@ -23,6 +23,13 @@ def test_case_audit_trail_records_changes(client):
     comment = client.post(f'/api/v1/cases/{case_id}/comments', json={'text': 'looks suspicious'})
     assert comment.status_code == 201
 
+    listed = client.get('/api/v1/cases', params={'vk_number': payload['vk_number']})
+    assert listed.status_code == 200
+    rows = listed.json()['items']
+    assert len(rows) == 1
+    assert rows[0]['comment_count'] == 1
+    assert rows[0]['comment_text'] == 'looks suspicious'
+
     trail = client.get(f'/api/v1/cases/{case_id}/audit-trail')
     assert trail.status_code == 200
     items = trail.json()['items']

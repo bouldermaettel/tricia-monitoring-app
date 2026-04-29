@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.import_job import ImportJob
+from src.models.user import User
 from src.services.threshold_service import ThresholdService
 
 
@@ -17,6 +18,10 @@ class ImportService:
 
     def _get_problem_threshold(self) -> int:
         return ThresholdService(self.db).get("default").problem_threshold
+
+    def _resolve_actor_user_id(self, actor_id: str) -> str | None:
+        actor = self.db.scalar(select(User.id).where(User.id == actor_id))
+        return actor if actor is not None else None
 
     @staticmethod
     def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -145,7 +150,7 @@ class ImportService:
                         device_name=parsed["device_name"],
                         analysis_date=date.fromisoformat(str(parsed["analysis_date"])),
                         source_type="import",
-                        created_by_user_id=actor_id,
+                            created_by_user_id=self._resolve_actor_user_id(actor_id),
                         wimi_shortcut=parsed["wimi_shortcut"],
                         validation_status=parsed["validation_status"],
                     )
@@ -190,7 +195,7 @@ class ImportService:
                 review.is_excluded = bool(parsed["is_excluded"])
                 review.is_reviewed = bool(parsed["is_reviewed"])
                 review.risk_level = str(parsed["risk_level"] or "none")
-                review.updated_by_user_id = actor_id
+                review.updated_by_user_id = self._resolve_actor_user_id(actor_id)
                 review.updated_at = datetime.utcnow()
 
                 imported_rows += 1
@@ -204,7 +209,7 @@ class ImportService:
             total_rows=total_rows,
             imported_rows=imported_rows,
             error_rows=error_rows,
-            created_by_user_id=actor_id,
+            created_by_user_id=self._resolve_actor_user_id(actor_id),
         )
         self.db.add(job)
         self.db.commit()

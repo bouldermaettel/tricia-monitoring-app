@@ -124,9 +124,9 @@ export function ControlDashboard() {
                         <input
                             id="review-window-days"
                             type="number"
-                            min={1}
+                            min={0}
                             value={reviewWindowDays}
-                            onChange={(e) => setReviewWindowDays(Math.max(1, Number(e.target.value) || 28))}
+                            onChange={(e) => setReviewWindowDays(Math.max(0, Number(e.target.value) || 28))}
                             className="w-28 text-sm border border-stone-200 rounded-lg px-2 py-1 outline-none focus:border-amber-400"
                         />
                     </div>

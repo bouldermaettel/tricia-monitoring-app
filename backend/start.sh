@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -u
 
 database_url="${DATABASE_URL:-sqlite:///./data/tricia-monitoring.db}"
 
@@ -10,7 +10,9 @@ case "$database_url" in
   *)
     if [ -f /app/backend/src/db/migrations/env.py ]; then
       echo "Running Alembic migrations"
-      alembic -c /app/backend/alembic.ini upgrade head
+      if ! alembic -c /app/backend/alembic.ini upgrade head; then
+        echo "WARNING: Alembic migration failed; continuing startup"
+      fi
     else
       echo "Alembic env.py not found, skipping runtime migrations"
     fi

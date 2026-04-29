@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_actor_id, get_db
 from src.api.schemas.cases import (
     BulkDeleteRequest,
     CaseAuditTrailResponse,
+    CommentCreateRequest,
     CaseCreateRequest,
     CaseListResponse,
     CaseReviewResponse,
@@ -15,6 +17,7 @@ from src.api.schemas.cases import (
 )
 from src.services.case_service import CaseService
 from src.services.validation_service import ValidationService
+from src.services.export_service import ExportService
 
 router = APIRouter()
 
@@ -99,6 +102,22 @@ def update_case(
     return {"id": case.id}
 
 
+@router.post("/{case_id}/comments", status_code=status.HTTP_201_CREATED)
+def add_case_comment(
+    case_id: str,
+    payload: CommentCreateRequest,
+    db: Session = Depends(get_db),
+    actor_id: str = Depends(get_actor_id),
+):
+    try:
+        comment = CaseService(db).add_comment(case_id, payload.text, actor_id)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = status.HTTP_404_NOT_FOUND if "not found" in message.lower() else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    return {"id": comment.id}
+
+
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_case(
     case_id: str,
@@ -128,3 +147,13 @@ def get_case_audit_trail(
     db: Session = Depends(get_db),
 ) -> CaseAuditTrailResponse:
     return CaseService(db).get_audit_trail(case_id, limit)
+
+
+@router.get("/{case_id}/audit-trail.xlsx")
+def export_case_audit_trail_xlsx(case_id: str, db: Session = Depends(get_db)):
+    content = ExportService(db).audit_trail_to_xlsx(case_id)
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="audit-trail-{case_id}.xlsx"'},
+    )

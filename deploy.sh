@@ -2,6 +2,7 @@
 
 # Deploy Tricia Monitoring App to Azure Container Apps
 # Pattern mirrors infra_example: ACR build + Bicep deployment.
+# Database in Azure is PostgreSQL Flexible Server provisioned by infra/main.bicep.
 # Usage:
 #   ./deploy.sh <namespace> [resource-group] [location]
 #
@@ -35,6 +36,7 @@ echo "🚀 Deploying Tricia Monitoring App"
 echo "   Namespace:      $NAMESPACE"
 echo "   Resource group: $RESOURCE_GROUP"
 echo "   Location:       $LOCATION"
+echo "   Database:       Azure PostgreSQL Flexible Server"
 echo "   ACR:            $ACR_NAME"
 echo "   Image tag:      $IMAGE_TAG"
 echo "   Project root:   $PROJECT_ROOT"
@@ -93,6 +95,8 @@ if [ -z "${SECRET_KEY:-}" ] || [ -z "${BOOTSTRAP_ADMIN_USERNAME:-}" ] || [ -z "$
   echo "   export BOOTSTRAP_ADMIN_USERNAME='...'"
   echo "   export BOOTSTRAP_ADMIN_PASSWORD='...'"
   echo "   export POSTGRES_ADMIN_PASSWORD='...'"
+  echo ""
+  echo "The deployment builds a PostgreSQL DATABASE_URL in Bicep and injects it into the backend app as a secret."
   echo "Optional:"
   echo "   export POSTGRES_ADMIN_USERNAME='triciaadmin'"
   echo "   export POSTGRES_DATABASE_NAME='tricia_monitoring'"

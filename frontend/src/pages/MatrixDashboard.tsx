@@ -13,7 +13,7 @@ import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDele
 import { useMatrix } from '../hooks/useMatrix';
 import { MatrixDimension, RiskFilter, useFilters } from '../state/filters';
 import { useImportOverride } from '../state/importOverride';
-import { listCases } from '../services/cases';
+import { listCases, getCaseAuditTrail } from '../services/cases';
 import { useThresholds } from '../hooks/useThresholds';
 
 function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
@@ -295,12 +295,60 @@ export function MatrixDashboard() {
     setSearchParams(next, { replace: true });
   }
 
+  async function handleEnrichExport(
+    cols: string[],
+    rows: Array<Record<string, unknown>>
+  ): Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }> {
+    const FIELD_LABELS: Record<string, string> = {
+      tricia_s: 'TRI-S', tricia_p: 'TRI-P', tricia_d: 'TRI-D',
+      user_s: 'WIMI-S', user_d: 'WIMI-D', category_code: 'Category',
+      is_excluded: 'Excluded', is_reviewed: 'Reviewed', risk_level: 'Risk Level',
+      device_name: 'Device Name', analysis_date: 'Analysis Date',
+      validation_status: 'Validation Status', comment_text: 'Comment', vk_number: 'VK Number',
+    };
+
+    function formatAudit(items: Array<{ created_at: string; action: string; changes?: Record<string, { from?: unknown; to?: unknown }> }>): string {
+      if (!items.length) return '';
+      const lines: string[] = [];
+      const ordered = [...items].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      ordered.forEach((event) => {
+        const ts = new Date(event.created_at).toLocaleString('de-DE');
+        const entries = Object.entries(event.changes ?? {});
+        if (entries.length === 0) { lines.push(`${ts} | ${event.action}`); return; }
+        entries.forEach(([field, delta]) => {
+          lines.push(`${ts} | ${FIELD_LABELS[field] ?? field}: ${String(delta?.from ?? '—')} -> ${String(delta?.to ?? '—')}`);
+        });
+      });
+      return lines.join('\n');
+    }
+
+    const enrichedRows = await Promise.all(
+      rows.map(async (row) => {
+        const caseId = row._case_id as string | undefined;
+        if (!caseId) return { ...row };
+        try {
+          const data = await getCaseAuditTrail(caseId, 500);
+          const { _case_id: _removed, ...rest } = row;
+          void _removed;
+          return { ...rest, audit_trail: formatAudit((data.items ?? []) as Parameters<typeof formatAudit>[0]) };
+        } catch {
+          const { _case_id: _removed, ...rest } = row;
+          void _removed;
+          return { ...rest, audit_trail: '' };
+        }
+      })
+    );
+
+    const enrichedCols = [...cols, 'audit_trail'];
+    return { columns: enrichedCols, rows: enrichedRows };
+  }
+
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Matrix Dashboard</h1>
         <div className="flex gap-2">
-          <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" />
+          <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" onBeforeExport={handleEnrichExport} />
           <MatrixReportExportButton
             fileNamePrefix="matrix-report"
             generatedAt={new Date().toLocaleString('de-DE')}

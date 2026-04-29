@@ -10,6 +10,9 @@ vi.mock('../../src/hooks/useCases', () => ({
   useCases: () => ({ data: { items: [] } }),
   usePatchCaseReview: () => ({ mutate: vi.fn() }),
   useAddCaseComment: () => ({ mutate: vi.fn() }),
+  useUpdateCase: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
+  useDeleteCase: () => ({ mutate: vi.fn() }),
+  useCaseAuditTrail: () => ({ data: { items: [] }, isLoading: false }),
 }));
 vi.mock('../../src/hooks/useThresholds', () => ({
   useThresholds: () => ({ data: { acceptance_threshold: 1 } }),

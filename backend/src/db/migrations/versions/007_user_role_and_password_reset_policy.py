@@ -15,10 +15,26 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-    )
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
+    # Column may already exist if _ensure_user_policy_schema() ran on a previous startup
+    # before this migration was applied.  Use dialect-appropriate idempotent ADD COLUMN.
+    if dialect == "postgresql":
+        bind.execute(
+            sa.text(
+                "ALTER TABLE users "
+                "ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
+    else:
+        from sqlalchemy import inspect as sa_inspect
+        user_columns = {col["name"] for col in sa_inspect(bind).get_columns("users")}
+        if "must_change_password" not in user_columns:
+            op.add_column(
+                "users",
+                sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            )
 
     # Collapse legacy roles into the new user role.
     op.execute("UPDATE users SET role = 'user' WHERE role <> 'admin'")

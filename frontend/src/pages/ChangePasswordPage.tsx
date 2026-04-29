@@ -5,7 +5,7 @@ import { useAuth } from '../app/auth';
 import { changePassword } from '../services/auth';
 
 function getDefaultRoute(role: string): string {
-  return role === 'admin' ? '/users' : '/input';
+  return '/input';
 }
 
 export function ChangePasswordPage() {

@@ -1,4 +1,5 @@
 from io import BytesIO, StringIO
+import json
 
 import pandas as pd
 from sqlalchemy import select
@@ -6,6 +7,24 @@ from sqlalchemy.orm import Session
 
 from src.models.case import Case
 from src.models.classification_snapshot import ClassificationSnapshot
+from src.models.case import CaseAuditEvent
+
+_FIELD_LABELS: dict[str, str] = {
+    "tricia_s": "TRI-S",
+    "tricia_p": "TRI-P",
+    "tricia_d": "TRI-D",
+    "user_s": "WIMI-S",
+    "user_d": "WIMI-D",
+    "category_code": "Category",
+    "is_excluded": "Excluded",
+    "is_reviewed": "Reviewed",
+    "risk_level": "Risk Level",
+    "device_name": "Device Name",
+    "analysis_date": "Analysis Date",
+    "validation_status": "Validation Status",
+    "comment_text": "Comment",
+    "vk_number": "VK Number",
+}
 
 
 class ExportService:
@@ -65,4 +84,46 @@ class ExportService:
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             ExportService._table_frame(columns, rows).to_excel(writer, sheet_name="table", index=False)
+        return output.getvalue()
+
+    def audit_trail_to_xlsx(self, case_id: str) -> bytes:
+        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        vk_number = case.vk_number if case else case_id
+
+        events = self.db.execute(
+            select(CaseAuditEvent)
+            .where(CaseAuditEvent.case_id == case_id)
+            .order_by(CaseAuditEvent.created_at.asc())
+        ).scalars().all()
+
+        rows = []
+        for e in events:
+            changes = e.changes or {}
+            if not changes:
+                rows.append({
+                    "Timestamp": e.created_at.strftime("%Y-%m-%d %H:%M:%S") if e.created_at else "",
+                    "Actor": e.actor_id or "",
+                    "Action": e.action,
+                    "Field": "",
+                    "From": "",
+                    "To": "",
+                })
+            else:
+                for field, delta in changes.items():
+                    label = _FIELD_LABELS.get(field, field)
+                    from_val = delta.get("from") if isinstance(delta, dict) else ""
+                    to_val = delta.get("to") if isinstance(delta, dict) else ""
+                    rows.append({
+                        "Timestamp": e.created_at.strftime("%Y-%m-%d %H:%M:%S") if e.created_at else "",
+                        "Actor": e.actor_id or "",
+                        "Action": e.action,
+                        "Field": label,
+                        "From": "" if from_val is None else str(from_val),
+                        "To": "" if to_val is None else str(to_val),
+                    })
+
+        df = pd.DataFrame(rows, columns=["Timestamp", "Actor", "Action", "Field", "From", "To"])
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name=f"Audit {vk_number}", index=False)
         return output.getvalue()

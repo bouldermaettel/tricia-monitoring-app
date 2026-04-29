@@ -85,3 +85,13 @@ export async function getCaseAuditTrail(caseId: string, limit = 100): Promise<Ca
     const { data } = await apiClient.get(`/cases/${caseId}/audit-trail`, { params: { limit } });
     return data;
 }
+
+export async function downloadCaseAuditTrailXlsx(caseId: string, vkNumber: string): Promise<void> {
+    const response = await apiClient.get(`/cases/${caseId}/audit-trail.xlsx`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([response.data]));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-trail-${vkNumber || caseId}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+}

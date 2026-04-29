@@ -6,13 +6,34 @@
       "value": "team-a"
     },
     "backendImage": {
-      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-backend:20260427144500"
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-backend:20260427154200"
     },
     "frontendImage": {
-      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-frontend:20260427144500"
+      "value": "triciateamaaacr.azurecr.io/tricia-monitoring-frontend:20260427154200"
     },
     "secretKey": {
       "value": "abscuet4456438ste$$1342"
+    },
+    "postgresAdminUsername": {
+      "value": "triciaadmin"
+    },
+    "postgresAdminPassword": {
+      "value": "replace-with-secret"
+    },
+    "postgresDatabaseName": {
+      "value": "tricia_monitoring"
+    },
+    "postgresSkuName": {
+      "value": "Standard_B1ms"
+    },
+    "postgresSkuTier": {
+      "value": "Burstable"
+    },
+    "postgresStorageGb": {
+      "value": 32
+    },
+    "postgresVersion": {
+      "value": "16"
     },
     "corsOrigins": {
       "value": "https://your-frontend-fqdn"

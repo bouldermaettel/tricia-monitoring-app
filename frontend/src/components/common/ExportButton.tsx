@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { exportVisibleTableCsv, exportVisibleTableXlsx } from '../../services/exports';
 
@@ -16,19 +17,45 @@ type Props = {
   columns: string[];
   rows: Array<Record<string, unknown>>;
   fileNamePrefix: string;
+  /** Optional async hook called before each export. Receives current columns/rows and
+   *  returns enriched columns/rows (e.g. to lazily add audit trail data). */
+  onBeforeExport?: (
+    columns: string[],
+    rows: Array<Record<string, unknown>>
+  ) => Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }>;
 };
 
-export function ExportButton({ columns, rows, fileNamePrefix }: Props) {
-  const disabled = rows.length === 0 || columns.length === 0;
+export function ExportButton({ columns, rows, fileNamePrefix, onBeforeExport }: Props) {
+  const [loading, setLoading] = useState(false);
+  const disabled = rows.length === 0 || columns.length === 0 || loading;
+
+  async function resolveData() {
+    if (onBeforeExport) {
+      return onBeforeExport(columns, rows);
+    }
+    return { columns, rows };
+  }
 
   async function handleCsvExport() {
-    const blob = await exportVisibleTableCsv(columns, rows);
-    triggerDownload(blob, `${fileNamePrefix}.csv`);
+    setLoading(true);
+    try {
+      const data = await resolveData();
+      const blob = await exportVisibleTableCsv(data.columns, data.rows);
+      triggerDownload(blob, `${fileNamePrefix}.csv`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleXlsxExport() {
-    const blob = await exportVisibleTableXlsx(columns, rows);
-    triggerDownload(blob, `${fileNamePrefix}.xlsx`);
+    setLoading(true);
+    try {
+      const data = await resolveData();
+      const blob = await exportVisibleTableXlsx(data.columns, data.rows);
+      triggerDownload(blob, `${fileNamePrefix}.xlsx`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -36,18 +63,18 @@ export function ExportButton({ columns, rows, fileNamePrefix }: Props) {
       <button
         onClick={handleCsvExport}
         disabled={disabled}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50"
       >
         <Download size={14} />
-        CSV
+        {loading ? 'Exporting…' : 'CSV'}
       </button>
       <button
         onClick={handleXlsxExport}
         disabled={disabled}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50"
       >
         <Download size={14} />
-        XLSX
+        {loading ? 'Exporting…' : 'XLSX'}
       </button>
     </div>
   );

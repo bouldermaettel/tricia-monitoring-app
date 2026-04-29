@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, MessageSquare, MinusCircle, Pencil, Tag, X } from 'lucide-react';
 import { useCaseAuditTrail } from '../../hooks/useCases';
 import { formatIsoDateToGerman } from '../../utils/date';
+import { downloadCaseAuditTrailXlsx } from '../../services/cases';
 
 type CaseItem = {
   id: string;
@@ -17,6 +18,7 @@ type CaseItem = {
   risk_level?: string;
   is_excluded?: boolean;
   is_reviewed?: boolean;
+  comment_text?: string;
   has_edits?: boolean;
 };
 
@@ -101,6 +103,23 @@ const COLUMN_DB_NAMES: Record<ColumnId, string> = {
   actions: 'has_edits',
 };
 
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  tricia_s: 'TRI-S',
+  tricia_p: 'TRI-P',
+  tricia_d: 'TRI-D',
+  user_s: 'WIMI-S',
+  user_d: 'WIMI-D',
+  category_code: 'Category',
+  is_excluded: 'Excluded',
+  is_reviewed: 'Reviewed',
+  risk_level: 'Risk Level',
+  device_name: 'Device Name',
+  analysis_date: 'Analysis Date',
+  validation_status: 'Validation Status',
+  comment_text: 'Comment',
+  vk_number: 'VK Number',
+};
+
 function deviation(a?: number, b?: number) {
   if (a === undefined || b === undefined) return 0;
   return Math.abs(a - b);
@@ -116,6 +135,38 @@ function rowColor(item: CaseItem) {
       : 'bg-orange-50 border-l-2 border-l-orange-400';
   }
   return 'bg-emerald-50/50';
+}
+
+function getCommentCellValue(item: CaseItem, draft: string | undefined) {
+  const next = draft?.trim();
+  if (next) return next;
+  return item.comment_text ?? '';
+}
+
+function formatAuditCell(events: AuditEvent[]): string {
+  if (!events.length) return '';
+
+  const lines: string[] = [];
+  const ordered = [...events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  ordered.forEach((event) => {
+    const timestamp = new Date(event.created_at).toLocaleString('de-DE');
+    const changes = event.changes ?? {};
+    const entries = Object.entries(changes);
+
+    if (entries.length === 0) {
+      lines.push(`${timestamp} | ${event.action}`);
+      return;
+    }
+
+    entries.forEach(([field, delta]) => {
+      const label = AUDIT_FIELD_LABELS[field] ?? field;
+      const fromValue = delta?.from ?? '—';
+      const toValue = delta?.to ?? '—';
+      lines.push(`${timestamp} | ${label}: ${String(fromValue)} -> ${String(toValue)}`);
+    });
+  });
+
+  return lines.join('\n');
 }
 
 export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCategory, onAddComment, onEditCase, onDeleteCase, onExportStateChange }: Props) {
@@ -300,7 +351,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
       if (!matchesNumeric(item.tricia_d, normalized.tricia_d)) return false;
       if (!matchesNumeric(item.user_d, normalized.user_d)) return false;
       if (normalized.category_code && (item.category_code ?? '').toLowerCase() !== normalized.category_code) return false;
-      if (normalized.comment && !(commentInputs[item.id] ?? '').toLowerCase().includes(normalized.comment)) return false;
+      if (normalized.comment && !getCommentCellValue(item, commentInputs[item.id]).toLowerCase().includes(normalized.comment)) return false;
       if (normalized.is_excluded) {
         const expected = normalized.is_excluded === 'yes';
         if (Boolean(item.is_excluded) !== expected) return false;
@@ -328,12 +379,14 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
 
   useEffect(() => {
     if (!onExportStateChange) return;
+
     const exportColumns = columns.map((columnId) => COLUMN_DB_NAMES[columnId]);
+
     const exportRows = filteredItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
         if (columnId === 'comment') {
-          row[COLUMN_DB_NAMES[columnId]] = commentInputs[item.id] ?? '';
+          row[COLUMN_DB_NAMES[columnId]] = getCommentCellValue(item, commentInputs[item.id]);
           return;
         }
         if (columnId === 'actions') {
@@ -342,8 +395,11 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
         }
         row[COLUMN_DB_NAMES[columnId]] = item[columnId as keyof CaseItem] ?? '';
       });
+      // hidden field used by lazy audit enrichment on export click
+      row._case_id = item.id;
       return row;
     });
+
     onExportStateChange({ columns: exportColumns, rows: exportRows });
   }, [changedCaseIds, columns, commentInputs, filteredItems, onExportStateChange]);
 
@@ -624,34 +680,43 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                     );
                   }
                   if (columnId === 'comment') {
+                    const draftValue = commentInputs[item.id] ?? '';
+                    const savedValue = item.comment_text ?? '';
                     return (
                       <td key={columnId} className="px-3 py-2.5">
                         {onAddComment ? (
-                          <div className="flex gap-1">
-                            <input
-                              value={commentInputs[item.id] ?? ''}
-                              onChange={(e) => setCommentInputs((p) => ({ ...p, [item.id]: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && commentInputs[item.id]?.trim()) {
-                                  onAddComment(item.id, commentInputs[item.id]);
-                                  setCommentInputs((p) => ({ ...p, [item.id]: '' }));
-                                }
-                              }}
-                              placeholder="Add…"
-                              className="text-xs border border-stone-200 rounded px-2 py-1 w-28 outline-none focus:border-amber-400"
-                            />
-                            <button
-                              onClick={() => {
-                                if (commentInputs[item.id]?.trim()) {
-                                  onAddComment(item.id, commentInputs[item.id]);
-                                  setCommentInputs((p) => ({ ...p, [item.id]: '' }));
-                                }
-                              }}
-                              className="text-stone-400 hover:text-stone-700"
-                              title="Submit comment"
-                            >
-                              <MessageSquare size={13} />
-                            </button>
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] text-stone-600 truncate max-w-[15rem]" title={savedValue || 'No saved comment'}>
+                              {savedValue || 'No saved comment'}
+                            </div>
+                            <div className="flex gap-1">
+                              <input
+                                value={draftValue}
+                                onChange={(e) => setCommentInputs((p) => ({ ...p, [item.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  const text = draftValue.trim();
+                                  if (e.key === 'Enter' && text) {
+                                    onAddComment(item.id, text);
+                                    setCommentInputs((p) => ({ ...p, [item.id]: '' }));
+                                  }
+                                }}
+                                placeholder="Add…"
+                                className="text-xs border border-stone-200 rounded px-2 py-1 w-28 outline-none focus:border-amber-400"
+                              />
+                              <button
+                                onClick={() => {
+                                  const text = draftValue.trim();
+                                  if (text) {
+                                    onAddComment(item.id, text);
+                                    setCommentInputs((p) => ({ ...p, [item.id]: '' }));
+                                  }
+                                }}
+                                className="text-stone-400 hover:text-stone-700"
+                                title="Submit comment"
+                              >
+                                <MessageSquare size={13} />
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-stone-400">—</span>
@@ -810,7 +875,17 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                 </div>
               </section>
               <section className="p-5 max-h-[60vh] overflow-y-auto">
-                <h4 className="text-sm font-semibold text-stone-800 mb-2">Audit trail</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-stone-800">Audit trail</h4>
+                  {auditEventsToShow.length > 0 && (
+                    <button
+                      onClick={() => downloadCaseAuditTrailXlsx(editingItem.id, editingItem.vk_number)}
+                      className="rounded border border-stone-300 px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
+                    >
+                      Export Excel
+                    </button>
+                  )}
+                </div>
                 {auditTrail.isLoading && <p className="text-xs text-stone-500">Loading audit trail...</p>}
                 {!auditTrail.isLoading && auditEventsToShow.length === 0 && (
                   <p className="text-xs text-stone-500">No logged updates for this case yet.</p>

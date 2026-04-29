@@ -19,7 +19,7 @@ vi.mock('../../src/hooks/useCases', () => ({
   useCases: () => ({ data: { items: [] } }),
   usePatchCaseReview: () => ({ mutate: vi.fn() }),
   useAddCaseComment: () => ({ mutate: vi.fn() }),
-  useUpdateCase: () => ({ mutate: vi.fn() }),
+  useUpdateCase: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
   useDeleteCase: () => ({ mutate: vi.fn() }),
   useCaseAuditTrail: () => ({ data: { items: [] }, isLoading: false }),
 }));
@@ -40,9 +40,9 @@ describe('MatrixDashboard', () => {
     );
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Severity and Detectability Matrices - S: 0 selected, D: 0 selected ▲')).toBeInTheDocument();
-    expect(screen.getByText('Product Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
-    expect(screen.getByText('Severity Matrix — WIMI-S (rows) vs TRI-S (cols)')).toBeInTheDocument();
-    expect(screen.getByText('Detectability Matrix — WIMI-D (rows) vs TRI-D (cols)')).toBeInTheDocument();
-    expect(screen.getByText('Product Matrix — WIMI (SxDxP) vs TRI (SxDxP), with WIMI-P = TRI-P')).toBeInTheDocument();
+    expect(screen.getByText('RBC Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
+    expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
+    expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
+    expect(screen.getByText('RBC Matrix')).toBeInTheDocument();
   });
 });
