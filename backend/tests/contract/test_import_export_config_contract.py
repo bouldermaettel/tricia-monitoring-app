@@ -12,6 +12,25 @@ def test_thresholds_contract(client):
     assert put_response.json()['acceptance_threshold'] == 2
 
 
+def test_thresholds_reject_overlapping_risk_categories(client):
+    payload = {
+        'config_key': 'default',
+        'acceptance_threshold': 2,
+        'problem_threshold': 4,
+        'include_excluded_default': True,
+        'risk_categories': [
+            {'label': 'A', 'min_value': 0, 'max_value': 100},
+            {'label': 'B', 'min_value': 50, 'max_value': 200},
+        ],
+    }
+
+    response = client.put('/api/v1/config/thresholds', json=payload)
+
+    assert response.status_code == 422
+    body = response.json()
+    assert 'overlap' in str(body).lower()
+
+
 def test_exports_contract(client):
     csv_response = client.get('/api/v1/exports/cases.csv')
     assert csv_response.status_code == 200

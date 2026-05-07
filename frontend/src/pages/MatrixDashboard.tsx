@@ -35,7 +35,107 @@ type MatrixCell = {
   expected_value: number;
   observed_value: number;
   case_count: number;
+  within_threshold?: boolean;
 };
+
+type RiskCategory = {
+  label: string;
+  min_value: number;
+  max_value: number;
+};
+
+const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
+  { label: '0-10', min_value: 0, max_value: 10 },
+  { label: '11-250', min_value: 11, max_value: 250 },
+  { label: '251-500', min_value: 251, max_value: 500 },
+  { label: '501-1000', min_value: 501, max_value: 1000 },
+];
+
+function normalizeRiskCategories(input: unknown): RiskCategory[] {
+  if (!Array.isArray(input) || input.length === 0) return DEFAULT_RISK_CATEGORIES;
+
+  const normalized = input
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') return null;
+      const candidate = item as Partial<RiskCategory>;
+      const minValue = Number(candidate.min_value);
+      const maxValue = Number(candidate.max_value);
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return null;
+      return {
+        label: (candidate.label ?? `Category ${index + 1}`).toString(),
+        min_value: Math.max(0, Math.trunc(minValue)),
+        max_value: Math.max(0, Math.trunc(maxValue)),
+      };
+    })
+    .filter((item): item is RiskCategory => item !== null)
+    .sort((a, b) => a.min_value - b.min_value);
+
+  return normalized.length > 0 ? normalized : DEFAULT_RISK_CATEGORIES;
+}
+
+function resolveRiskCategoryIndex(value: number, categories: RiskCategory[]): number | null {
+  const categoryIndex = categories.findIndex((category) => value >= category.min_value && value <= category.max_value);
+  return categoryIndex >= 0 ? categoryIndex + 1 : null;
+}
+
+function buildRiskClassMatrix(
+  cells: MatrixCell[],
+  categories: RiskCategory[]
+): {
+  cells: MatrixCell[];
+  groupedToRawCellMap: Map<string, Array<{ expected: number; observed: number }>>;
+} {
+  const groupedMap = new Map<string, MatrixCell>();
+  const groupedToRawCellMap = new Map<string, Array<{ expected: number; observed: number }>>();
+  const classCount = categories.length;
+
+  cells.forEach((cell) => {
+    const expectedCategory = resolveRiskCategoryIndex(cell.expected_value, categories);
+    const observedCategory = resolveRiskCategoryIndex(cell.observed_value, categories);
+    if (expectedCategory === null || observedCategory === null || cell.case_count <= 0) return;
+
+    const key = `${expectedCategory}-${observedCategory}`;
+    const existing = groupedMap.get(key);
+    if (existing) {
+      existing.case_count += cell.case_count;
+      existing.within_threshold = Boolean(existing.within_threshold) && Boolean(cell.within_threshold ?? true);
+    } else {
+      groupedMap.set(key, {
+        expected_value: expectedCategory,
+        observed_value: observedCategory,
+        case_count: cell.case_count,
+        within_threshold: cell.within_threshold ?? true,
+      });
+    }
+
+    const rawPairs = groupedToRawCellMap.get(key) ?? [];
+    rawPairs.push({ expected: cell.expected_value, observed: cell.observed_value });
+    groupedToRawCellMap.set(key, rawPairs);
+  });
+
+  // Force a complete matrix so every configured class combination is visible.
+  for (let expectedClass = 1; expectedClass <= classCount; expectedClass += 1) {
+    for (let observedClass = 1; observedClass <= classCount; observedClass += 1) {
+      const key = `${expectedClass}-${observedClass}`;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          expected_value: expectedClass,
+          observed_value: observedClass,
+          case_count: 0,
+          within_threshold: true,
+        });
+      }
+    }
+  }
+
+  return {
+    cells: Array.from(groupedMap.values()).sort((a, b) => {
+      if (a.expected_value !== b.expected_value) return a.expected_value - b.expected_value;
+      return a.observed_value - b.observed_value;
+    }),
+    groupedToRawCellMap,
+  };
+}
 
 function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): Array<{ expected: number; observed: number }> {
   if (riskFilter === 'all') return [];
@@ -95,6 +195,7 @@ export function MatrixDashboard() {
     ...dateParams,
   });
   const thresholds = useThresholds();
+  const riskCategories = useMemo(() => normalizeRiskCategories(thresholds.data?.risk_categories), [thresholds.data?.risk_categories]);
 
   const caseParams = {
     include_excluded: includeExcluded,
@@ -150,6 +251,10 @@ export function MatrixDashboard() {
     };
   }, [filteredOverrideCases, isOverrideActive, thresholds.data?.acceptance_threshold]);
   const productCells = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
+  const riskClassMatrix = useMemo(
+    () => buildRiskClassMatrix(productCells, riskCategories),
+    [productCells, riskCategories]
+  );
 
   useEffect(() => {
     if (riskFilter === 'all') {
@@ -169,7 +274,7 @@ export function MatrixDashboard() {
       });
       return;
     }
-    const target = getProductRiskSelection(productCells, riskFilter);
+    const target = getProductRiskSelection(riskClassMatrix.cells, riskFilter);
     const targetSet = new Set(target.map((cell) => `${cell.expected}-${cell.observed}`));
     setSelectedCellsByDimension((previous) => {
       const currentSet = new Set(previous.product.map((cell) => `${cell.expected}-${cell.observed}`));
@@ -182,19 +287,28 @@ export function MatrixDashboard() {
         product: target,
       };
     });
-  }, [productCells, riskFilter]);
+  }, [riskClassMatrix.cells, riskFilter]);
   const patchReview = usePatchCaseReview();
   const addComment = useAddCaseComment();
   const updateCase = useUpdateCase();
   const deleteCase = useDeleteCase();
 
   const selectedRequests = useMemo(
-    () => [
-      ...selectedCellsByDimension.severity.map((cell) => ({ dimension: 'severity' as const, ...cell })),
-      ...selectedCellsByDimension.detectability.map((cell) => ({ dimension: 'detectability' as const, ...cell })),
-      ...selectedCellsByDimension.product.map((cell) => ({ dimension: 'product' as const, ...cell })),
-    ],
-    [selectedCellsByDimension]
+    () => {
+      const selectedProductRawCells = selectedCellsByDimension.product
+        .flatMap((groupedCell) => riskClassMatrix.groupedToRawCellMap.get(`${groupedCell.expected}-${groupedCell.observed}`) ?? []);
+
+      const uniqueProductRawCells = Array.from(
+        new Map(selectedProductRawCells.map((cell) => [`${cell.expected}-${cell.observed}`, cell])).values()
+      );
+
+      return [
+        ...selectedCellsByDimension.severity.map((cell) => ({ dimension: 'severity' as const, ...cell })),
+        ...selectedCellsByDimension.detectability.map((cell) => ({ dimension: 'detectability' as const, ...cell })),
+        ...uniqueProductRawCells.map((cell) => ({ dimension: 'product' as const, ...cell })),
+      ];
+    },
+    [riskClassMatrix.groupedToRawCellMap, selectedCellsByDimension]
   );
 
   const selectedCaseQueries = useQueries({
@@ -376,10 +490,10 @@ export function MatrixDashboard() {
                 cells: detectabilityCells,
               },
               {
-                title: 'RBC Matrix (SxDxP)',
-                rowAxisLabel: 'WIMI (SxDxP)',
-                columnAxisLabel: 'TRI (SxDxP)',
-                cells: productCells,
+                title: 'Risk Class Matrix (SxDxP)',
+                rowAxisLabel: 'WIMI Risk Class',
+                columnAxisLabel: 'TRI Risk Class',
+                cells: riskClassMatrix.cells,
               },
             ]}
             tableColumns={exportState.columns}
@@ -462,18 +576,25 @@ export function MatrixDashboard() {
             className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100"
             onClick={() => setCollapsedProduct((previous) => !previous)}
           >
-            RBC Matrix (SxDxP) - {selectedCellsByDimension.product.length} selected {collapsedProduct ? '▼' : '▲'}
+            Risk Class Matrix (SxDxP) - {selectedCellsByDimension.product.length} selected {collapsedProduct ? '▼' : '▲'}
           </button>
           {!collapsedProduct && (
             <div className="p-2">
               <ConfusionMatrixGrid
-                title="RBC Matrix"
-                cells={productCells}
+                title="Risk Class Matrix"
+                cells={riskClassMatrix.cells}
                 onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
                 selectedCells={selectedCellsByDimension.product}
-                rowAxisLabel="WIMI (SxDxP)"
-                columnAxisLabel="TRI (SxDxP)"
+                rowAxisLabel="WIMI Risk Class"
+                columnAxisLabel="TRI Risk Class"
               />
+              <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
+                {riskCategories.map((category, index) => (
+                  <span key={`${category.label}-${index}`}>
+                    Class {index + 1}: {category.label} ({category.min_value}-{category.max_value})
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </section>

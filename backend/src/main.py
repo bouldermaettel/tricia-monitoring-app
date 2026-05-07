@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import json
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +41,7 @@ def _initialize_database() -> None:
     for attempt in range(1, max_attempts + 1):
         try:
             _ensure_schema()
+            _ensure_threshold_config_schema()
             _ensure_user_policy_schema()
             _ensure_bootstrap_admin()
             return
@@ -59,6 +61,51 @@ def _initialize_database() -> None:
                 retry_delay_seconds,
             )
             time.sleep(retry_delay_seconds)
+
+
+def _ensure_threshold_config_schema() -> None:
+    """Apply compatibility migration for risk category boundaries in threshold settings."""
+    settings = get_settings()
+    dialect = make_url(settings.database_url).drivername
+
+    default_categories = json.dumps(
+        [
+            {"label": "0-10", "min_value": 0, "max_value": 10},
+            {"label": "11-250", "min_value": 11, "max_value": 250},
+            {"label": "251-500", "min_value": 251, "max_value": 500},
+            {"label": "501-1000", "min_value": 501, "max_value": 1000},
+        ]
+    )
+
+    try:
+        with engine.begin() as connection:
+            inspector = inspect(connection)
+            if "threshold_configs" not in inspector.get_table_names():
+                return
+
+            columns = {column["name"] for column in inspector.get_columns("threshold_configs")}
+            if "risk_categories" in columns:
+                return
+
+            if dialect.startswith("postgresql"):
+                connection.execute(
+                    text(
+                        "ALTER TABLE threshold_configs "
+                        "ADD COLUMN IF NOT EXISTS risk_categories JSON NOT NULL "
+                        f"DEFAULT '{default_categories}'::json"
+                    )
+                )
+            else:
+                connection.execute(
+                    text(
+                        "ALTER TABLE threshold_configs "
+                        "ADD COLUMN risk_categories TEXT NOT NULL "
+                        f"DEFAULT '{default_categories}'"
+                    )
+                )
+    except SQLAlchemyError:
+        # If the database is temporarily unavailable during cold start, continue boot.
+        return
 
 
 def _ensure_user_policy_schema() -> None:

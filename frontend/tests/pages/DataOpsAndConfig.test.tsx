@@ -31,6 +31,6 @@ describe('DataOps and Config', () => {
     );
     expect(screen.getByText('CSV')).toBeInTheDocument();
     expect(screen.getByText('XLSX')).toBeInTheDocument();
-    expect(screen.getByText('Threshold Configuration')).toBeInTheDocument();
+    expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 });

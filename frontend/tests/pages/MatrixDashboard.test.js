@@ -33,9 +33,9 @@ describe('MatrixDashboard', () => {
         render(_jsx(QueryClientProvider, { client: client, children: _jsx(MemoryRouter, { children: _jsx(MatrixDashboard, {}) }) }));
         expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
         expect(screen.getByText('Severity and Detectability Matrices - S: 0 selected, D: 0 selected ▲')).toBeInTheDocument();
-        expect(screen.getByText('RBC Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
+        expect(screen.getByText('Risk Class Matrix (SxDxP) - 0 selected ▲')).toBeInTheDocument();
         expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
         expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
-        expect(screen.getByText('RBC Matrix')).toBeInTheDocument();
+        expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
     });
 });

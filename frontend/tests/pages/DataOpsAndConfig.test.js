@@ -24,6 +24,6 @@ describe('DataOps and Config', () => {
         render(_jsx(QueryClientProvider, { client: client, children: _jsx(MemoryRouter, { children: _jsx(MatrixDashboard, {}) }) }));
         expect(screen.getByText('CSV')).toBeInTheDocument();
         expect(screen.getByText('XLSX')).toBeInTheDocument();
-        expect(screen.getByText('Threshold Configuration')).toBeInTheDocument();
+        expect(screen.getByText('Settings')).toBeInTheDocument();
     });
 });

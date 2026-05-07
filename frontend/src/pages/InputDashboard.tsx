@@ -1,14 +1,51 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Save, Upload } from 'lucide-react';
+import { AlertTriangle, Download, Save, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DuplicateDialog } from '../components/input/DuplicateDialog';
 import { AppShell } from '../components/common/AppShell';
 import { useCreateCase } from '../hooks/useCases';
+import { exportImportTemplateXlsx } from '../services/exports';
 import { previewImport, uploadImport } from '../services/imports';
 import { useImportOverride } from '../state/importOverride';
 
 const S_OPTIONS = [1, 3, 5, 8, 10];
 const PD_OPTIONS = [1, 5, 10];
+const VK_NUMBER_PATTERN = /^Vk_\d{8}_\d{3}$/;
+
+function isValidVkNumber(value: string): boolean {
+  const normalized = value.trim();
+  if (!VK_NUMBER_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  const datePart = normalized.slice(3, 11);
+  const year = Number(datePart.slice(0, 4));
+  const month = Number(datePart.slice(4, 6));
+  const day = Number(datePart.slice(6, 8));
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
+  );
+}
+
+function triggerDownload(blob: Blob, fileName: string) {
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 function CategorySelect({
   label,
@@ -57,6 +94,7 @@ export function InputDashboard() {
   const [userSManual, setUserSManual] = useState(false);
   const [userDManual, setUserDManual] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [invalidVkFormatOpen, setInvalidVkFormatOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -64,6 +102,7 @@ export function InputDashboard() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -90,12 +129,19 @@ export function InputDashboard() {
     e.preventDefault();
     setSaved(false);
     setSubmitError(null);
+    const normalizedVkNumber = vkNumber.trim();
+
+    if (!isValidVkNumber(normalizedVkNumber)) {
+      setInvalidVkFormatOpen(true);
+      return;
+    }
+
     if (isPreviewOverrideActive && previewSourceFileName && previewSourceFile) {
       const now = new Date().toISOString();
       const today = now.slice(0, 10);
       const nextCase = {
-        id: vkNumber.trim(),
-        vk_number: vkNumber.trim(),
+        id: normalizedVkNumber,
+        vk_number: normalizedVkNumber,
         device_name: deviceName.trim(),
         analysis_date: today,
         input_timestamp: now,
@@ -156,7 +202,7 @@ export function InputDashboard() {
     }
     try {
       await createCase.mutateAsync({
-        vk_number: vkNumber,
+        vk_number: normalizedVkNumber,
         device_name: deviceName,
         tricia_s: triciaS,
         tricia_p: triciaP,
@@ -261,6 +307,20 @@ export function InputDashboard() {
     }
   }
 
+  async function handleDownloadTemplate() {
+    setIsDownloadingTemplate(true);
+    setImportError(null);
+    try {
+      const blob = await exportImportTemplateXlsx();
+      triggerDownload(blob, 'matrix-upload-template.xlsx');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Template download failed.';
+      setImportError(message);
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  }
+
   async function handleImportUpload() {
     if (!importFile) {
       importFileInputRef.current?.click();
@@ -317,7 +377,7 @@ export function InputDashboard() {
                 aria-label="vk-number"
                 value={vkNumber}
                 onChange={(e) => setVkNumber(e.target.value)}
-                placeholder="e.g. Vk_20240115_06"
+                placeholder="e.g. Vk_20240523_001"
                 required
                 className="border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-100 transition-all"
               />
@@ -399,15 +459,26 @@ export function InputDashboard() {
               onChange={handleImportFileChange}
               className="hidden"
             />
-            <button
-              type="button"
-              onClick={handleChooseFile}
-              disabled={isImporting || isPreviewing}
-              className="inline-flex w-fit items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-stone-900 text-white hover:bg-stone-700 disabled:opacity-50"
-            >
-              <Upload size={14} />
-              {(isImporting || isPreviewing) ? 'Processing…' : 'Upload dataset'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleChooseFile}
+                disabled={isImporting || isPreviewing}
+                className="inline-flex w-fit items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-stone-900 text-white hover:bg-stone-700 disabled:opacity-50"
+              >
+                <Upload size={14} />
+                {(isImporting || isPreviewing) ? 'Processing…' : 'Upload dataset'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                disabled={isDownloadingTemplate || isImporting || isPreviewing}
+                className="inline-flex items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-700 hover:bg-stone-100 disabled:opacity-60"
+              >
+                <Download size={14} />
+                {isDownloadingTemplate ? 'Downloading…' : 'Download template'}
+              </button>
+            </div>
             {importFile && <p className="text-xs text-stone-500">Selected file: {importFile.name}</p>}
           </div>
           {importError && <p className="text-sm text-red-700">{importError}</p>}
@@ -435,6 +506,34 @@ export function InputDashboard() {
         onClose={() => setDuplicateOpen(false)}
         onEditExisting={handleEditExisting}
       />
+      {invalidVkFormatOpen && (
+        <div
+          role="dialog"
+          aria-label="invalid-vk-format-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
+          onClick={() => setInvalidVkFormatOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-stone-900">Incorrect VK-NR format</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              VK-NR is invalid. Hint: Vk_yyyymmdd_nnn must be matched, and yyyymmdd must be a valid date.
+              Example: Vk_20240523_001.
+            </p>
+            <div className="mt-4 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setInvalidVkFormatOpen(false)}
+                className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+              >
+                Correct format
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modeDialogOpen && importFile && (
         <div
           role="dialog"

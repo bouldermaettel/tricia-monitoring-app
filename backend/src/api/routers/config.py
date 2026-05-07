@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_actor_id, get_db
@@ -16,6 +16,7 @@ def get_thresholds(db: Session = Depends(get_db)) -> ThresholdConfig:
         acceptance_threshold=config.acceptance_threshold,
         problem_threshold=config.problem_threshold,
         include_excluded_default=config.include_excluded_default,
+        risk_categories=config.risk_categories,
         effective_from=config.effective_from,
     )
 
@@ -26,11 +27,15 @@ def update_thresholds(
     db: Session = Depends(get_db),
     actor_id: str = Depends(get_actor_id),
 ) -> ThresholdConfig:
-    config = ThresholdService(db).update(payload, actor_id)
+    try:
+        config = ThresholdService(db).update(payload, actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return ThresholdConfig(
         config_key=config.config_key,
         acceptance_threshold=config.acceptance_threshold,
         problem_threshold=config.problem_threshold,
         include_excluded_default=config.include_excluded_default,
+        risk_categories=config.risk_categories,
         effective_from=config.effective_from,
     )
