@@ -9,7 +9,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const navItems = [
     { to: '/input', label: 'Input', icon: ClipboardList },
     { to: '/matrix', label: 'Matrix', icon: BarChart3 },
-    { to: '/control', label: 'Control', icon: ShieldCheck },
+    ...(session?.role === 'admin' ? [{ to: '/control', label: 'Control', icon: ShieldCheck }] : []),
     { to: '/change-password', label: 'Password', icon: KeyRound },
     ...(session?.role === 'admin' ? [{ to: '/users', label: 'Users', icon: Users }] : []),
   ];

@@ -7,7 +7,6 @@ import { ThresholdConfigPanel } from '../components/common/ThresholdConfigPanel'
 import { CaseTable } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
-import { MatrixLegend } from '../components/matrix/MatrixLegend';
 import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
 import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
@@ -515,17 +514,16 @@ export function MatrixDashboard() {
       )}
 
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-2">
-          <MatrixLegend />
-          {hasSelection && (
+        {hasSelection && (
+          <div className="flex items-center">
             <button
               onClick={clearAllSelection}
               className="ml-auto text-sm text-stone-500 hover:text-stone-800 underline"
             >
               Deselect all
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <section className="rounded-xl border border-stone-200 bg-white overflow-hidden">
           <button

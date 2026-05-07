@@ -82,9 +82,9 @@ export function AppRouter() {
         <Route
           path="/control"
           element={(
-            <ProtectedRoute>
+            <AdminRoute>
               <ControlDashboard />
-            </ProtectedRoute>
+            </AdminRoute>
           )}
         />
         <Route
