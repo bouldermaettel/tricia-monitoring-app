@@ -151,7 +151,6 @@ function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): A
 
 export function MatrixDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [collapsedSD, setCollapsedSD] = useState(false);
   const [collapsedProduct, setCollapsedProduct] = useState(false);
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
     columns: [],
@@ -516,6 +515,64 @@ export function MatrixDashboard() {
       )}
 
       <div className="flex flex-col gap-6">
+        <div className="flex items-center gap-2">
+          <MatrixLegend />
+          {hasSelection && (
+            <button
+              onClick={clearAllSelection}
+              className="ml-auto text-sm text-stone-500 hover:text-stone-800 underline"
+            >
+              Deselect all
+            </button>
+          )}
+        </div>
+
+        <section className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+          <button
+            className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100"
+            onClick={() => setCollapsedProduct((previous) => !previous)}
+          >
+            Risk Class, Severity and Detectability Matrices - P: {selectedCellsByDimension.product.length} selected, S: {selectedCellsByDimension.severity.length} selected, D: {selectedCellsByDimension.detectability.length} selected {collapsedProduct ? '▼' : '▲'}
+          </button>
+          {!collapsedProduct && (
+            <div className="p-2">
+              <div className="grid gap-4 xl:grid-cols-3">
+                <ConfusionMatrixGrid
+                  title="Risk Class Matrix"
+                  cells={riskClassMatrix.cells}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
+                  selectedCells={selectedCellsByDimension.product}
+                  rowAxisLabel="WIMI Risk Class"
+                  columnAxisLabel="TRI Risk Class"
+                />
+                <ConfusionMatrixGrid
+                  title="Severity Matrix"
+                  cells={severityCells}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
+                  selectedCells={selectedCellsByDimension.severity}
+                  rowAxisLabel="WIMI-S"
+                  columnAxisLabel="TRI-S"
+                />
+                <ConfusionMatrixGrid
+                  title="Detectability Matrix"
+                  cells={detectabilityCells}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
+                  selectedCells={selectedCellsByDimension.detectability}
+                  rowAxisLabel="WIMI-D"
+                  columnAxisLabel="TRI-D"
+                />
+              </div>
+              <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
+                {riskCategories.map((category, index) => (
+                  <span key={`${category.label}-${index}`}>
+                    Class {index + 1}: {category.label} ({category.min_value}-{category.max_value})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         <FilterPanel
           includeExcluded={includeExcluded}
           problematicOnly={problematicOnly}
@@ -529,75 +586,6 @@ export function MatrixDashboard() {
           onCustomDateRangeChange={setCustomDateRange}
           onRiskFilterChange={setRiskFilter}
         />
-
-        <div className="flex items-center gap-2">
-          <MatrixLegend />
-          {hasSelection && (
-            <button
-              onClick={clearAllSelection}
-              className="ml-auto text-sm text-stone-500 hover:text-stone-800 underline"
-            >
-              Deselect all
-            </button>
-          )}
-        </div>
-
-        <section className="rounded-xl border border-stone-200 bg-white p-4">
-          <button
-            className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 rounded-lg"
-            onClick={() => setCollapsedSD((previous) => !previous)}
-          >
-            Severity and Detectability Matrices - S: {selectedCellsByDimension.severity.length} selected, D: {selectedCellsByDimension.detectability.length} selected {collapsedSD ? '▼' : '▲'}
-          </button>
-          {!collapsedSD && (
-            <div className="grid gap-4 md:grid-cols-2 mt-3">
-              <ConfusionMatrixGrid
-                title="Severity Matrix"
-                cells={severityCells}
-                onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
-                selectedCells={selectedCellsByDimension.severity}
-                rowAxisLabel="WIMI-S"
-                columnAxisLabel="TRI-S"
-              />
-              <ConfusionMatrixGrid
-                title="Detectability Matrix"
-                cells={detectabilityCells}
-                onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
-                selectedCells={selectedCellsByDimension.detectability}
-                rowAxisLabel="WIMI-D"
-                columnAxisLabel="TRI-D"
-              />
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-stone-200 bg-white overflow-hidden">
-          <button
-            className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100"
-            onClick={() => setCollapsedProduct((previous) => !previous)}
-          >
-            Risk Class Matrix (SxDxP) - {selectedCellsByDimension.product.length} selected {collapsedProduct ? '▼' : '▲'}
-          </button>
-          {!collapsedProduct && (
-            <div className="p-2">
-              <ConfusionMatrixGrid
-                title="Risk Class Matrix"
-                cells={riskClassMatrix.cells}
-                onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
-                selectedCells={selectedCellsByDimension.product}
-                rowAxisLabel="WIMI Risk Class"
-                columnAxisLabel="TRI Risk Class"
-              />
-              <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
-                {riskCategories.map((category, index) => (
-                  <span key={`${category.label}-${index}`}>
-                    Class {index + 1}: {category.label} ({category.min_value}-{category.max_value})
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
 
         <CaseTable
           items={displayedCases}
