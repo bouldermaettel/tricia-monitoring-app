@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from src.api.dependencies import get_actor_id, get_db
+from src.api.dependencies import get_actor_id, get_db, require_admin
 from src.api.schemas.cases import (
     BulkDeleteRequest,
     CaseAuditTrailResponse,
@@ -123,6 +123,7 @@ def delete_case(
     case_id: str,
     db: Session = Depends(get_db),
     actor_id: str = Depends(get_actor_id),
+    _: object = Depends(require_admin),
 ):
     try:
         CaseService(db).delete_case(case_id, actor_id)
@@ -135,6 +136,7 @@ def bulk_delete_cases(
     payload: BulkDeleteRequest,
     db: Session = Depends(get_db),
     actor_id: str = Depends(get_actor_id),
+    _: object = Depends(require_admin),
 ):
     count = CaseService(db).bulk_delete_cases(payload.case_ids, actor_id)
     return {"deleted": count}

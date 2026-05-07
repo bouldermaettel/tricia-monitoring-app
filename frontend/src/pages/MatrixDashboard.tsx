@@ -8,6 +8,7 @@ import { CaseTable } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
+import { useAuth } from '../app/auth';
 import { usePatchCaseReview, useCases, useAddCaseComment, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useMatrix } from '../hooks/useMatrix';
 import { MatrixDimension, RiskFilter, useFilters } from '../state/filters';
@@ -149,6 +150,8 @@ function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): A
 }
 
 export function MatrixDashboard() {
+  const { session } = useAuth();
+  const canDeleteCases = session?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedProduct, setCollapsedProduct] = useState(false);
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
@@ -592,7 +595,7 @@ export function MatrixDashboard() {
           onSetCategory={isOverrideActive ? undefined : ((id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } }))}
           onAddComment={isOverrideActive ? undefined : ((id, text) => addComment.mutate({ caseId: id, text }))}
           onEditCase={isOverrideActive ? undefined : ((id, payload) => updateCase.mutateAsync({ caseId: id, payload }))}
-          onDeleteCase={isOverrideActive ? undefined : ((id) => deleteCase.mutate(id))}
+          onDeleteCase={isOverrideActive || !canDeleteCases ? undefined : ((id) => deleteCase.mutate(id))}
           onExportStateChange={setExportState}
         />
 
