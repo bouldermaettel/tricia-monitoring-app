@@ -31,6 +31,8 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
   };
 }
 
+const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
+
 type MatrixCell = {
   expected_value: number;
   observed_value: number;
@@ -42,6 +44,12 @@ type RiskCategory = {
   label: string;
   min_value: number;
   max_value: number;
+};
+
+type ProblematicCaseThresholds = {
+  '3M': number;
+  '6M': number;
+  '12M': number;
 };
 
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
@@ -73,6 +81,19 @@ function normalizeRiskCategories(input: unknown): RiskCategory[] {
   return normalized.length > 0 ? normalized : DEFAULT_RISK_CATEGORIES;
 }
 
+function normalizeProblematicCaseThresholds(input: unknown): ProblematicCaseThresholds {
+  if (!input || typeof input !== 'object') {
+    return { '3M': 10, '6M': 20, '12M': 40 };
+  }
+
+  const candidate = input as Partial<Record<'3M' | '6M' | '12M', unknown>>;
+  return {
+    '3M': Number.isFinite(Number(candidate['3M'])) ? Math.max(0, Math.trunc(Number(candidate['3M']))) : 10,
+    '6M': Number.isFinite(Number(candidate['6M'])) ? Math.max(0, Math.trunc(Number(candidate['6M']))) : 20,
+    '12M': Number.isFinite(Number(candidate['12M'])) ? Math.max(0, Math.trunc(Number(candidate['12M']))) : 40,
+  };
+}
+
 function resolveRiskCategoryIndex(value: number, categories: RiskCategory[]): number | null {
   const categoryIndex = categories.findIndex((category) => value >= category.min_value && value <= category.max_value);
   return categoryIndex >= 0 ? categoryIndex + 1 : null;
@@ -80,7 +101,8 @@ function resolveRiskCategoryIndex(value: number, categories: RiskCategory[]): nu
 
 function buildRiskClassMatrix(
   cells: MatrixCell[],
-  categories: RiskCategory[]
+  categories: RiskCategory[],
+  acceptanceThreshold: number
 ): {
   cells: MatrixCell[];
   groupedToRawCellMap: Map<string, Array<{ expected: number; observed: number }>>;
@@ -95,16 +117,17 @@ function buildRiskClassMatrix(
     if (expectedCategory === null || observedCategory === null || cell.case_count <= 0) return;
 
     const key = `${expectedCategory}-${observedCategory}`;
+    const withinThreshold = Math.abs(expectedCategory - observedCategory) <= acceptanceThreshold;
     const existing = groupedMap.get(key);
     if (existing) {
       existing.case_count += cell.case_count;
-      existing.within_threshold = Boolean(existing.within_threshold) && Boolean(cell.within_threshold ?? true);
+      existing.within_threshold = withinThreshold;
     } else {
       groupedMap.set(key, {
         expected_value: expectedCategory,
         observed_value: observedCategory,
         case_count: cell.case_count,
-        within_threshold: cell.within_threshold ?? true,
+        within_threshold: withinThreshold,
       });
     }
 
@@ -122,7 +145,7 @@ function buildRiskClassMatrix(
           expected_value: expectedClass,
           observed_value: observedClass,
           case_count: 0,
-          within_threshold: true,
+          within_threshold: Math.abs(expectedClass - observedClass) <= acceptanceThreshold,
         });
       }
     }
@@ -135,6 +158,23 @@ function buildRiskClassMatrix(
     }),
     groupedToRawCellMap,
   };
+}
+
+function isOverrideCaseProblematic(
+  item: {
+    tricia_s: number;
+    tricia_p: number;
+    tricia_d: number;
+    user_s: number;
+    user_d: number;
+  },
+  categories: RiskCategory[],
+  acceptanceThreshold: number
+): boolean {
+  const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, categories);
+  const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, categories);
+  if (expectedClass === null || observedClass === null) return false;
+  return Math.abs(expectedClass - observedClass) > acceptanceThreshold;
 }
 
 function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): Array<{ expected: number; observed: number }> {
@@ -196,32 +236,153 @@ export function MatrixDashboard() {
     ...dateParams,
   });
   const thresholds = useThresholds();
+  const acceptanceThreshold = thresholds.data?.acceptance_threshold ?? 1;
   const riskCategories = useMemo(() => normalizeRiskCategories(thresholds.data?.risk_categories), [thresholds.data?.risk_categories]);
+  const problematicCaseThresholds = useMemo(
+    () => normalizeProblematicCaseThresholds(thresholds.data?.problematic_case_thresholds),
+    [thresholds.data?.problematic_case_thresholds]
+  );
 
-  const caseParams = {
+  const sharedCaseParams = {
     include_excluded: includeExcluded,
-    problematic_only: problematicOnly,
     vk_number: requestedVkNumber || undefined,
     ...dateParams,
+  };
+
+  const caseParams = {
+    ...sharedCaseParams,
+    problematic_only: problematicOnly,
   };
 
   const baseCases = useCases(caseParams, { enabled: !isOverrideActive });
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
-    const problemThreshold = thresholds.data?.problem_threshold ?? 3;
     return overrideCases.filter((item) => {
       if (!includeExcluded && item.is_excluded) return false;
-      if (problematicOnly && Math.abs((item.user_d ?? 0) - (item.tricia_d ?? 0)) <= problemThreshold) return false;
+      if (
+        problematicOnly &&
+        !isOverrideCaseProblematic(
+          {
+            tricia_s: item.tricia_s,
+            tricia_p: item.tricia_p,
+            tricia_d: item.tricia_d,
+            user_s: item.user_s,
+            user_d: item.user_d,
+          },
+          riskCategories,
+          acceptanceThreshold
+        )
+      ) {
+        return false;
+      }
       if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
       if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
       if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
       return true;
     });
-  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, thresholds.data?.problem_threshold]);
+  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskCategories]);
+
+  const problematicCasesQuery = useCases(
+    {
+      ...sharedCaseParams,
+      problematic_only: true,
+      page_size: 1,
+    },
+    { enabled: !isOverrideActive }
+  );
+
+  const problematicPeriodQueries = useQueries({
+    queries: isOverrideActive
+      ? []
+      : PERIOD_WINDOWS.map((window) => ({
+          queryKey: ['cases', { ...sharedCaseParams, problematic_only: true, ...getDateParams(window), page_size: 1 }, 'problematic-period', window],
+          queryFn: () =>
+            listCases({
+              ...sharedCaseParams,
+              problematic_only: true,
+              ...getDateParams(window),
+              page_size: 1,
+            }),
+        })),
+  });
+
+  const problematicCaseCount = useMemo(() => {
+    if (!isOverrideActive) {
+      return problematicCasesQuery.data?.total ?? 0;
+    }
+    return overrideCases.filter((item) => {
+      if (!includeExcluded && item.is_excluded) return false;
+      if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
+      if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
+      if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
+      return isOverrideCaseProblematic(
+        {
+          tricia_s: item.tricia_s,
+          tricia_p: item.tricia_p,
+          tricia_d: item.tricia_d,
+          user_s: item.user_s,
+          user_d: item.user_d,
+        },
+        riskCategories,
+        acceptanceThreshold
+      );
+    }).length;
+  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicCasesQuery.data?.total, requestedVkNumber, riskCategories]);
+
+  const problematicCountsByPeriod = useMemo(() => {
+    if (!isOverrideActive) {
+      return {
+        '3M': problematicPeriodQueries[0]?.data?.total ?? 0,
+        '6M': problematicPeriodQueries[1]?.data?.total ?? 0,
+        '12M': problematicPeriodQueries[2]?.data?.total ?? 0,
+      };
+    }
+
+    const countForWindow = (window: '3M' | '6M' | '12M') => {
+      const params = getDateParams(window);
+      return overrideCases.filter((item) => {
+        if (!includeExcluded && item.is_excluded) return false;
+        if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
+        if (params.start_date && item.analysis_date < String(params.start_date)) return false;
+        if (params.end_date && item.analysis_date > String(params.end_date)) return false;
+        return isOverrideCaseProblematic(
+          {
+            tricia_s: item.tricia_s,
+            tricia_p: item.tricia_p,
+            tricia_d: item.tricia_d,
+            user_s: item.user_s,
+            user_d: item.user_d,
+          },
+          riskCategories,
+          acceptanceThreshold
+        );
+      }).length;
+    };
+
+    return {
+      '3M': countForWindow('3M'),
+      '6M': countForWindow('6M'),
+      '12M': countForWindow('12M'),
+    };
+  }, [acceptanceThreshold, includeExcluded, isOverrideActive, overrideCases, problematicPeriodQueries, requestedVkNumber, riskCategories]);
+
+  const problematicCaseTarget =
+    dateWindow === '3M' || dateWindow === '6M' || dateWindow === '12M'
+      ? problematicCaseThresholds[dateWindow]
+      : undefined;
+  const triggeredPeriods =
+    dateWindow === 'ALL'
+      ? PERIOD_WINDOWS.filter((window) => problematicCountsByPeriod[window] >= problematicCaseThresholds[window])
+      : [];
+  const problemAlarmActive = dateWindow === 'ALL'
+    ? triggeredPeriods.length > 0
+    : problematicCaseTarget !== undefined && problematicCaseCount >= problematicCaseTarget;
+  const problemAlarmLabel = dateWindow === 'ALL' && triggeredPeriods.length > 0
+    ? `Triggered: ${triggeredPeriods.join(', ')}`
+    : undefined;
 
   const overrideMatrices = useMemo(() => {
     if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
-    const acceptance = thresholds.data?.acceptance_threshold ?? 1;
     const aggregate = (pairs: Array<{ expected: number; observed: number }>) => {
       const map = new Map<string, { expected_value: number; observed_value: number; case_count: number; within_threshold: boolean }>();
       pairs.forEach(({ expected, observed }) => {
@@ -235,7 +396,7 @@ export function MatrixDashboard() {
           expected_value: expected,
           observed_value: observed,
           case_count: 1,
-          within_threshold: Math.abs(expected - observed) <= acceptance,
+          within_threshold: Math.abs(expected - observed) <= acceptanceThreshold,
         });
       });
       return Array.from(map.values());
@@ -250,11 +411,11 @@ export function MatrixDashboard() {
         }))
       ),
     };
-  }, [filteredOverrideCases, isOverrideActive, thresholds.data?.acceptance_threshold]);
+  }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive]);
   const productCells = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
   const riskClassMatrix = useMemo(
-    () => buildRiskClassMatrix(productCells, riskCategories),
-    [productCells, riskCategories]
+    () => buildRiskClassMatrix(productCells, riskCategories, acceptanceThreshold),
+    [acceptanceThreshold, productCells, riskCategories]
   );
 
   useEffect(() => {
@@ -577,6 +738,10 @@ export function MatrixDashboard() {
         <FilterPanel
           includeExcluded={includeExcluded}
           problematicOnly={problematicOnly}
+          problematicCount={problematicCaseCount}
+          problematicCaseThreshold={problematicCaseTarget}
+          problemAlarmActive={problemAlarmActive}
+          problemAlarmLabel={problemAlarmLabel}
           dateWindow={dateWindow}
           dateFrom={dateFrom}
           dateTo={dateTo}
@@ -590,6 +755,8 @@ export function MatrixDashboard() {
 
         <CaseTable
           items={displayedCases}
+          riskCategories={riskCategories}
+          acceptanceThreshold={acceptanceThreshold}
           onMarkReviewed={isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } }))}
           onToggleExcluded={isOverrideActive ? undefined : ((id, current) => patchReview.mutate({ caseId: id, payload: { is_excluded: !current } }))}
           onSetCategory={isOverrideActive ? undefined : ((id, category) => patchReview.mutate({ caseId: id, payload: { category_code: category } }))}

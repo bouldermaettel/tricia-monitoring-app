@@ -4,7 +4,7 @@ def test_thresholds_contract(client):
     payload = {
         'config_key': 'default',
         'acceptance_threshold': 2,
-        'problem_threshold': 4,
+        'problematic_case_thresholds': {'3M': 4, '6M': 8, '12M': 12},
         'include_excluded_default': True,
     }
     put_response = client.put('/api/v1/config/thresholds', json=payload)
@@ -16,7 +16,7 @@ def test_thresholds_reject_overlapping_risk_categories(client):
     payload = {
         'config_key': 'default',
         'acceptance_threshold': 2,
-        'problem_threshold': 4,
+        'problematic_case_thresholds': {'3M': 4, '6M': 8, '12M': 12},
         'include_excluded_default': True,
         'risk_categories': [
             {'label': 'A', 'min_value': 0, 'max_value': 100},

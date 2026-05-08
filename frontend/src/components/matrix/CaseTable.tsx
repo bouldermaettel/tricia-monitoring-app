@@ -11,6 +11,7 @@ type CaseItem = {
   date_reported?: string;
   device_name?: string;
   tricia_s?: number;
+  tricia_p?: number;
   user_s?: number;
   tricia_d?: number;
   user_d?: number;
@@ -27,6 +28,7 @@ type ColumnId =
   | 'wimi_shortcut'
   | 'date_reported'
   | 'device_name'
+  | 'tricia_p'
   | 'tricia_s'
   | 'user_s'
   | 'tricia_d'
@@ -40,6 +42,7 @@ type ColumnId =
 type EditValues = {
   device_name: string;
   tricia_s: number;
+  tricia_p: number;
   tricia_d: number;
   user_s: number;
   user_d: number;
@@ -53,8 +56,16 @@ type AuditEvent = {
   changes: Record<string, { from: string | number | boolean | null; to: string | number | boolean | null }>;
 };
 
+type RiskCategory = {
+  label: string;
+  min_value: number;
+  max_value: number;
+};
+
 type Props = {
   items: CaseItem[];
+  riskCategories: RiskCategory[];
+  acceptanceThreshold: number;
   onMarkReviewed?: (id: string, isReviewed: boolean) => void;
   onToggleExcluded?: (id: string, current: boolean) => void;
   onSetCategory?: (id: string, category: string) => void;
@@ -76,6 +87,7 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   wimi_shortcut: 'WIMI',
   date_reported: 'Date Reported',
   device_name: 'Device',
+  tricia_p: 'TRI-P',
   tricia_s: 'TRI-S',
   user_s: 'WIMI-S',
   tricia_d: 'TRI-D',
@@ -92,6 +104,7 @@ const COLUMN_DB_NAMES: Record<ColumnId, string> = {
   wimi_shortcut: 'wimi_shortcut',
   date_reported: 'date_reported',
   device_name: 'device_name',
+  tricia_p: 'tricia_p',
   tricia_s: 'tricia_s',
   user_s: 'user_s',
   tricia_d: 'tricia_d',
@@ -125,16 +138,41 @@ function deviation(a?: number, b?: number) {
   return Math.abs(a - b);
 }
 
-function rowColor(item: CaseItem) {
-  const devS = deviation(item.tricia_s, item.user_s);
-  const devD = deviation(item.tricia_d, item.user_d);
-  const maxDev = Math.max(devS, devD);
-  if (maxDev > 1) {
-    return item.risk_level === 'false_low'
-      ? 'bg-red-50 border-l-2 border-l-red-500'
-      : 'bg-orange-50 border-l-2 border-l-orange-400';
+function resolveRiskCategoryIndex(value: number, categories: RiskCategory[]): number | null {
+  const categoryIndex = categories.findIndex((category) => value >= category.min_value && value <= category.max_value);
+  return categoryIndex >= 0 ? categoryIndex + 1 : null;
+}
+
+function rowColor(item: CaseItem, categories: RiskCategory[], acceptanceThreshold: number) {
+  if (
+    item.tricia_s === undefined ||
+    item.tricia_d === undefined ||
+    item.tricia_p === undefined ||
+    item.user_s === undefined ||
+    item.user_d === undefined
+  ) {
+    return 'bg-stone-50';
   }
-  return 'bg-emerald-50/50';
+
+  const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, categories);
+  const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, categories);
+  if (expectedClass === null || observedClass === null) {
+    return 'bg-stone-50';
+  }
+
+  if (expectedClass === observedClass) {
+    return 'bg-emerald-50';
+  }
+
+  if (Math.abs(expectedClass - observedClass) <= acceptanceThreshold) {
+    return 'bg-lime-50';
+  }
+
+  if (expectedClass > observedClass) {
+    return 'bg-red-50';
+  }
+
+  return 'bg-yellow-50';
 }
 
 function getCommentCellValue(item: CaseItem, draft: string | undefined) {
@@ -169,10 +207,21 @@ function formatAuditCell(events: AuditEvent[]): string {
   return lines.join('\n');
 }
 
-export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCategory, onAddComment, onEditCase, onDeleteCase, onExportStateChange }: Props) {
+export function CaseTable({
+  items,
+  riskCategories,
+  acceptanceThreshold,
+  onMarkReviewed,
+  onToggleExcluded,
+  onSetCategory,
+  onAddComment,
+  onEditCase,
+  onDeleteCase,
+  onExportStateChange,
+}: Props) {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<EditValues>({ device_name: '', tricia_s: 1, tricia_d: 1, user_s: 1, user_d: 1 });
+  const [editValues, setEditValues] = useState<EditValues>({ device_name: '', tricia_s: 1, tricia_p: 1, tricia_d: 1, user_s: 1, user_d: 1 });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [changedCaseIds, setChangedCaseIds] = useState<Record<string, boolean>>({});
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>({
@@ -180,6 +229,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     wimi_shortcut: true,
     date_reported: true,
     device_name: true,
+    tricia_p: true,
     tricia_s: true,
     user_s: true,
     tricia_d: true,
@@ -195,6 +245,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     wimi_shortcut: '',
     date_reported: '',
     device_name: '',
+    tricia_p: '',
     tricia_s: '',
     user_s: '',
     tricia_d: '',
@@ -218,6 +269,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     wimi_shortcut: '',
     date_reported: '',
     device_name: '',
+    tricia_p: '',
     tricia_s: '',
     user_s: '',
     tricia_d: '',
@@ -234,6 +286,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
     setEditValues({
       device_name: item.device_name ?? '',
       tricia_s: item.tricia_s ?? 1,
+      tricia_p: item.tricia_p ?? 1,
       tricia_d: item.tricia_d ?? 1,
       user_s: item.user_s ?? 1,
       user_d: item.user_d ?? 1,
@@ -347,6 +400,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
       if (dateFilterTo && (item.date_reported ?? '') > dateFilterTo) return false;
       if (normalized.device_name && !(item.device_name ?? '').toLowerCase().includes(normalized.device_name)) return false;
       if (!matchesNumeric(item.tricia_s, normalized.tricia_s)) return false;
+      if (!matchesNumeric(item.tricia_p, normalized.tricia_p)) return false;
       if (!matchesNumeric(item.user_s, normalized.user_s)) return false;
       if (!matchesNumeric(item.tricia_d, normalized.tricia_d)) return false;
       if (!matchesNumeric(item.user_d, normalized.user_d)) return false;
@@ -506,6 +560,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                   key={columnId}
                   className={`px-3 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wide ${
                     columnId === 'tricia_s' ||
+                    columnId === 'tricia_p' ||
                     columnId === 'user_s' ||
                     columnId === 'tricia_d' ||
                     columnId === 'user_d' ||
@@ -621,7 +676,7 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
           <tbody>
             {filteredItems.map((item, itemIndex) => {
               return (
-              <tr key={item.id} className={`border-b border-stone-100 last:border-0 ${rowColor(item)}`}>
+              <tr key={item.id} className={`border-b border-stone-100 last:border-0 ${rowColor(item, riskCategories, acceptanceThreshold)}`}>
                 {onDeleteCase && (
                   <td className="px-3 py-2.5 text-center">
                     <input
@@ -647,6 +702,9 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                   }
                   if (columnId === 'tricia_s') {
                     return <td key={columnId} className="px-3 py-2.5 text-center font-mono">{item.tricia_s ?? '—'}</td>;
+                  }
+                  if (columnId === 'tricia_p') {
+                    return <td key={columnId} className="px-3 py-2.5 text-center font-mono">{item.tricia_p ?? '—'}</td>;
                   }
                   if (columnId === 'user_s') {
                     return <td key={columnId} className="px-3 py-2.5 text-center font-mono font-semibold">{item.user_s ?? '—'}</td>;
@@ -835,6 +893,16 @@ export function CaseTable({ items, onMarkReviewed, onToggleExcluded, onSetCatego
                       className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
                     >
                       {S_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs text-stone-600">
+                    TRI-P
+                    <select
+                      value={editValues.tricia_p}
+                      onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_p: Number(e.target.value) }))}
+                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                    >
+                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-stone-600">

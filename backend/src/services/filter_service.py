@@ -1,9 +1,35 @@
 from datetime import date
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, case, func, select
 
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
+
+
+def _risk_class_expr(product_expr, risk_categories: list[dict[str, int | str]]) -> object:
+    whens = []
+    for index, category in enumerate(sorted(risk_categories, key=lambda item: int(item["min_value"]))):
+        min_value = int(category["min_value"])
+        max_value = int(category["max_value"])
+        whens.append((and_(product_expr >= min_value, product_expr <= max_value), index + 1))
+    return case(*whens, else_=0)
+
+
+def build_problematic_case_condition(
+    acceptance_threshold: int,
+    risk_categories: list[dict[str, int | str]],
+):
+    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+    observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
+
+    expected_class = _risk_class_expr(expected_product, risk_categories)
+    observed_class = _risk_class_expr(observed_product, risk_categories)
+
+    return and_(
+        expected_class > 0,
+        observed_class > 0,
+        func.abs(expected_class - observed_class) > acceptance_threshold,
+    )
 
 
 def apply_case_filters(
@@ -15,6 +41,8 @@ def apply_case_filters(
     matrix_dimension: str = "detectability",
     problematic_only: bool | None = None,
     problem_threshold: int | None = None,
+    acceptance_threshold: int | None = None,
+    risk_categories: list[dict[str, int | str]] | None = None,
     include_excluded: bool = False,
     risk_level: str | None = None,
 ) -> Select:
@@ -37,7 +65,18 @@ def apply_case_filters(
     if observed_value is not None:
         query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(observed_field == observed_value)))
     if problematic_only:
-        if problem_threshold is not None:
+        if acceptance_threshold is not None and risk_categories:
+            query = query.where(
+                Case.id.in_(
+                    select(ClassificationSnapshot.case_id).where(
+                        build_problematic_case_condition(
+                            acceptance_threshold=acceptance_threshold,
+                            risk_categories=risk_categories,
+                        )
+                    )
+                )
+            )
+        elif problem_threshold is not None:
             query = query.where(
                 Case.id.in_(
                     select(ClassificationSnapshot.case_id).where(

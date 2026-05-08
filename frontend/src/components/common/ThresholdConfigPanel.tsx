@@ -8,6 +8,12 @@ type RiskCategory = {
   max_value: number;
 };
 
+type ProblematicCaseThresholds = {
+  '3M': number;
+  '6M': number;
+  '12M': number;
+};
+
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
   { label: '0-10', min_value: 0, max_value: 10 },
   { label: '11-250', min_value: 11, max_value: 250 },
@@ -37,17 +43,33 @@ function normalizeCategories(input: unknown): RiskCategory[] {
   return normalized.length > 0 ? normalized : DEFAULT_RISK_CATEGORIES;
 }
 
+function normalizeProblematicCaseThresholds(input: unknown): ProblematicCaseThresholds {
+  if (!input || typeof input !== 'object') {
+    return { '3M': 10, '6M': 20, '12M': 40 };
+  }
+  const raw = input as Partial<Record<'3M' | '6M' | '12M', unknown>>;
+  return {
+    '3M': Number.isFinite(Number(raw['3M'])) ? Math.max(0, Math.trunc(Number(raw['3M']))) : 10,
+    '6M': Number.isFinite(Number(raw['6M'])) ? Math.max(0, Math.trunc(Number(raw['6M']))) : 20,
+    '12M': Number.isFinite(Number(raw['12M'])) ? Math.max(0, Math.trunc(Number(raw['12M']))) : 40,
+  };
+}
+
 export function ThresholdConfigPanel() {
   const { data } = useThresholds();
   const update = useUpdateThresholds();
   const [acceptance, setAcceptance] = useState<number>(data?.acceptance_threshold ?? 1);
-  const [problem, setProblem] = useState<number>(data?.problem_threshold ?? 3);
+  const [problematicCaseThresholds, setProblematicCaseThresholds] = useState<ProblematicCaseThresholds>({
+    '3M': 10,
+    '6M': 20,
+    '12M': 40,
+  });
   const [categories, setCategories] = useState<RiskCategory[]>(DEFAULT_RISK_CATEGORIES);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setAcceptance(data?.acceptance_threshold ?? 1);
-    setProblem(data?.problem_threshold ?? 3);
+    setProblematicCaseThresholds(normalizeProblematicCaseThresholds(data?.problematic_case_thresholds));
     setCategories(normalizeCategories(data?.risk_categories));
   }, [data]);
 
@@ -110,16 +132,49 @@ export function ThresholdConfigPanel() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Problem threshold</label>
-            <p className="text-xs text-stone-400 mb-1">Current: {data?.problem_threshold ?? '—'}</p>
-            <input
-              type="number"
-              min={0}
-              max={5}
-              value={problem}
-              onChange={(e) => setProblem(Number(e.target.value))}
-              className="w-24 border border-stone-200 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-            />
+            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">#Problematic Cases</label>
+            <p className="text-xs text-stone-400 mb-1">Thresholds for optical alarm by period.</p>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-stone-500">3M</label>
+              <input
+                type="number"
+                min={0}
+                value={problematicCaseThresholds['3M']}
+                onChange={(e) =>
+                  setProblematicCaseThresholds((previous) => ({
+                    ...previous,
+                    '3M': Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                  }))
+                }
+                className="w-20 border border-stone-200 rounded-lg px-2 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              />
+              <label className="text-xs text-stone-500">6M</label>
+              <input
+                type="number"
+                min={0}
+                value={problematicCaseThresholds['6M']}
+                onChange={(e) =>
+                  setProblematicCaseThresholds((previous) => ({
+                    ...previous,
+                    '6M': Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                  }))
+                }
+                className="w-20 border border-stone-200 rounded-lg px-2 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              />
+              <label className="text-xs text-stone-500">12M</label>
+              <input
+                type="number"
+                min={0}
+                value={problematicCaseThresholds['12M']}
+                onChange={(e) =>
+                  setProblematicCaseThresholds((previous) => ({
+                    ...previous,
+                    '12M': Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                  }))
+                }
+                className="w-20 border border-stone-200 rounded-lg px-2 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              />
+            </div>
           </div>
           </div>
 
@@ -187,7 +242,7 @@ export function ThresholdConfigPanel() {
               update.mutate({
                 config_key: 'default',
                 acceptance_threshold: acceptance,
-                problem_threshold: problem,
+                problematic_case_thresholds: problematicCaseThresholds,
                 include_excluded_default: false,
                 risk_categories: categories,
               })

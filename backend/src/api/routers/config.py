@@ -14,7 +14,7 @@ def get_thresholds(db: Session = Depends(get_db)) -> ThresholdConfig:
     return ThresholdConfig(
         config_key=config.config_key,
         acceptance_threshold=config.acceptance_threshold,
-        problem_threshold=config.problem_threshold,
+        problematic_case_thresholds=config.problematic_case_thresholds,
         include_excluded_default=config.include_excluded_default,
         risk_categories=config.risk_categories,
         effective_from=config.effective_from,
@@ -34,7 +34,7 @@ def update_thresholds(
     return ThresholdConfig(
         config_key=config.config_key,
         acceptance_threshold=config.acceptance_threshold,
-        problem_threshold=config.problem_threshold,
+        problematic_case_thresholds=config.problematic_case_thresholds,
         include_excluded_default=config.include_excluded_default,
         risk_categories=config.risk_categories,
         effective_from=config.effective_from,

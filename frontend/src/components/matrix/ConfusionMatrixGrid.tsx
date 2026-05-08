@@ -69,12 +69,15 @@ export function ConfusionMatrixGrid({
                       const isDiag = expected === observed;
                       const isWimiHigherThanTricia = expected > observed;
                       const hasData = cell && cell.case_count > 0;
+                      const isWithinThreshold = Boolean(cell?.within_threshold);
 
                       let colorClass: string;
                       if (!hasData) {
                         colorClass = 'bg-stone-50 text-stone-300 border-stone-100';
                       } else if (isDiag) {
                         colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100';
+                      } else if (isWithinThreshold) {
+                        colorClass = 'bg-lime-50 text-lime-700 border-lime-200 hover:bg-lime-100';
                       } else if (isWimiHigherThanTricia) {
                         colorClass = 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100';
                       } else {

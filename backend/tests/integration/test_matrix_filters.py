@@ -5,13 +5,13 @@ def test_matrix_endpoint_with_filters(client):
     assert 'matrices' in response.json()
 
 
-def test_matrix_problem_case_count_uses_current_problem_threshold(client):
+def test_matrix_problem_case_count_uses_current_acceptance_threshold(client):
     client.put(
         '/api/v1/config/thresholds',
         json={
             'config_key': 'default',
-            'acceptance_threshold': 1,
-            'problem_threshold': 5,
+            'acceptance_threshold': 3,
+            'problematic_case_thresholds': {'3M': 10, '6M': 20, '12M': 40},
             'include_excluded_default': False,
         },
     )
@@ -22,10 +22,10 @@ def test_matrix_problem_case_count_uses_current_problem_threshold(client):
             'vk_number': 'VK-MTX-001',
             'device_name': 'matrix-device',
             'tricia_s': 1,
-            'tricia_p': 1,
+            'tricia_p': 10,
             'tricia_d': 1,
-            'user_s': 1,
-            'user_d': 5,
+            'user_s': 10,
+            'user_d': 10,
             'validation_status': 'saved',
         },
     )
@@ -41,7 +41,7 @@ def test_matrix_problem_case_count_uses_current_problem_threshold(client):
         json={
             'config_key': 'default',
             'acceptance_threshold': 1,
-            'problem_threshold': 3,
+            'problematic_case_thresholds': {'3M': 10, '6M': 20, '12M': 40},
             'include_excluded_default': False,
         },
     )

@@ -2,7 +2,7 @@ def test_threshold_update_reflected_in_matrix(client):
     update = {
         'config_key': 'default',
         'acceptance_threshold': 5,
-        'problem_threshold': 7,
+        'problematic_case_thresholds': {'3M': 7, '6M': 14, '12M': 21},
         'include_excluded_default': True,
     }
     response = client.put('/api/v1/config/thresholds', json=update)
@@ -13,13 +13,13 @@ def test_threshold_update_reflected_in_matrix(client):
     assert matrix.json()['threshold_key'] == 'default'
 
 
-def test_create_case_uses_configured_problem_threshold(client):
+def test_create_case_uses_configured_acceptance_threshold(client):
     client.put(
         '/api/v1/config/thresholds',
         json={
             'config_key': 'default',
-            'acceptance_threshold': 1,
-            'problem_threshold': 5,
+            'acceptance_threshold': 3,
+            'problematic_case_thresholds': {'3M': 10, '6M': 20, '12M': 40},
             'include_excluded_default': False,
         },
     )
@@ -30,10 +30,10 @@ def test_create_case_uses_configured_problem_threshold(client):
             'vk_number': 'VK-THR-001',
             'device_name': 'threshold-device',
             'tricia_s': 1,
-            'tricia_p': 1,
+            'tricia_p': 10,
             'tricia_d': 1,
-            'user_s': 1,
-            'user_d': 5,
+            'user_s': 10,
+            'user_d': 10,
             'validation_status': 'saved',
         },
     )
@@ -49,8 +49,8 @@ def test_problematic_only_filter_reacts_to_threshold_updates(client):
         '/api/v1/config/thresholds',
         json={
             'config_key': 'default',
-            'acceptance_threshold': 1,
-            'problem_threshold': 5,
+            'acceptance_threshold': 3,
+            'problematic_case_thresholds': {'3M': 10, '6M': 20, '12M': 40},
             'include_excluded_default': False,
         },
     )
@@ -61,10 +61,10 @@ def test_problematic_only_filter_reacts_to_threshold_updates(client):
             'vk_number': 'VK-THR-002',
             'device_name': 'threshold-device',
             'tricia_s': 1,
-            'tricia_p': 1,
+            'tricia_p': 10,
             'tricia_d': 1,
-            'user_s': 1,
-            'user_d': 5,
+            'user_s': 10,
+            'user_d': 10,
             'validation_status': 'saved',
         },
     )
@@ -79,7 +79,7 @@ def test_problematic_only_filter_reacts_to_threshold_updates(client):
         json={
             'config_key': 'default',
             'acceptance_threshold': 1,
-            'problem_threshold': 3,
+            'problematic_case_thresholds': {'3M': 10, '6M': 20, '12M': 40},
             'include_excluded_default': False,
         },
     )

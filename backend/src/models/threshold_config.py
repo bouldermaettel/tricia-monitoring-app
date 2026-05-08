@@ -15,6 +15,14 @@ def default_risk_categories() -> list[dict[str, int | str]]:
     ]
 
 
+def default_problematic_case_thresholds() -> dict[str, int]:
+    return {
+        "3M": 10,
+        "6M": 20,
+        "12M": 40,
+    }
+
+
 class ThresholdConfig(Base):
     __tablename__ = "threshold_configs"
 
@@ -22,6 +30,7 @@ class ThresholdConfig(Base):
     config_key: Mapped[str] = mapped_column(String(64), unique=True)
     acceptance_threshold: Mapped[int] = mapped_column(Integer, default=1)
     problem_threshold: Mapped[int] = mapped_column(Integer, default=3)
+    problematic_case_thresholds: Mapped[dict[str, int]] = mapped_column(JSON, default=default_problematic_case_thresholds)
     include_excluded_default: Mapped[bool] = mapped_column(Boolean, default=False)
     risk_categories: Mapped[list[dict[str, int | str]]] = mapped_column(JSON, default=default_risk_categories)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

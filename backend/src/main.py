@@ -76,6 +76,7 @@ def _ensure_threshold_config_schema() -> None:
             {"label": "501-1000", "min_value": 501, "max_value": 1000},
         ]
     )
+    default_problematic_case_thresholds = json.dumps({"3M": 10, "6M": 20, "12M": 40})
 
     try:
         with engine.begin() as connection:
@@ -84,25 +85,46 @@ def _ensure_threshold_config_schema() -> None:
                 return
 
             columns = {column["name"] for column in inspector.get_columns("threshold_configs")}
-            if "risk_categories" in columns:
+            needs_risk_categories = "risk_categories" not in columns
+            needs_problematic_case_thresholds = "problematic_case_thresholds" not in columns
+
+            if not needs_risk_categories and not needs_problematic_case_thresholds:
                 return
 
             if dialect.startswith("postgresql"):
-                connection.execute(
-                    text(
-                        "ALTER TABLE threshold_configs "
-                        "ADD COLUMN IF NOT EXISTS risk_categories JSON NOT NULL "
-                        f"DEFAULT '{default_categories}'::json"
+                if needs_risk_categories:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE threshold_configs "
+                            "ADD COLUMN IF NOT EXISTS risk_categories JSON NOT NULL "
+                            f"DEFAULT '{default_categories}'::json"
+                        )
                     )
-                )
+                if needs_problematic_case_thresholds:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE threshold_configs "
+                            "ADD COLUMN IF NOT EXISTS problematic_case_thresholds JSON NOT NULL "
+                            f"DEFAULT '{default_problematic_case_thresholds}'::json"
+                        )
+                    )
             else:
-                connection.execute(
-                    text(
-                        "ALTER TABLE threshold_configs "
-                        "ADD COLUMN risk_categories TEXT NOT NULL "
-                        f"DEFAULT '{default_categories}'"
+                if needs_risk_categories:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE threshold_configs "
+                            "ADD COLUMN risk_categories TEXT NOT NULL "
+                            f"DEFAULT '{default_categories}'"
+                        )
                     )
-                )
+                if needs_problematic_case_thresholds:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE threshold_configs "
+                            "ADD COLUMN problematic_case_thresholds TEXT NOT NULL "
+                            f"DEFAULT '{default_problematic_case_thresholds}'"
+                        )
+                    )
     except SQLAlchemyError:
         # If the database is temporarily unavailable during cold start, continue boot.
         return

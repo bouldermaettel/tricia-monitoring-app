@@ -16,8 +16,33 @@ class ImportService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _get_problem_threshold(self) -> int:
-        return ThresholdService(self.db).get("default").problem_threshold
+    def _get_threshold_context(self) -> tuple[int, list[dict[str, int | str]]]:
+        config = ThresholdService(self.db).get("default")
+        return config.acceptance_threshold, config.risk_categories
+
+    @staticmethod
+    def _resolve_risk_class(score: int, categories: list[dict[str, int | str]]) -> int | None:
+        for index, category in enumerate(sorted(categories, key=lambda item: int(item["min_value"]))):
+            if int(category["min_value"]) <= score <= int(category["max_value"]):
+                return index + 1
+        return None
+
+    @classmethod
+    def _is_problematic_case(
+        cls,
+        tricia_s: int,
+        tricia_p: int,
+        tricia_d: int,
+        user_s: int,
+        user_d: int,
+        acceptance_threshold: int,
+        risk_categories: list[dict[str, int | str]],
+    ) -> bool:
+        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
+        if expected_class is None or observed_class is None:
+            return False
+        return abs(expected_class - observed_class) > acceptance_threshold
 
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
         actor = self.db.scalar(select(User.id).where(User.id == actor_id))
@@ -131,7 +156,7 @@ class ImportService:
 
     def process_file(self, file_name: str, content: bytes, actor_id: str) -> ImportJob:
         frame, fmt = self._read_frame(file_name, content)
-        problem_threshold = self._get_problem_threshold()
+        acceptance_threshold, risk_categories = self._get_threshold_context()
         total_rows = len(frame.index)
         imported_rows = 0
         error_rows = 0
@@ -174,7 +199,15 @@ class ImportService:
                         user_d=int(parsed["user_d"]),
                         deviation_s=abs(int(parsed["user_s"]) - int(parsed["tricia_s"])),
                         deviation_d=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])),
-                        problem_flag=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])) > problem_threshold,
+                        problem_flag=self._is_problematic_case(
+                            tricia_s=int(parsed["tricia_s"]),
+                            tricia_p=int(parsed["tricia_p"]),
+                            tricia_d=int(parsed["tricia_d"]),
+                            user_s=int(parsed["user_s"]),
+                            user_d=int(parsed["user_d"]),
+                            acceptance_threshold=acceptance_threshold,
+                            risk_categories=risk_categories,
+                        ),
                     )
                     self.db.add(snapshot)
                 else:
@@ -185,7 +218,15 @@ class ImportService:
                     snapshot.user_d = int(parsed["user_d"])
                     snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                     snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
-                    snapshot.problem_flag = snapshot.deviation_d > problem_threshold
+                    snapshot.problem_flag = self._is_problematic_case(
+                        tricia_s=snapshot.tricia_s,
+                        tricia_p=snapshot.tricia_p,
+                        tricia_d=snapshot.tricia_d,
+                        user_s=snapshot.user_s,
+                        user_d=snapshot.user_d,
+                        acceptance_threshold=acceptance_threshold,
+                        risk_categories=risk_categories,
+                    )
 
                 review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
                 if review is None:

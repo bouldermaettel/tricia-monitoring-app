@@ -6,6 +6,10 @@ export function MatrixLegend() {
         <span>Same value (WIMI = TRICIA)</span>
       </div>
       <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded bg-lime-50 border border-lime-200" />
+        <span>Accepted discrepancy (within acceptance threshold)</span>
+      </div>
+      <div className="flex items-center gap-2">
         <div className="w-5 h-5 rounded bg-red-50 border border-red-200" />
         <span>TRICIA lower than WIMI</span>
       </div>

@@ -16,8 +16,31 @@ class CaseService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _get_problem_threshold(self) -> int:
-        return ThresholdService(self.db).get("default").problem_threshold
+    def _get_threshold_context(self) -> tuple[int, list[dict[str, int | str]]]:
+        config = ThresholdService(self.db).get("default")
+        return config.acceptance_threshold, config.risk_categories
+
+    def _resolve_risk_class(self, score: int, categories: list[dict[str, int | str]]) -> int | None:
+        for index, category in enumerate(sorted(categories, key=lambda item: int(item["min_value"]))):
+            if int(category["min_value"]) <= score <= int(category["max_value"]):
+                return index + 1
+        return None
+
+    def _is_problematic_case(
+        self,
+        tricia_s: int,
+        tricia_p: int,
+        tricia_d: int,
+        user_s: int,
+        user_d: int,
+        acceptance_threshold: int,
+        risk_categories: list[dict[str, int | str]],
+    ) -> bool:
+        expected_class = self._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        observed_class = self._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
+        if expected_class is None or observed_class is None:
+            return False
+        return abs(expected_class - observed_class) > acceptance_threshold
 
     def _resolve_actor_acronym(self, actor_id: str) -> str:
         actor = self.db.scalar(select(User).where(User.id == actor_id))
@@ -49,7 +72,7 @@ class CaseService:
         self.db.add(case)
         self.db.flush()
 
-        problem_threshold = self._get_problem_threshold()
+        acceptance_threshold, risk_categories = self._get_threshold_context()
         user_d = payload.user_d if payload.user_d is not None else payload.tricia_d
         snapshot = ClassificationSnapshot(
             case_id=case.id,
@@ -60,7 +83,15 @@ class CaseService:
             user_d=user_d,
             deviation_s=abs(payload.user_s - payload.tricia_s),
             deviation_d=abs(user_d - payload.tricia_d),
-            problem_flag=abs(user_d - payload.tricia_d) > problem_threshold,
+            problem_flag=self._is_problematic_case(
+                tricia_s=payload.tricia_s,
+                tricia_p=payload.tricia_p,
+                tricia_d=payload.tricia_d,
+                user_s=payload.user_s,
+                user_d=user_d,
+                acceptance_threshold=acceptance_threshold,
+                risk_categories=risk_categories,
+            ),
         )
         self.db.add(snapshot)
         self.db.add(
@@ -123,7 +154,7 @@ class CaseService:
         include_excluded=False,
         risk_level=None,
     ) -> CaseListResponse:
-        problem_threshold = self._get_problem_threshold() if problematic_only else None
+        acceptance_threshold, risk_categories = self._get_threshold_context()
         query = select(Case, CaseReview, ClassificationSnapshot).join(
             CaseReview, CaseReview.case_id == Case.id, isouter=True
         ).join(
@@ -137,7 +168,8 @@ class CaseService:
             observed_value=observed_value,
             matrix_dimension=matrix_dimension,
             problematic_only=problematic_only,
-            problem_threshold=problem_threshold,
+            acceptance_threshold=acceptance_threshold,
+            risk_categories=risk_categories,
             include_excluded=include_excluded,
             risk_level=risk_level,
         )
@@ -250,18 +282,24 @@ class CaseService:
             .order_by(ClassificationSnapshot.created_at.desc())
         )
         if snapshot is not None:
-            problem_threshold = self._get_problem_threshold()
+            acceptance_threshold, risk_categories = self._get_threshold_context()
             for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d'):
                 new_val = getattr(payload, field, None)
                 if new_val is not None and new_val != getattr(snapshot, field):
                     changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
                     setattr(snapshot, field, new_val)
-            if payload.user_s is not None or payload.user_d is not None:
-                s = payload.user_s if payload.user_s is not None else snapshot.user_s
-                d = payload.user_d if payload.user_d is not None else snapshot.user_d
-                snapshot.deviation_s = abs(s - snapshot.tricia_s)
-                snapshot.deviation_d = abs(d - snapshot.tricia_d)
-                snapshot.problem_flag = snapshot.deviation_d > problem_threshold
+            if any(getattr(payload, field, None) is not None for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')):
+                snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
+                snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
+                snapshot.problem_flag = self._is_problematic_case(
+                    tricia_s=snapshot.tricia_s,
+                    tricia_p=snapshot.tricia_p,
+                    tricia_d=snapshot.tricia_d,
+                    user_s=snapshot.user_s,
+                    user_d=snapshot.user_d,
+                    acceptance_threshold=acceptance_threshold,
+                    risk_categories=risk_categories,
+                )
 
         if changes:
             self.db.add(CaseAuditEvent(
