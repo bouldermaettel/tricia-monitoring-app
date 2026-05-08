@@ -37,7 +37,7 @@ type MatrixCell = {
   expected_value: number;
   observed_value: number;
   case_count: number;
-  within_threshold?: boolean;
+  within_threshold: boolean;
 };
 
 type RiskCategory = {
