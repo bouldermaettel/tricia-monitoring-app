@@ -39,6 +39,8 @@ type ColumnId =
   | 'is_reviewed'
   | 'actions';
 
+type SortDirection = 'asc' | 'desc';
+
 type EditValues = {
   device_name: string;
   tricia_s: number;
@@ -264,6 +266,7 @@ export function CaseTable({
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [sortBy, setSortBy] = useState<{ column: ColumnId; direction: SortDirection } | null>(null);
   const emptyFilters: Record<ColumnId, string> = {
     vk_number: '',
     wimi_shortcut: '',
@@ -320,7 +323,7 @@ export function CaseTable({
 
       const start = Math.min(lastSelectedIndex, itemIndex);
       const end = Math.max(lastSelectedIndex, itemIndex);
-      const rangeIds = filteredItems.slice(start, end + 1).map((item) => item.id);
+      const rangeIds = sortedItems.slice(start, end + 1).map((item) => item.id);
       if (isAlreadySelected) {
         rangeIds.forEach((id) => next.delete(id));
       } else {
@@ -334,10 +337,10 @@ export function CaseTable({
   function selectAllVisible() {
     setSelectedCaseIds((previous) => {
       const next = new Set(previous);
-      filteredItems.forEach((item) => next.add(item.id));
+      sortedItems.forEach((item) => next.add(item.id));
       return next;
     });
-    setLastSelectedIndex(filteredItems.length > 0 ? 0 : null);
+    setLastSelectedIndex(sortedItems.length > 0 ? 0 : null);
   }
 
   function deselectAll() {
@@ -347,7 +350,7 @@ export function CaseTable({
 
   function deleteSelected() {
     if (!onDeleteCase) return;
-    const selectedVisibleIds = filteredItems.filter((item) => selectedCaseIds.has(item.id)).map((item) => item.id);
+    const selectedVisibleIds = sortedItems.filter((item) => selectedCaseIds.has(item.id)).map((item) => item.id);
     if (selectedVisibleIds.length === 0) return;
     setBulkDeleteIds(selectedVisibleIds);
     setBulkDeleteModalOpen(true);
@@ -422,21 +425,89 @@ export function CaseTable({
     });
   }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items]);
 
+  const itemOrderById = useMemo(() => new Map(items.map((item, index) => [item.id, index])), [items]);
+
+  const sortedItems = useMemo(() => {
+    if (!sortBy) return filteredItems;
+
+    const directionFactor = sortBy.direction === 'asc' ? 1 : -1;
+
+    const getSortValue = (item: CaseItem): number | string => {
+      switch (sortBy.column) {
+        case 'vk_number':
+          return item.vk_number.toLowerCase();
+        case 'wimi_shortcut':
+          return (item.wimi_shortcut ?? '').toLowerCase();
+        case 'date_reported':
+          return item.date_reported ? new Date(item.date_reported).getTime() : -Infinity;
+        case 'device_name':
+          return (item.device_name ?? '').toLowerCase();
+        case 'tricia_p':
+          return item.tricia_p ?? -Infinity;
+        case 'tricia_s':
+          return item.tricia_s ?? -Infinity;
+        case 'user_s':
+          return item.user_s ?? -Infinity;
+        case 'tricia_d':
+          return item.tricia_d ?? -Infinity;
+        case 'user_d':
+          return item.user_d ?? -Infinity;
+        case 'category_code':
+          return (item.category_code ?? '').toLowerCase();
+        case 'comment':
+          return getCommentCellValue(item, commentInputs[item.id]).toLowerCase();
+        case 'is_excluded':
+          return item.is_excluded ? 1 : 0;
+        case 'is_reviewed':
+          return item.is_reviewed ? 1 : 0;
+        case 'actions':
+          return changedCaseIds[item.id] || item.has_edits ? 1 : 0;
+        default:
+          return '';
+      }
+    };
+
+    return [...filteredItems].sort((left, right) => {
+      const leftValue = getSortValue(left);
+      const rightValue = getSortValue(right);
+
+      if (leftValue < rightValue) return -1 * directionFactor;
+      if (leftValue > rightValue) return 1 * directionFactor;
+
+      return (itemOrderById.get(left.id) ?? 0) - (itemOrderById.get(right.id) ?? 0);
+    });
+  }, [changedCaseIds, commentInputs, filteredItems, itemOrderById, sortBy]);
+
+  function toggleSort(column: ColumnId) {
+    setSortBy((previous) => {
+      if (!previous || previous.column !== column) {
+        return { column, direction: 'asc' };
+      }
+
+      return { column, direction: previous.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }
+
+  function getSortIndicator(column: ColumnId): string {
+    if (!sortBy || sortBy.column !== column) return '↕';
+    return sortBy.direction === 'asc' ? '↑' : '↓';
+  }
+
   useEffect(() => {
-    const visibleSet = new Set(filteredItems.map((item) => item.id));
+    const visibleSet = new Set(sortedItems.map((item) => item.id));
     setSelectedCaseIds((previous) => {
       const next = new Set(Array.from(previous).filter((id) => visibleSet.has(id)));
       if (next.size === previous.size) return previous;
       return next;
     });
-  }, [filteredItems]);
+  }, [sortedItems]);
 
   useEffect(() => {
     if (!onExportStateChange) return;
 
     const exportColumns = columns.map((columnId) => COLUMN_DB_NAMES[columnId]);
 
-    const exportRows = filteredItems.map((item) => {
+    const exportRows = sortedItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
         if (columnId === 'comment') {
@@ -455,7 +526,7 @@ export function CaseTable({
     });
 
     onExportStateChange({ columns: exportColumns, rows: exportRows });
-  }, [changedCaseIds, columns, commentInputs, filteredItems, onExportStateChange]);
+  }, [changedCaseIds, columns, commentInputs, onExportStateChange, sortedItems]);
 
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,
@@ -482,8 +553,8 @@ export function CaseTable({
 
   const S_OPTS = [1, 3, 5, 8, 10];
   const D_OPTS = [1, 5, 10];
-  const selectedVisibleCount = filteredItems.filter((item) => selectedCaseIds.has(item.id)).length;
-  const allVisibleSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length;
+  const selectedVisibleCount = sortedItems.filter((item) => selectedCaseIds.has(item.id)).length;
+  const allVisibleSelected = sortedItems.length > 0 && selectedVisibleCount === sortedItems.length;
 
   if (items.length === 0) {
     return (
@@ -570,19 +641,27 @@ export function CaseTable({
                       : 'text-left'
                   }`}
                 >
-                  {columnId === 'date_reported' ? (
+                  <div className="inline-flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => setShowDateColumnPicker((previous) => !previous)}
+                      onClick={() => toggleSort(columnId)}
                       className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-stone-200 text-xs font-semibold uppercase tracking-wide"
-                      title="Toggle date range picker"
+                      title="Sort"
                     >
                       {COLUMN_LABELS[columnId]}
-                      <span className="text-[10px] text-stone-400">{showDateColumnPicker ? '▲' : '▼'}</span>
+                      <span className="text-[10px] text-stone-400">{getSortIndicator(columnId)}</span>
                     </button>
-                  ) : (
-                    COLUMN_LABELS[columnId]
-                  )}
+                    {columnId === 'date_reported' && (
+                      <button
+                        type="button"
+                        onClick={() => setShowDateColumnPicker((previous) => !previous)}
+                        className="rounded px-1 py-0.5 text-[10px] text-stone-400 hover:bg-stone-200"
+                        title="Toggle date range picker"
+                      >
+                        {showDateColumnPicker ? '▲' : '▼'}
+                      </button>
+                    )}
+                  </div>
                 </th>
               ))}
             </tr>
@@ -674,7 +753,7 @@ export function CaseTable({
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item, itemIndex) => {
+            {sortedItems.map((item, itemIndex) => {
               return (
               <tr key={item.id} className={`border-b border-stone-100 last:border-0 ${rowColor(item, riskCategories, acceptanceThreshold)}`}>
                 {onDeleteCase && (
@@ -834,7 +913,7 @@ export function CaseTable({
               </tr>
               );
             })}
-            {filteredItems.length === 0 && (
+            {sortedItems.length === 0 && (
               <tr>
                 <td colSpan={Math.max(columns.length + (onDeleteCase ? 1 : 0), 1)} className="px-4 py-8 text-center text-sm text-stone-400">
                   No cases match the selected table filters.

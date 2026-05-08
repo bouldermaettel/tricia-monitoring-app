@@ -19,6 +19,7 @@ const DELAY_COLORS: Record<string, string> = {
 };
 
 type ColumnId = 'vk_number' | 'analysis_date' | 'input_timestamp' | 'user_id' | 'validation_status' | 'delay_bucket';
+type SortDirection = 'asc' | 'desc';
 
 const COLUMN_LABELS: Record<ColumnId, string> = {
   vk_number: 'VK Number',
@@ -52,6 +53,7 @@ export function ControlQueueTable({
     validation_status: '',
     delay_bucket: '',
   });
+  const [sortBy, setSortBy] = useState<{ column: ColumnId; direction: SortDirection } | null>(null);
 
   const columns = useMemo(
     () => (Object.keys(COLUMN_LABELS) as ColumnId[]).filter((columnId) => visibleColumns[columnId]),
@@ -92,10 +94,61 @@ export function ControlQueueTable({
     });
   }, [filters, items]);
 
+  const itemOrderByVk = useMemo(() => new Map(items.map((item, index) => [item.vk_number, index])), [items]);
+
+  const sortedItems = useMemo(() => {
+    if (!sortBy) return filteredItems;
+
+    const directionFactor = sortBy.direction === 'asc' ? 1 : -1;
+
+    const getSortValue = (item: ControlItem): number | string => {
+      switch (sortBy.column) {
+        case 'vk_number':
+          return item.vk_number.toLowerCase();
+        case 'analysis_date':
+          return item.analysis_date ? new Date(item.analysis_date).getTime() : -Infinity;
+        case 'input_timestamp':
+          return item.input_timestamp ? new Date(item.input_timestamp).getTime() : -Infinity;
+        case 'user_id':
+          return (item.wimi_shortcut ?? item.user_id ?? '').toLowerCase();
+        case 'validation_status':
+          return (item.validation_status ?? '').toLowerCase();
+        case 'delay_bucket':
+          return (item.delay_bucket ?? '').toLowerCase();
+        default:
+          return '';
+      }
+    };
+
+    return [...filteredItems].sort((left, right) => {
+      const leftValue = getSortValue(left);
+      const rightValue = getSortValue(right);
+
+      if (leftValue < rightValue) return -1 * directionFactor;
+      if (leftValue > rightValue) return 1 * directionFactor;
+
+      return (itemOrderByVk.get(left.vk_number) ?? 0) - (itemOrderByVk.get(right.vk_number) ?? 0);
+    });
+  }, [filteredItems, itemOrderByVk, sortBy]);
+
+  function toggleSort(column: ColumnId) {
+    setSortBy((previous) => {
+      if (!previous || previous.column !== column) {
+        return { column, direction: 'asc' };
+      }
+      return { column, direction: previous.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }
+
+  function getSortIndicator(column: ColumnId): string {
+    if (!sortBy || sortBy.column !== column) return '↕';
+    return sortBy.direction === 'asc' ? '↑' : '↓';
+  }
+
   useEffect(() => {
     if (!onExportStateChange) return;
     const exportColumns = columns.map((columnId) => COLUMN_LABELS[columnId]);
-    const exportRows = filteredItems.map((item) => {
+    const exportRows = sortedItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
         if (columnId === 'analysis_date') {
@@ -119,7 +172,7 @@ export function ControlQueueTable({
       return row;
     });
     onExportStateChange({ columns: exportColumns, rows: exportRows });
-  }, [columns, filteredItems, onExportStateChange]);
+  }, [columns, onExportStateChange, sortedItems]);
 
   if (items.length === 0) {
     return (
@@ -164,7 +217,15 @@ export function ControlQueueTable({
             <tr className="border-b border-stone-200 bg-stone-50">
               {columns.map((columnId) => (
                 <th key={columnId} className="text-left px-4 py-3 text-xs font-semibold text-stone-500 uppercase tracking-wide">
-                  {COLUMN_LABELS[columnId]}
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(columnId)}
+                    className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-stone-200 text-xs font-semibold uppercase tracking-wide"
+                    title="Sort"
+                  >
+                    {COLUMN_LABELS[columnId]}
+                    <span className="text-[10px] text-stone-400">{getSortIndicator(columnId)}</span>
+                  </button>
                 </th>
               ))}
             </tr>
@@ -210,7 +271,7 @@ export function ControlQueueTable({
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => (
+            {sortedItems.map((item) => (
               <tr key={item.vk_number} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
                 {columns.map((columnId) => {
                   if (columnId === 'vk_number') {
@@ -262,7 +323,7 @@ export function ControlQueueTable({
                 })}
               </tr>
             ))}
-            {filteredItems.length === 0 && (
+            {sortedItems.length === 0 && (
               <tr>
                 <td colSpan={Math.max(columns.length, 1)} className="px-4 py-8 text-center text-sm text-stone-400">
                   No entries match the selected filters.
