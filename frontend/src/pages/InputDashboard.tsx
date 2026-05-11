@@ -167,6 +167,7 @@ export function InputDashboard() {
       const nextControlItem = {
         vk_number: nextCase.vk_number,
         analysis_date: nextCase.analysis_date,
+        date_reported: nextCase.analysis_date,
         input_timestamp: nextCase.input_timestamp,
         wimi_shortcut: nextCase.wimi_shortcut,
         user_id: nextCase.wimi_shortcut,

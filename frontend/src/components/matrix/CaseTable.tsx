@@ -66,8 +66,8 @@ type RiskCategory = {
 
 type Props = {
   items: CaseItem[];
-  riskCategories: RiskCategory[];
-  acceptanceThreshold: number;
+  riskCategories?: RiskCategory[];
+  acceptanceThreshold?: number;
   onMarkReviewed?: (id: string, isReviewed: boolean) => void;
   onToggleExcluded?: (id: string, current: boolean) => void;
   onSetCategory?: (id: string, category: string) => void;
@@ -211,8 +211,8 @@ function formatAuditCell(events: AuditEvent[]): string {
 
 export function CaseTable({
   items,
-  riskCategories,
-  acceptanceThreshold,
+  riskCategories = [],
+  acceptanceThreshold = 1,
   onMarkReviewed,
   onToggleExcluded,
   onSetCategory,

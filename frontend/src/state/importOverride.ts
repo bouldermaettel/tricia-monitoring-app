@@ -22,6 +22,7 @@ type PreviewCase = {
 type PreviewControlItem = {
     vk_number: string;
     analysis_date: string;
+    date_reported?: string;
     input_timestamp?: string;
     wimi_shortcut?: string;
     user_id?: string;

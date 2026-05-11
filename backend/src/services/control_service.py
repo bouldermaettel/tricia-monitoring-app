@@ -52,6 +52,7 @@ class ControlService:
                 ControlQueueItem(
                     vk_number=record.vk_number,
                     analysis_date=record.analysis_date,
+                    date_reported=record.analysis_date,
                     input_timestamp=record.input_timestamp,
                     created_by_user_id=record.created_by_user_id,
                     wimi_shortcut=wimi_user,

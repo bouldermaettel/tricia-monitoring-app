@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ControlQueueItem(BaseModel):
     vk_number: str
     analysis_date: date
+    date_reported: date
     input_timestamp: datetime
     created_by_user_id: str | None = None
     user_id: str | None = None

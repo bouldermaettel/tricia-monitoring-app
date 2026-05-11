@@ -3,31 +3,23 @@ import { formatIsoDateToGerman } from '../../utils/date';
 
 type ControlItem = {
   vk_number: string;
+  date_reported?: string;
   analysis_date?: string;
   input_timestamp?: string;
   wimi_shortcut?: string;
   user_id?: string;
-  delay_bucket: string;
   validation_status: string;
 };
 
-const DELAY_COLORS: Record<string, string> = {
-  on_time: 'bg-emerald-100 text-emerald-700',
-  slightly_late: 'bg-amber-100 text-amber-700',
-  late: 'bg-orange-100 text-orange-700',
-  very_late: 'bg-red-100 text-red-700',
-};
-
-type ColumnId = 'vk_number' | 'analysis_date' | 'input_timestamp' | 'user_id' | 'validation_status' | 'delay_bucket';
+type ColumnId = 'vk_number' | 'date_reported' | 'input_timestamp' | 'user_id' | 'validation_status';
 type SortDirection = 'asc' | 'desc';
 
 const COLUMN_LABELS: Record<ColumnId, string> = {
   vk_number: 'VK Number',
-  analysis_date: 'Analysis Date',
+  date_reported: 'Date Reported',
   input_timestamp: 'Input Timestamp',
   user_id: 'WiMi',
   validation_status: 'Status',
-  delay_bucket: 'Delay',
 };
 
 export function ControlQueueTable({
@@ -39,19 +31,17 @@ export function ControlQueueTable({
 }) {
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>({
     vk_number: true,
-    analysis_date: true,
+    date_reported: true,
     input_timestamp: true,
     user_id: true,
     validation_status: true,
-    delay_bucket: true,
   });
   const [filters, setFilters] = useState<Record<ColumnId, string>>({
     vk_number: '',
-    analysis_date: '',
+    date_reported: '',
     input_timestamp: '',
     user_id: '',
     validation_status: '',
-    delay_bucket: '',
   });
   const [sortBy, setSortBy] = useState<{ column: ColumnId; direction: SortDirection } | null>(null);
 
@@ -63,10 +53,6 @@ export function ControlQueueTable({
     () => Array.from(new Set(items.map((item) => item.validation_status).filter(Boolean))),
     [items]
   );
-  const delayOptions = useMemo(
-    () => Array.from(new Set(items.map((item) => item.delay_bucket).filter(Boolean))),
-    [items]
-  );
 
   const filteredItems = useMemo(() => {
     const normalized = Object.fromEntries(
@@ -75,10 +61,10 @@ export function ControlQueueTable({
 
     return items.filter((item) => {
       if (normalized.vk_number && !item.vk_number.toLowerCase().includes(normalized.vk_number)) return false;
-      if (normalized.analysis_date) {
-        const isoDate = item.analysis_date ?? '';
-        const deDate = formatIsoDateToGerman(item.analysis_date).toLowerCase();
-        if (!isoDate.toLowerCase().includes(normalized.analysis_date) && !deDate.includes(normalized.analysis_date)) {
+      if (normalized.date_reported) {
+        const isoDate = item.date_reported ?? '';
+        const deDate = formatIsoDateToGerman(item.date_reported).toLowerCase();
+        if (!isoDate.toLowerCase().includes(normalized.date_reported) && !deDate.includes(normalized.date_reported)) {
           return false;
         }
       }
@@ -89,7 +75,6 @@ export function ControlQueueTable({
       const wimiText = (item.wimi_shortcut ?? item.user_id ?? '').toLowerCase();
       if (normalized.user_id && !wimiText.includes(normalized.user_id)) return false;
       if (normalized.validation_status && item.validation_status.toLowerCase() !== normalized.validation_status) return false;
-      if (normalized.delay_bucket && item.delay_bucket.toLowerCase() !== normalized.delay_bucket) return false;
       return true;
     });
   }, [filters, items]);
@@ -105,16 +90,14 @@ export function ControlQueueTable({
       switch (sortBy.column) {
         case 'vk_number':
           return item.vk_number.toLowerCase();
-        case 'analysis_date':
-          return item.analysis_date ? new Date(item.analysis_date).getTime() : -Infinity;
+        case 'date_reported':
+          return item.date_reported ? new Date(item.date_reported).getTime() : -Infinity;
         case 'input_timestamp':
           return item.input_timestamp ? new Date(item.input_timestamp).getTime() : -Infinity;
         case 'user_id':
           return (item.wimi_shortcut ?? item.user_id ?? '').toLowerCase();
         case 'validation_status':
           return (item.validation_status ?? '').toLowerCase();
-        case 'delay_bucket':
-          return (item.delay_bucket ?? '').toLowerCase();
         default:
           return '';
       }
@@ -151,8 +134,8 @@ export function ControlQueueTable({
     const exportRows = sortedItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
-        if (columnId === 'analysis_date') {
-          row[COLUMN_LABELS[columnId]] = formatIsoDateToGerman(item.analysis_date);
+        if (columnId === 'date_reported') {
+          row[COLUMN_LABELS[columnId]] = formatIsoDateToGerman(item.date_reported);
           return;
         }
         if (columnId === 'input_timestamp') {
@@ -161,10 +144,6 @@ export function ControlQueueTable({
         }
         if (columnId === 'user_id') {
           row[COLUMN_LABELS[columnId]] = item.wimi_shortcut ?? item.user_id ?? '';
-          return;
-        }
-        if (columnId === 'delay_bucket') {
-          row[COLUMN_LABELS[columnId]] = item.delay_bucket.replace(/_/g, ' ');
           return;
         }
         row[COLUMN_LABELS[columnId]] = item[columnId];
@@ -245,19 +224,6 @@ export function ControlQueueTable({
                         </option>
                       ))}
                     </select>
-                  ) : columnId === 'delay_bucket' ? (
-                    <select
-                      value={filters.delay_bucket}
-                      onChange={(e) => setFilters((previous) => ({ ...previous, delay_bucket: e.target.value }))}
-                      className="w-full text-xs border border-stone-200 rounded px-2 py-1 bg-white"
-                    >
-                      <option value="">All</option>
-                      {delayOptions.map((delay) => (
-                        <option key={delay} value={delay}>
-                          {delay.replace(/_/g, ' ')}
-                        </option>
-                      ))}
-                    </select>
                   ) : (
                     <input
                       value={filters[columnId]}
@@ -281,10 +247,10 @@ export function ControlQueueTable({
                       </td>
                     );
                   }
-                  if (columnId === 'analysis_date') {
+                  if (columnId === 'date_reported') {
                     return (
                       <td key={columnId} className="px-4 py-2.5 font-mono text-xs text-stone-600">
-                        {formatIsoDateToGerman(item.analysis_date)}
+                        {formatIsoDateToGerman(item.date_reported)}
                       </td>
                     );
                   }
@@ -310,14 +276,8 @@ export function ControlQueueTable({
                     );
                   }
                   return (
-                    <td key={columnId} className="px-4 py-2.5">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          DELAY_COLORS[item.delay_bucket] ?? 'bg-stone-100 text-stone-600'
-                        }`}
-                      >
-                        {item.delay_bucket.replace(/_/g, ' ')}
-                      </span>
+                    <td key={columnId} className="px-4 py-2.5 text-stone-400">
+                      —
                     </td>
                   );
                 })}

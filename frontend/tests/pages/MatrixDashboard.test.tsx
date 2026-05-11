@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
+import { useFilters } from '../../src/state/filters';
 
 const useAuthMock = vi.fn();
 const mockCases = [
@@ -50,6 +51,23 @@ vi.mock('../../src/hooks/useThresholds', () => ({
   useThresholds: () => ({ data: { acceptance_threshold: 1 } }),
   useUpdateThresholds: () => ({ mutate: vi.fn() }),
 }));
+vi.mock('../../src/services/cases', () => ({
+  listCases: vi.fn(async () => ({ items: mockCases, total: mockCases.length, page: 1, page_size: 100, pages: 1 })),
+  getCaseAuditTrail: vi.fn(async () => ({ items: [] })),
+}));
+
+function getMatrixDataButton(title: string) {
+  const header = screen.getByRole('heading', { name: title });
+  const matrixCard = header.closest('div');
+  if (!matrixCard) throw new Error(`Matrix card not found for ${title}`);
+  return within(matrixCard).getByRole('button', { name: '1' });
+}
+
+function expectSelectionSummary(expected: string) {
+  expect(
+    screen.getByText(`Risk Class, Severity and Detectability Matrices - ${expected} ▲`)
+  ).toBeInTheDocument();
+}
 
 function renderMatrixDashboard() {
   const client = new QueryClient();
@@ -64,6 +82,17 @@ function renderMatrixDashboard() {
 
 describe('MatrixDashboard', () => {
   beforeEach(() => {
+    useFilters.setState({
+      includeExcluded: false,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: '3M',
+      dateFrom: undefined,
+      dateTo: undefined,
+      riskFilter: 'all',
+    });
     useAuthMock.mockReset();
     useAuthMock.mockReturnValue({
       session: {
@@ -79,7 +108,7 @@ describe('MatrixDashboard', () => {
     renderMatrixDashboard();
 
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Risk Class, Severity and Detectability Matrices - P: 0 selected, S: 0 selected, D: 0 selected ▲')).toBeInTheDocument();
+    expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
     expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
     expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
@@ -100,5 +129,36 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
     expect(screen.getByLabelText('select-all-visible-cases')).toBeInTheDocument();
+  });
+
+  it('keeps selection additive when selecting severity then risk class', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    expectSelectionSummary('P: 0 selected, S: 1 selected, D: 0 selected');
+
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
+    expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
+  });
+
+  it('keeps selection additive when selecting risk class then severity', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
+    expectSelectionSummary('P: 1 selected, S: 0 selected, D: 0 selected');
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
+  });
+
+  it('preserves severity selection when risk filter changes', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
+    expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
+
+    fireEvent.click(screen.getByRole('button', { name: 'False Low (Red)' }));
+    expectSelectionSummary('P: 0 selected, S: 1 selected, D: 0 selected');
   });
 });

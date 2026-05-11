@@ -421,16 +421,11 @@ export function MatrixDashboard() {
   useEffect(() => {
     if (riskFilter === 'all') {
       setSelectedCellsByDimension((previous) => {
-        if (
-          previous.severity.length === 0 &&
-          previous.detectability.length === 0 &&
-          previous.product.length === 0
-        ) {
+        if (previous.product.length === 0) {
           return previous;
         }
         return {
-          severity: [],
-          detectability: [],
+          ...previous,
           product: [],
         };
       });
@@ -444,8 +439,7 @@ export function MatrixDashboard() {
         return previous;
       }
       return {
-        severity: [],
-        detectability: [],
+        ...previous,
         product: target,
       };
     });
@@ -526,22 +520,6 @@ export function MatrixDashboard() {
 
   function toggleMatrixCell(dimension: MatrixDimension, expected: number, observed: number) {
     setSelectedCellsByDimension((previous) => {
-      if (dimension === 'product') {
-        const existingProduct = previous.product;
-        const foundInProduct = existingProduct.some((cell) => cell.expected === expected && cell.observed === observed);
-        if (foundInProduct) {
-          return {
-            ...previous,
-            product: existingProduct.filter((cell) => !(cell.expected === expected && cell.observed === observed)),
-          };
-        }
-        return {
-          severity: [],
-          detectability: [],
-          product: [...existingProduct, { expected, observed }],
-        };
-      }
-
       const existing = previous[dimension];
       const found = existing.some((cell) => cell.expected === expected && cell.observed === observed);
       if (found) {
