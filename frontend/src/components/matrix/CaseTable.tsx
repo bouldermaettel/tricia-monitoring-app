@@ -392,13 +392,6 @@ export function CaseTable({
       const isEdited = Boolean(changedCaseIds[item.id] || item.has_edits);
       if (normalized.vk_number && !item.vk_number.toLowerCase().includes(normalized.vk_number)) return false;
       if (normalized.wimi_shortcut && !(item.wimi_shortcut ?? '').toLowerCase().includes(normalized.wimi_shortcut)) return false;
-      if (normalized.date_reported) {
-        const isoDate = item.date_reported ?? '';
-        const deDate = formatIsoDateToGerman(item.date_reported).toLowerCase();
-        if (!isoDate.toLowerCase().includes(normalized.date_reported) && !deDate.includes(normalized.date_reported)) {
-          return false;
-        }
-      }
       if (dateFilterFrom && (item.date_reported ?? '') < dateFilterFrom) return false;
       if (dateFilterTo && (item.date_reported ?? '') > dateFilterTo) return false;
       if (normalized.device_name && !(item.device_name ?? '').toLowerCase().includes(normalized.device_name)) return false;
@@ -580,6 +573,7 @@ export function CaseTable({
               setFilters(emptyFilters);
               setDateFilterFrom('');
               setDateFilterTo('');
+              setShowDateColumnPicker(false);
             }}
             className="px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100"
           >
@@ -736,7 +730,7 @@ export function CaseTable({
                           onClick={() => setShowDateColumnPicker(true)}
                           className="w-full text-left text-[11px] text-stone-500 border border-dashed border-stone-300 rounded px-2 py-1 hover:bg-stone-50"
                         >
-                          Click Date Reported above
+                          Filter
                         </button>
                       )}
                     </div>

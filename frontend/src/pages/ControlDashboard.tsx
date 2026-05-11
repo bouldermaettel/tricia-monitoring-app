@@ -8,13 +8,10 @@ import { useImportOverride } from '../state/importOverride';
 
 const EMPTY_ITEMS: never[] = [];
 
-type DateWindow = '3M' | '6M' | '12M' | 'ALL' | 'CUSTOM';
+type DateWindow = '1W' | 'ALL' | 'CUSTOM';
 
 const DATE_WINDOWS: { value: DateWindow; label: string }[] = [
-  { value: '3M', label: '3 Months' },
-  { value: '6M', label: '6 Months' },
-  { value: '12M', label: '12 Months' },
-  { value: 'ALL', label: 'All Time' },
+  { value: '1W', label: '1 Week' },
   { value: 'CUSTOM', label: 'Custom' },
 ];
 
@@ -23,10 +20,10 @@ function getDateParams(window: DateWindow, dateFrom?: string, dateTo?: string) {
   if (window === 'CUSTOM') {
     return { start_date: dateFrom, end_date: dateTo };
   }
-  const months = window === '3M' ? 3 : window === '6M' ? 6 : 12;
+  const days = window === '1W' ? 7 : 0;
   const to = new Date();
   const from = new Date();
-  from.setMonth(from.getMonth() - months);
+  from.setDate(from.getDate() - days);
   return {
     start_date: from.toISOString().slice(0, 10),
     end_date: to.toISOString().slice(0, 10),
@@ -34,7 +31,7 @@ function getDateParams(window: DateWindow, dateFrom?: string, dateTo?: string) {
 }
 
 export function ControlDashboard() {
-  const [dateWindow, setDateWindow] = useState<DateWindow>('3M');
+  const [dateWindow, setDateWindow] = useState<DateWindow>('1W');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const dateParams = getDateParams(dateWindow, dateFrom || undefined, dateTo || undefined);

@@ -9,7 +9,8 @@ vi.mock('../../src/hooks/useControlQueue', () => {
       items: [
         {
           vk_number: 'VK-1',
-          analysis_date: '2021-11-23',
+          date_reported: '2026-05-10',
+          analysis_date: '2026-05-10',
           delay_bucket: 'on_time',
           validation_status: 'saved',
         },
@@ -30,8 +31,10 @@ describe('ControlDashboard', () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText('Control Dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1 Week' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Custom' })).toBeInTheDocument();
     expect(screen.getByText('VK-1')).toBeInTheDocument();
-    expect(screen.getByText('23.11.2021')).toBeInTheDocument();
+    expect(screen.getByText('10.05.2026')).toBeInTheDocument();
     expect(screen.getByLabelText('Review SLA (days)')).toHaveValue(28);
   });
 });
