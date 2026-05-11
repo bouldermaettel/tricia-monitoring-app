@@ -9,6 +9,7 @@ import { useImportOverride } from '../state/importOverride';
 const EMPTY_ITEMS: never[] = [];
 
 type DateWindow = '1W' | 'ALL' | 'CUSTOM';
+type DateBasis = 'reported' | 'input';
 
 const DATE_WINDOWS: { value: DateWindow; label: string }[] = [
   { value: '1W', label: '1 Week' },
@@ -32,10 +33,11 @@ function getDateParams(window: DateWindow, dateFrom?: string, dateTo?: string) {
 
 export function ControlDashboard() {
   const [dateWindow, setDateWindow] = useState<DateWindow>('1W');
+  const [dateBasis, setDateBasis] = useState<DateBasis>('reported');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const dateParams = getDateParams(dateWindow, dateFrom || undefined, dateTo || undefined);
-  const queueParams = { ...dateParams };
+  const queueParams = { ...dateParams, date_basis: dateBasis };
   const overrideControlItems = useImportOverride((s) => s.controlItems);
   const overrideSourceFile = useImportOverride((s) => s.sourceFileName);
   const clearPreviewData = useImportOverride((s) => s.clearPreviewData);
@@ -50,13 +52,17 @@ export function ControlDashboard() {
     () =>
       isOverrideActive
         ? overrideControlItems.filter((item) => {
-            if (dateParams.start_date && (item.date_reported ?? item.analysis_date ?? '') < String(dateParams.start_date)) return false;
-            if (dateParams.end_date && (item.date_reported ?? item.analysis_date ?? '') > String(dateParams.end_date)) return false;
+            const dateValue =
+              dateBasis === 'input'
+                ? (item.input_timestamp ?? '').slice(0, 10) || item.date_reported || item.analysis_date || ''
+                : item.date_reported || item.analysis_date || '';
+            if (dateParams.start_date && dateValue < String(dateParams.start_date)) return false;
+            if (dateParams.end_date && dateValue > String(dateParams.end_date)) return false;
             return true;
           })
         : queue.data?.items ?? EMPTY_ITEMS,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isOverrideActive, overrideControlItems, dateParams.start_date, dateParams.end_date, queue.data]
+    [dateBasis, isOverrideActive, overrideControlItems, dateParams.start_date, dateParams.end_date, queue.data]
   );
 
   return (
@@ -75,22 +81,52 @@ export function ControlDashboard() {
 
       <div className="flex flex-col gap-6">
         <div className="bg-white border border-stone-200 rounded-xl p-4 flex flex-wrap items-end gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Period</span>
-            <div className="flex gap-1">
-              {DATE_WINDOWS.map(({ value, label }) => (
+          <div className="flex items-end gap-5">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Date Selector</span>
+              <div className="inline-flex rounded-lg border border-stone-200 bg-stone-50 p-0.5">
                 <button
-                  key={value}
-                  onClick={() => setDateWindow(value)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    dateWindow === value
+                  type="button"
+                  onClick={() => setDateBasis('reported')}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    dateBasis === 'reported'
                       ? 'bg-stone-900 text-white'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                      : 'text-stone-600 hover:bg-stone-100'
                   }`}
                 >
-                  {label}
+                  Reported Date
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setDateBasis('input')}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    dateBasis === 'input'
+                      ? 'bg-stone-900 text-white'
+                      : 'text-stone-600 hover:bg-stone-100'
+                  }`}
+                >
+                  Input Date
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Period</span>
+              <div className="flex gap-1">
+                {DATE_WINDOWS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setDateWindow(value)}
+                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                      dateWindow === value
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              </div>
             </div>
             {dateWindow === 'CUSTOM' && (
               <div className="flex items-center gap-2 mt-1">
@@ -110,7 +146,6 @@ export function ControlDashboard() {
               </div>
             )}
           </div>
-        </div>
 
         <DelaySummary items={activeItems} />
         <ControlQueueTable items={activeItems} onExportStateChange={setExportState} />

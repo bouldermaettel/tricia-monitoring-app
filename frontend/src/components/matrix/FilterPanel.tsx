@@ -103,29 +103,31 @@ export function FilterPanel({
       {/* Toggles */}
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Filters</span>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={problematicOnly}
-            onChange={(e) => onProblematicOnlyChange(e.target.checked)}
-            className="w-4 h-4 accent-amber-400 cursor-pointer"
-          />
-          <span className="text-sm text-stone-700">Problematic only cases</span>
-        </label>
-        <div className={`text-xs px-2 py-1 rounded border ${problemAlarmActive ? 'border-red-300 bg-red-50 text-red-700 animate-pulse' : 'border-stone-200 bg-stone-50 text-stone-600'}`}>
-          #Problematic cases: {problematicCount}
-          {problematicCaseThreshold !== undefined ? ` / threshold ${problematicCaseThreshold}` : ''}
-          {problemAlarmLabel ? ` (${problemAlarmLabel})` : ''}
+        <div className="flex gap-4 items-center">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={problematicOnly}
+              onChange={(e) => onProblematicOnlyChange(e.target.checked)}
+              className="w-4 h-4 accent-amber-400 cursor-pointer"
+            />
+            <span className="text-sm text-stone-700">Problematic only</span>
+          </label>
+          <div className={`text-xs px-2 py-1 rounded border ${problemAlarmActive ? 'border-red-300 bg-red-50 text-red-700 animate-pulse' : 'border-stone-200 bg-stone-50 text-stone-600'}`}>
+            #Problematic: {problematicCount}
+            {problematicCaseThreshold !== undefined ? ` / limit ${problematicCaseThreshold}` : ''}
+            {problemAlarmLabel ? ` (${problemAlarmLabel})` : ''}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeExcluded}
+              onChange={(e) => onIncludeExcludedChange(e.target.checked)}
+              className="w-4 h-4 accent-amber-400 cursor-pointer"
+            />
+            <span className="text-sm text-stone-700">Include omitted</span>
+          </label>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={includeExcluded}
-            onChange={(e) => onIncludeExcludedChange(e.target.checked)}
-            className="w-4 h-4 accent-amber-400 cursor-pointer"
-          />
-          <span className="text-sm text-stone-700">Include Streichresultate</span>
-        </label>
       </div>
     </div>
   );

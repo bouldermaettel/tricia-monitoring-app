@@ -32,6 +32,8 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
 }
 
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
+const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
+const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
 
 type MatrixCell = {
   expected_value: number;
@@ -688,6 +690,7 @@ export function MatrixDashboard() {
                 <ConfusionMatrixGrid
                   title="Severity Matrix"
                   cells={severityCells}
+                  fixedAxisValues={SEVERITY_AXIS_VALUES}
                   onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
                   selectedCells={selectedCellsByDimension.severity}
                   rowAxisLabel="WIMI-S"
@@ -696,6 +699,7 @@ export function MatrixDashboard() {
                 <ConfusionMatrixGrid
                   title="Detectability Matrix"
                   cells={detectabilityCells}
+                  fixedAxisValues={DETECTABILITY_AXIS_VALUES}
                   onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
                   selectedCells={selectedCellsByDimension.detectability}
                   rowAxisLabel="WIMI-D"

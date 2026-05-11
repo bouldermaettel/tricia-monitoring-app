@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.api.schemas.control import ControlQueueItem, ControlQueueResponse
@@ -17,6 +17,7 @@ class ControlService:
         status: str | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
+        date_basis: str = 'reported',
         review_window_days: int = 28,
     ) -> ControlQueueResponse:
         query = (
@@ -27,10 +28,11 @@ class ControlService:
         )
         if status:
             query = query.where(Case.validation_status == status)
+        date_field = Case.analysis_date if date_basis == 'reported' else func.date(Case.input_timestamp)
         if start_date:
-            query = query.where(Case.analysis_date >= start_date)
+            query = query.where(date_field >= start_date)
         if end_date:
-            query = query.where(Case.analysis_date <= end_date)
+            query = query.where(date_field <= end_date)
         review_window_delta = timedelta(days=review_window_days)
         items = []
         for record, user_shortcut, is_reviewed, reviewed_at in self.db.execute(query).all():
