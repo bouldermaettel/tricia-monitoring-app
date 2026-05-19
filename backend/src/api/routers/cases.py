@@ -77,7 +77,10 @@ def update_case_review(
     db: Session = Depends(get_db),
     actor_id: str = Depends(get_actor_id),
 ) -> CaseReviewResponse:
-    review = CaseService(db).update_review(case_id, payload, actor_id)
+    try:
+        review = CaseService(db).update_review(case_id, payload, actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return CaseReviewResponse(
         case_id=case_id,
         category_code=review.category_code,

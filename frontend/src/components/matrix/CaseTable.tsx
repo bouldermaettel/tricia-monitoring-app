@@ -225,6 +225,7 @@ export function CaseTable({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<EditValues>({ device_name: '', tricia_s: 1, tricia_p: 1, tricia_d: 1, user_s: 1, user_d: 1 });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [changedCaseIds, setChangedCaseIds] = useState<Record<string, boolean>>({});
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>({
     vk_number: true,
@@ -286,6 +287,7 @@ export function CaseTable({
 
   function startEdit(item: CaseItem) {
     setEditingId(item.id);
+    setEditError(null);
     setEditValues({
       device_name: item.device_name ?? '',
       tricia_s: item.tricia_s ?? 1,
@@ -299,10 +301,26 @@ export function CaseTable({
   async function commitEdit(id: string) {
     if (!onEditCase) return;
     setIsSavingEdit(true);
+    setEditError(null);
     try {
       await Promise.resolve(onEditCase(id, editValues));
       setChangedCaseIds((previous) => ({ ...previous, [id]: true }));
       await auditTrail.refetch();
+    } catch (error) {
+      let message = 'Failed to save changes. Please try again.';
+      if (typeof error === 'object' && error !== null) {
+        const maybeResponse = (error as { response?: { data?: { detail?: unknown } } }).response;
+        const detail = maybeResponse?.data?.detail;
+        if (typeof detail === 'string' && detail.trim()) {
+          message = detail;
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          const first = detail[0] as { msg?: string };
+          if (typeof first?.msg === 'string' && first.msg.trim()) {
+            message = first.msg;
+          }
+        }
+      }
+      setEditError(message);
     } finally {
       setIsSavingEdit(false);
     }
@@ -526,16 +544,7 @@ export function CaseTable({
     [editingId, items]
   );
   const auditTrail = useCaseAuditTrail(editingId ?? undefined, 100);
-  const wimiAuditEvents = useMemo(() => {
-    const events = (auditTrail.data?.items ?? []) as AuditEvent[];
-    const shortcut = editingItem?.wimi_shortcut?.trim().toLowerCase();
-    if (!shortcut) return events;
-    return events.filter((event) => {
-      const actor = (event.actor_id ?? '').trim().toLowerCase();
-      return actor === shortcut || actor.includes(shortcut);
-    });
-  }, [auditTrail.data?.items, editingItem?.wimi_shortcut]);
-  const auditEventsToShow = wimiAuditEvents.length > 0 ? wimiAuditEvents : ((auditTrail.data?.items ?? []) as AuditEvent[]);
+  const auditEventsToShow = (auditTrail.data?.items ?? []) as AuditEvent[];
 
   function displayActor(event: AuditEvent): string {
     const raw = (event.actor_id ?? '').trim();
@@ -1000,6 +1009,9 @@ export function CaseTable({
                   </label>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2">
+                  {editError && (
+                    <p className="mr-auto text-xs text-red-600">{editError}</p>
+                  )}
                   <button
                     onClick={() => setEditingId(null)}
                     className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100"

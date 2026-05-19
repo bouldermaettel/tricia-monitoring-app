@@ -43,6 +43,7 @@ def _initialize_database() -> None:
             _ensure_schema()
             _ensure_threshold_config_schema()
             _ensure_user_policy_schema()
+            _ensure_postgres_sequences()
             _ensure_bootstrap_admin()
             return
         except SQLAlchemyError as exc:
@@ -61,6 +62,45 @@ def _initialize_database() -> None:
                 retry_delay_seconds,
             )
             time.sleep(retry_delay_seconds)
+
+
+def _ensure_postgres_sequences() -> None:
+    """Realign PostgreSQL identity/serial sequences with table data.
+
+    Some imported datasets can leave sequences behind max(id), causing
+    intermittent duplicate key violations on inserts.
+    """
+    settings = get_settings()
+    if not make_url(settings.database_url).drivername.startswith("postgresql"):
+        return
+
+    sequence_targets = [
+        ("case_reviews", "id"),
+        ("case_comments", "id"),
+        ("case_audit_events", "id"),
+    ]
+
+    try:
+        with engine.begin() as connection:
+            inspector = inspect(connection)
+            tables = set(inspector.get_table_names())
+
+            for table_name, column_name in sequence_targets:
+                if table_name not in tables:
+                    continue
+
+                connection.execute(
+                    text(
+                        "SELECT setval(" 
+                        "pg_get_serial_sequence(:table_name, :column_name), "
+                        "COALESCE((SELECT MAX(id) FROM " + table_name + "), 0) + 1, "
+                        "false)"
+                    ),
+                    {"table_name": table_name, "column_name": column_name},
+                )
+    except SQLAlchemyError:
+        # Sequence healing is best-effort; keep app startup resilient.
+        return
 
 
 def _ensure_threshold_config_schema() -> None:

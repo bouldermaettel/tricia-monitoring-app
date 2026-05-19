@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from src.api.schemas.cases import CaseAuditTrailResponse, CaseAuditEventRecord, CaseCreateRequest, CaseListResponse, CaseRecord, CaseReviewUpdateRequest, CaseUpdateRequest
@@ -15,6 +15,64 @@ from src.services.validation_service import ValidationService
 class CaseService:
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _score_fields() -> tuple[str, ...]:
+        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')
+
+    def _resolve_case(self, case_ref: str) -> Case | None:
+        normalized_ref = case_ref.strip()
+        if not normalized_ref:
+            return None
+        by_id = self.db.scalar(select(Case).where(Case.id == normalized_ref))
+        if by_id is not None:
+            return by_id
+        return self.db.scalar(select(Case).where(Case.vk_number == normalized_ref))
+
+    def _derive_scores_from_audit_trail(self, case_id: str) -> dict[str, int] | None:
+        scores: dict[str, int] = {}
+        events = self.db.execute(
+            select(CaseAuditEvent)
+            .where(CaseAuditEvent.case_id == case_id)
+            .order_by(CaseAuditEvent.created_at.asc(), CaseAuditEvent.id.asc())
+        ).scalars().all()
+        for event in events:
+            for field in self._score_fields():
+                delta = (event.changes or {}).get(field)
+                if not isinstance(delta, dict):
+                    continue
+                value = delta.get('to')
+                if value is None:
+                    continue
+                try:
+                    scores[field] = int(value)
+                except (TypeError, ValueError):
+                    continue
+        return scores or None
+
+    def _load_or_derive_snapshot(self, case_id: str) -> ClassificationSnapshot | None:
+        snapshot = self.db.scalar(
+            select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case_id)
+            .order_by(ClassificationSnapshot.created_at.desc())
+        )
+        if snapshot is not None:
+            return snapshot
+
+        derived_scores = self._derive_scores_from_audit_trail(case_id)
+        if derived_scores is None:
+            return None
+
+        return ClassificationSnapshot(
+            case_id=case_id,
+            tricia_s=derived_scores.get('tricia_s', 1),
+            tricia_p=derived_scores.get('tricia_p', 1),
+            tricia_d=derived_scores.get('tricia_d', 1),
+            user_s=derived_scores.get('user_s', 1),
+            user_d=derived_scores.get('user_d', 1),
+            deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
+            deviation_d=abs(derived_scores.get('user_d', 1) - derived_scores.get('tricia_d', 1)),
+            problem_flag=False,
+        )
 
     def _get_threshold_context(self) -> tuple[int, list[dict[str, int | str]]]:
         config = ThresholdService(self.db).get("default")
@@ -114,7 +172,7 @@ class CaseService:
         return case
 
     def add_comment(self, case_id: str, text: str, actor_id: str) -> CaseComment:
-        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        case = self._resolve_case(case_id)
         if case is None:
             raise ValueError(f"Case {case_id} not found")
 
@@ -123,14 +181,14 @@ class CaseService:
             raise ValueError("Comment text cannot be empty")
 
         comment = CaseComment(
-            case_id=case_id,
+            case_id=case.id,
             comment_text=comment_text,
             created_by_user_id=self._resolve_actor_user_id(actor_id),
         )
         self.db.add(comment)
         self.db.add(
             CaseAuditEvent(
-                case_id=case_id,
+                case_id=case.id,
                 action='commented',
                 actor_id=self._resolve_actor_acronym(actor_id),
                 changes={'comment_text': {'from': None, 'to': comment_text}},
@@ -181,6 +239,20 @@ class CaseService:
 
         items = []
         for case, review, snapshot in rows:
+            if snapshot is None:
+                derived_scores = self._derive_scores_from_audit_trail(case.id)
+                if derived_scores is not None:
+                    snapshot = ClassificationSnapshot(
+                        case_id=case.id,
+                        tricia_s=derived_scores.get('tricia_s', 1),
+                        tricia_p=derived_scores.get('tricia_p', 1),
+                        tricia_d=derived_scores.get('tricia_d', 1),
+                        user_s=derived_scores.get('user_s', 1),
+                        user_d=derived_scores.get('user_d', 1),
+                        deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
+                        deviation_d=abs(derived_scores.get('user_d', 1) - derived_scores.get('tricia_d', 1)),
+                        problem_flag=False,
+                    )
             comment_count = self.db.scalar(select(func.count()).select_from(CaseComment).where(CaseComment.case_id == case.id)) or 0
             comment_text = self.db.scalar(
                 select(CaseComment.comment_text)
@@ -222,9 +294,13 @@ class CaseService:
         return CaseListResponse(items=items, page=page, page_size=page_size, total=total)
 
     def update_review(self, case_id: str, payload: CaseReviewUpdateRequest, actor_id: str) -> CaseReview:
-        review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case_id))
+        case = self._resolve_case(case_id)
+        if case is None:
+            raise ValueError(f"Case {case_id} not found")
+
+        review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
         if review is None:
-            review = CaseReview(case_id=case_id)
+            review = CaseReview(case_id=case.id)
             self.db.add(review)
 
         changes: dict = {}
@@ -250,7 +326,7 @@ class CaseService:
         if changes:
             self.db.add(
                 CaseAuditEvent(
-                    case_id=case_id,
+                    case_id=case.id,
                     action='reviewed',
                     actor_id=self._resolve_actor_acronym(actor_id),
                     changes=changes,
@@ -262,7 +338,7 @@ class CaseService:
         return review
 
     def update_case(self, case_id: str, payload: CaseUpdateRequest, actor_id: str) -> Case:
-        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        case = self._resolve_case(case_id)
         if case is None:
             raise ValueError(f"Case {case_id} not found")
 
@@ -277,18 +353,40 @@ class CaseService:
             changes['validation_status'] = {'from': case.validation_status, 'to': payload.validation_status}
             case.validation_status = payload.validation_status
 
-        snapshot = self.db.scalar(
-            select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case_id)
-            .order_by(ClassificationSnapshot.created_at.desc())
-        )
+        snapshot = self._load_or_derive_snapshot(case.id)
+        score_fields = self._score_fields()
+        score_updates = {field: getattr(payload, field, None) for field in score_fields}
+        if snapshot is not None and snapshot.id is None:
+            # When reconstructed from audit trail, attach it so updates persist to the database.
+            self.db.add(snapshot)
+        if snapshot is None and any(value is not None for value in score_updates.values()):
+            # Create a baseline snapshot first so score edits are tracked as audit deltas.
+            tricia_s = 1
+            tricia_p = 1
+            tricia_d = 1
+            user_s = 1
+            user_d = 1
+            snapshot = ClassificationSnapshot(
+                case_id=case.id,
+                tricia_s=tricia_s,
+                tricia_p=tricia_p,
+                tricia_d=tricia_d,
+                user_s=user_s,
+                user_d=user_d,
+                deviation_s=abs(user_s - tricia_s),
+                deviation_d=abs(user_d - tricia_d),
+                problem_flag=False,
+            )
+            self.db.add(snapshot)
+
         if snapshot is not None:
             acceptance_threshold, risk_categories = self._get_threshold_context()
-            for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d'):
-                new_val = getattr(payload, field, None)
+            for field in score_fields:
+                new_val = score_updates[field]
                 if new_val is not None and new_val != getattr(snapshot, field):
                     changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
                     setattr(snapshot, field, new_val)
-            if any(getattr(payload, field, None) is not None for field in ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')):
+            if any(score_updates[field] is not None for field in score_fields):
                 snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                 snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
                 snapshot.problem_flag = self._is_problematic_case(
@@ -303,7 +401,7 @@ class CaseService:
 
         if changes:
             self.db.add(CaseAuditEvent(
-                case_id=case_id,
+                case_id=case.id,
                 action='updated',
                 actor_id=self._resolve_actor_acronym(actor_id),
                 changes=changes,
@@ -314,15 +412,13 @@ class CaseService:
         return case
 
     def delete_case(self, case_id: str, actor_id: str) -> None:
-        case = self.db.scalar(select(Case).where(Case.id == case_id))
+        case = self._resolve_case(case_id)
         if case is None:
             raise ValueError(f"Case {case_id} not found")
-        self.db.add(CaseAuditEvent(
-            case_id=case_id,
-            action='delete',
-            actor_id=self._resolve_actor_acronym(actor_id),
-            changes={'vk_number': {'from': case.vk_number, 'to': None}},
-        ))
+        self.db.execute(delete(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case.id))
+        self.db.execute(delete(CaseReview).where(CaseReview.case_id == case.id))
+        self.db.execute(delete(CaseComment).where(CaseComment.case_id == case.id))
+        self.db.execute(delete(CaseAuditEvent).where(CaseAuditEvent.case_id == case.id))
         self.db.delete(case)
         self.db.commit()
 
@@ -337,9 +433,13 @@ class CaseService:
         return count
 
     def get_audit_trail(self, case_id: str, limit: int = 100) -> CaseAuditTrailResponse:
+        case = self._resolve_case(case_id)
+        if case is None:
+            return CaseAuditTrailResponse(items=[])
+
         events = self.db.execute(
             select(CaseAuditEvent)
-            .where(CaseAuditEvent.case_id == case_id)
+            .where(CaseAuditEvent.case_id == case.id)
             .order_by(CaseAuditEvent.created_at.desc())
             .limit(limit)
         ).scalars().all()

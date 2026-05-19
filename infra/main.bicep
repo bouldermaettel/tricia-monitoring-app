@@ -268,6 +268,12 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(frontendCpu)
             memory: frontendMemory
           }
+          env: [
+            {
+              name: 'BACKEND_API_ORIGIN'
+              value: 'https://${backendApp.properties.configuration.ingress.fqdn}'
+            }
+          ]
         }
       ]
       scale: {

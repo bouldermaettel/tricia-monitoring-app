@@ -15,6 +15,31 @@ Monitoring web application with FastAPI backend and Vite React TypeScript fronte
 - Backend tests: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q`
 - Frontend tests: `cd frontend && npm run test`
 
+### Local Postgres Parity (No Image Push Loop)
+
+Use local host processes for backend/frontend and only run Postgres in Docker. This matches production database behavior without rebuilding/pushing images.
+
+1. Start Postgres container:
+   - `./dev-postgres.sh up`
+2. Optionally run migrations against local Postgres (best effort):
+   - `./dev-postgres.sh migrate`
+3. Start backend on host using `.venv` and Postgres:
+   - `./dev-postgres.sh backend`
+4. In another terminal, start frontend:
+   - `./dev-postgres.sh frontend`
+
+If migrations fail locally, continue with step 3. Backend startup creates and patches schema automatically.
+
+Useful commands:
+
+- Check status: `./dev-postgres.sh status`
+- Reset local DB fully: `./dev-postgres.sh reset-db`
+- Stop Postgres: `./dev-postgres.sh down`
+
+Local Postgres URL used by the helper:
+
+- `postgresql+psycopg://monitoring:monitoring@127.0.0.1:5432/monitoring`
+
 ### Restart backend after auth/security changes
 
 1. Stop running backend process (for example: `pkill -f "uvicorn src.main:app"`).
