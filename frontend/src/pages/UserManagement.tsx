@@ -201,6 +201,7 @@ export function UserManagement() {
         password: '',
       },
     }));
+
   }
 
   return (
@@ -219,7 +220,8 @@ export function UserManagement() {
           <input
             value={externalKey}
             onChange={(e) => setExternalKey(e.target.value)}
-            placeholder="External key"
+            placeholder="Username"
+            autoComplete="username"
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
             required
           />
@@ -234,6 +236,7 @@ export function UserManagement() {
             value={acronym}
             onChange={(e) => setAcronym(e.target.value)}
             placeholder="Acronym (e.g. mam)"
+            autoComplete="off"
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm"
             required
           />
@@ -242,6 +245,7 @@ export function UserManagement() {
             onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Password"
+            autoComplete="new-password"
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm md:col-span-2"
             required
           />
@@ -277,7 +281,7 @@ export function UserManagement() {
             <thead className="bg-stone-50 text-stone-600">
               <tr>
                 <th className="text-left px-4 py-3">Display Name</th>
-                <th className="text-left px-4 py-3">External Key</th>
+                <th className="text-left px-4 py-3">Username</th>
                 <th className="text-left px-4 py-3">Acronym</th>
                 <th className="text-left px-4 py-3">Role</th>
                 <th className="text-left px-4 py-3">Active</th>

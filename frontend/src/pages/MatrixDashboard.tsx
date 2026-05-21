@@ -191,6 +191,28 @@ function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): A
     .map((cell) => ({ expected: cell.expected_value, observed: cell.observed_value }));
 }
 
+function buildLocalMatrixCells(
+  items: Array<{ expected: number; observed: number }>,
+  acceptanceThreshold: number
+) {
+  const map = new Map<string, { expected_value: number; observed_value: number; case_count: number; within_threshold: boolean }>();
+  items.forEach(({ expected, observed }) => {
+    const key = `${expected}-${observed}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.case_count += 1;
+      return;
+    }
+    map.set(key, {
+      expected_value: expected,
+      observed_value: observed,
+      case_count: 1,
+      within_threshold: Math.abs(expected - observed) <= acceptanceThreshold,
+    });
+  });
+  return Array.from(map.values());
+}
+
 export function MatrixDashboard() {
   const { session } = useAuth();
   const canDeleteCases = session?.role === 'admin';
@@ -374,43 +396,26 @@ export function MatrixDashboard() {
       : undefined;
   const triggeredPeriods =
     dateWindow === 'ALL'
-      ? PERIOD_WINDOWS.filter((window) => problematicCountsByPeriod[window] >= problematicCaseThresholds[window])
+      ? PERIOD_WINDOWS.filter((window) => problematicCountsByPeriod[window] > problematicCaseThresholds[window])
       : [];
   const problemAlarmActive = dateWindow === 'ALL'
     ? triggeredPeriods.length > 0
-    : problematicCaseTarget !== undefined && problematicCaseCount >= problematicCaseTarget;
+    : problematicCaseTarget !== undefined && problematicCaseCount > problematicCaseTarget;
   const problemAlarmLabel = dateWindow === 'ALL' && triggeredPeriods.length > 0
     ? `Triggered: ${triggeredPeriods.join(', ')}`
     : undefined;
 
   const overrideMatrices = useMemo(() => {
     if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
-    const aggregate = (pairs: Array<{ expected: number; observed: number }>) => {
-      const map = new Map<string, { expected_value: number; observed_value: number; case_count: number; within_threshold: boolean }>();
-      pairs.forEach(({ expected, observed }) => {
-        const key = `${expected}-${observed}`;
-        const existing = map.get(key);
-        if (existing) {
-          existing.case_count += 1;
-          return;
-        }
-        map.set(key, {
-          expected_value: expected,
-          observed_value: observed,
-          case_count: 1,
-          within_threshold: Math.abs(expected - observed) <= acceptanceThreshold,
-        });
-      });
-      return Array.from(map.values());
-    };
     return {
-      severity: aggregate(filteredOverrideCases.map((item) => ({ expected: item.user_s, observed: item.tricia_s }))),
-      detectability: aggregate(filteredOverrideCases.map((item) => ({ expected: item.user_d, observed: item.tricia_d }))),
-      product: aggregate(
+      severity: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_s, observed: item.tricia_s })), acceptanceThreshold),
+      detectability: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_d, observed: item.tricia_d })), acceptanceThreshold),
+      product: buildLocalMatrixCells(
         filteredOverrideCases.map((item) => ({
           expected: item.user_s * item.user_d * item.tricia_p,
           observed: item.tricia_s * item.tricia_d * item.tricia_p,
-        }))
+        })),
+        acceptanceThreshold
       ),
     };
   }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive]);
@@ -437,15 +442,107 @@ export function MatrixDashboard() {
     const targetSet = new Set(target.map((cell) => `${cell.expected}-${cell.observed}`));
     setSelectedCellsByDimension((previous) => {
       const currentSet = new Set(previous.product.map((cell) => `${cell.expected}-${cell.observed}`));
-      if (targetSet.size === currentSet.size && [...targetSet].every((value) => currentSet.has(value))) {
+      const productUnchanged = targetSet.size === currentSet.size && [...targetSet].every((value) => currentSet.has(value));
+      const noDimensionSelections = previous.severity.length === 0 && previous.detectability.length === 0;
+      if (productUnchanged && noDimensionSelections) {
         return previous;
       }
       return {
-        ...previous,
+        severity: [],
+        detectability: [],
         product: target,
       };
     });
   }, [riskClassMatrix.cells, riskFilter]);
+
+  const selectedProductRawCells = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          selectedCellsByDimension.product
+            .flatMap((groupedCell) => riskClassMatrix.groupedToRawCellMap.get(`${groupedCell.expected}-${groupedCell.observed}`) ?? [])
+            .map((cell) => [`${cell.expected}-${cell.observed}`, cell])
+        ).values()
+      ),
+    [riskClassMatrix.groupedToRawCellMap, selectedCellsByDimension.product]
+  );
+
+  const severityCellsParam = useMemo(
+    () => selectedCellsByDimension.severity.map((c) => `${c.expected}:${c.observed}`).join(','),
+    [selectedCellsByDimension.severity]
+  );
+  const detectabilityCellsParam = useMemo(
+    () => selectedCellsByDimension.detectability.map((c) => `${c.expected}:${c.observed}`).join(','),
+    [selectedCellsByDimension.detectability]
+  );
+
+  // Severity matrix display: filtered by product + detectability (everything except severity itself).
+  const filteredSeverityMatrix = useMatrix(
+    {
+      include_excluded: includeExcluded,
+      problematic_only: problematicOnly,
+      ...dateParams,
+      ...(selectedProductRawCells.length > 0
+        ? { product_cells: selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') }
+        : {}),
+      ...(detectabilityCellsParam ? { detectability_cells: detectabilityCellsParam } : {}),
+    },
+    { enabled: !isOverrideActive && (selectedProductRawCells.length > 0 || detectabilityCellsParam.length > 0) }
+  );
+
+  // Detectability matrix display: filtered by product + severity (everything except detectability itself).
+  const filteredDetectabilityMatrix = useMatrix(
+    {
+      include_excluded: includeExcluded,
+      problematic_only: problematicOnly,
+      ...dateParams,
+      ...(selectedProductRawCells.length > 0
+        ? { product_cells: selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') }
+        : {}),
+      ...(severityCellsParam ? { severity_cells: severityCellsParam } : {}),
+    },
+    { enabled: !isOverrideActive && (selectedProductRawCells.length > 0 || severityCellsParam.length > 0) }
+  );
+
+  // Override mode: build per-display filtered matrices using the same intersection logic.
+  const filteredOverrideMatrices = useMemo(() => {
+    if (!isOverrideActive) return null;
+    const productSet = selectedProductRawCells.length > 0
+      ? new Set(selectedProductRawCells.map((c) => `${c.expected}-${c.observed}`))
+      : null;
+    const severitySet = selectedCellsByDimension.severity.length > 0
+      ? new Set(selectedCellsByDimension.severity.map((c) => `${c.expected}-${c.observed}`))
+      : null;
+    const detectabilitySet = selectedCellsByDimension.detectability.length > 0
+      ? new Set(selectedCellsByDimension.detectability.map((c) => `${c.expected}-${c.observed}`))
+      : null;
+    if (!productSet && !severitySet && !detectabilitySet) return null;
+
+    // For S matrix: filter by product + detectability (not severity itself).
+    const casesForSeverityDisplay = filteredOverrideCases.filter((item) => {
+      if (productSet && !productSet.has(`${item.user_s * item.user_d * item.tricia_p}-${item.tricia_s * item.tricia_d * item.tricia_p}`)) return false;
+      if (detectabilitySet && !detectabilitySet.has(`${item.user_d}-${item.tricia_d}`)) return false;
+      return true;
+    });
+    // For D matrix: filter by product + severity (not detectability itself).
+    const casesForDetectabilityDisplay = filteredOverrideCases.filter((item) => {
+      if (productSet && !productSet.has(`${item.user_s * item.user_d * item.tricia_p}-${item.tricia_s * item.tricia_d * item.tricia_p}`)) return false;
+      if (severitySet && !severitySet.has(`${item.user_s}-${item.tricia_s}`)) return false;
+      return true;
+    });
+
+    return {
+      severity: buildLocalMatrixCells(
+        casesForSeverityDisplay.map((item) => ({ expected: item.user_s, observed: item.tricia_s })),
+        acceptanceThreshold
+      ),
+      detectability: buildLocalMatrixCells(
+        casesForDetectabilityDisplay.map((item) => ({ expected: item.user_d, observed: item.tricia_d })),
+        acceptanceThreshold
+      ),
+    };
+  }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive, selectedCellsByDimension.detectability, selectedCellsByDimension.severity, selectedProductRawCells]);
+
   const patchReview = usePatchCaseReview();
   const addComment = useAddCaseComment();
   const updateCase = useUpdateCase();
@@ -453,12 +550,7 @@ export function MatrixDashboard() {
 
   const selectedRequests = useMemo(
     () => {
-      const selectedProductRawCells = selectedCellsByDimension.product
-        .flatMap((groupedCell) => riskClassMatrix.groupedToRawCellMap.get(`${groupedCell.expected}-${groupedCell.observed}`) ?? []);
-
-      const uniqueProductRawCells = Array.from(
-        new Map(selectedProductRawCells.map((cell) => [`${cell.expected}-${cell.observed}`, cell])).values()
-      );
+      const uniqueProductRawCells = selectedProductRawCells;
 
       return [
         ...selectedCellsByDimension.severity.map((cell) => ({ dimension: 'severity' as const, ...cell })),
@@ -466,7 +558,7 @@ export function MatrixDashboard() {
         ...uniqueProductRawCells.map((cell) => ({ dimension: 'product' as const, ...cell })),
       ];
     },
-    [riskClassMatrix.groupedToRawCellMap, selectedCellsByDimension]
+    [selectedCellsByDimension.detectability, selectedCellsByDimension.severity, selectedProductRawCells]
   );
 
   const selectedCaseQueries = useQueries({
@@ -484,37 +576,83 @@ export function MatrixDashboard() {
 
   const selectedCases = useMemo(() => {
     if (isOverrideActive) {
-      return selectedRequests.length === 0
-        ? filteredOverrideCases
-        : filteredOverrideCases.filter((item) =>
-            selectedRequests.some((request) => {
-              if (request.dimension === 'severity') {
-                return item.user_s === request.expected && item.tricia_s === request.observed;
-              }
-              if (request.dimension === 'product') {
-                return (
-                  item.user_s * item.user_d * item.tricia_p === request.expected &&
-                  item.tricia_s * item.tricia_d * item.tricia_p === request.observed
-                );
-              }
-              return item.user_d === request.expected && item.tricia_d === request.observed;
-            })
-          );
+      if (selectedRequests.length === 0) return filteredOverrideCases;
+      // AND across dimensions, OR within each dimension.
+      const activeDimensions = [...new Set(selectedRequests.map((r) => r.dimension))];
+      return filteredOverrideCases.filter((item) =>
+        activeDimensions.every((dimension) => {
+          const cellsForDim = selectedRequests.filter((r) => r.dimension === dimension);
+          return cellsForDim.some((request) => {
+            if (request.dimension === 'severity') {
+              return item.user_s === request.expected && item.tricia_s === request.observed;
+            }
+            if (request.dimension === 'product') {
+              return (
+                item.user_s * item.user_d * item.tricia_p === request.expected &&
+                item.tricia_s * item.tricia_d * item.tricia_p === request.observed
+              );
+            }
+            return item.user_d === request.expected && item.tricia_d === request.observed;
+          });
+        })
+      );
     }
-    const byId = new Map<string, { id: string }>();
-    selectedCaseQueries.forEach((query) => {
+
+    if (selectedRequests.length === 0) return [];
+
+    const activeDimensions = [...new Set(selectedRequests.map((r) => r.dimension))];
+
+    if (activeDimensions.length === 1) {
+      // Single active dimension: simple union (original behaviour).
+      const byId = new Map<string, { id: string }>();
+      selectedCaseQueries.forEach((query) => {
+        (query.data?.items ?? []).forEach((item: { id: string }) => {
+          byId.set(item.id, item);
+        });
+      });
+      return Array.from(byId.values());
+    }
+
+    // Multiple active dimensions: union within each dimension, intersect across dimensions.
+    const caseIdsByDimension = new Map<string, Set<string>>();
+    const caseById = new Map<string, { id: string }>();
+    selectedRequests.forEach((request, index) => {
+      const dim = request.dimension;
+      if (!caseIdsByDimension.has(dim)) caseIdsByDimension.set(dim, new Set());
+      const query = selectedCaseQueries[index];
       (query.data?.items ?? []).forEach((item: { id: string }) => {
-        byId.set(item.id, item);
+        caseIdsByDimension.get(dim)!.add(item.id);
+        caseById.set(item.id, item);
       });
     });
-    return Array.from(byId.values());
+
+    let intersectedIds: Set<string> | null = null;
+    for (const [, ids] of caseIdsByDimension) {
+      intersectedIds = intersectedIds === null
+        ? new Set(ids)
+        : new Set([...intersectedIds].filter((id) => ids.has(id)));
+    }
+
+    return Array.from((intersectedIds ?? new Set<string>()).values())
+      .map((id) => caseById.get(id))
+      .filter((item): item is { id: string } => item !== undefined);
   }, [filteredOverrideCases, isOverrideActive, selectedCaseQueries, selectedRequests]);
 
   const displayedCases = isOverrideActive
     ? selectedCases
     : (selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? []);
-  const severityCells = isOverrideActive ? overrideMatrices.severity : (matrix.data?.matrices?.severity ?? []);
-  const detectabilityCells = isOverrideActive ? overrideMatrices.detectability : (matrix.data?.matrices?.detectability ?? matrix.data?.cells ?? []);
+  // Severity matrix: use filtered query when product or detectability selection is active.
+  const severityCells = isOverrideActive
+    ? (filteredOverrideMatrices?.severity ?? overrideMatrices.severity)
+    : (filteredSeverityMatrix.data?.matrices?.severity ?? matrix.data?.matrices?.severity ?? []);
+  // Detectability matrix: use filtered query when product or severity selection is active.
+  const detectabilityCells = isOverrideActive
+    ? (filteredOverrideMatrices?.detectability ?? overrideMatrices.detectability)
+    : (filteredDetectabilityMatrix.data?.matrices?.detectability
+        ?? filteredDetectabilityMatrix.data?.cells
+        ?? matrix.data?.matrices?.detectability
+        ?? matrix.data?.cells
+        ?? []);
   const hasSelection =
     selectedCellsByDimension.severity.length > 0 ||
     selectedCellsByDimension.detectability.length > 0 ||
@@ -524,15 +662,23 @@ export function MatrixDashboard() {
     setSelectedCellsByDimension((previous) => {
       const existing = previous[dimension];
       const found = existing.some((cell) => cell.expected === expected && cell.observed === observed);
-      if (found) {
+      const nextDimensionSelection = found
+        ? existing.filter((cell) => !(cell.expected === expected && cell.observed === observed))
+        : [...existing, { expected, observed }];
+
+      // Only clear S/D when product transitions from empty → non-empty (first activation).
+      // Adding further product cells while S/D are also selected leaves the intersection intact.
+      if (dimension === 'product' && previous.product.length === 0 && nextDimensionSelection.length > 0) {
         return {
-          ...previous,
-          [dimension]: existing.filter((cell) => !(cell.expected === expected && cell.observed === observed)),
+          severity: [],
+          detectability: [],
+          product: nextDimensionSelection,
         };
       }
+
       return {
         ...previous,
-        [dimension]: [...existing, { expected, observed }],
+        [dimension]: nextDimensionSelection,
       };
     });
   }

@@ -28,16 +28,40 @@ vi.mock('../../src/app/auth', () => ({
 }));
 
 vi.mock('../../src/hooks/useMatrix', () => ({
-  useMatrix: () => ({
-    data: {
-      cells: [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }],
-      matrices: {
-        severity: [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }],
-        detectability: [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }],
-        product: [{ expected_value: 4, observed_value: 4, case_count: 1, within_threshold: true }],
+  useMatrix: (params?: Record<string, unknown>, options?: { enabled?: boolean }) => {
+    const enabled = options?.enabled ?? true;
+    if (!enabled) return { data: undefined };
+
+    const isRiskClassFiltered = Boolean(params?.product_cells);
+    return {
+      data: {
+        cells: isRiskClassFiltered
+          ? [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }]
+          : [
+              { expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true },
+              { expected_value: 5, observed_value: 5, case_count: 1, within_threshold: true },
+            ],
+        matrices: {
+          severity: isRiskClassFiltered
+            ? [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }]
+            : [
+                { expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true },
+                { expected_value: 3, observed_value: 3, case_count: 1, within_threshold: true },
+              ],
+          detectability: isRiskClassFiltered
+            ? [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }]
+            : [
+                { expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true },
+                { expected_value: 5, observed_value: 5, case_count: 1, within_threshold: true },
+              ],
+          product: [
+            { expected_value: 4, observed_value: 4, case_count: 1, within_threshold: true },
+            { expected_value: 9, observed_value: 9, case_count: 1, within_threshold: true },
+          ],
+        },
       },
-    },
-  }),
+    };
+  },
 }));
 vi.mock('../../src/hooks/useCases', () => ({
   useCases: () => ({ data: { items: mockCases } }),
@@ -131,17 +155,17 @@ describe('MatrixDashboard', () => {
     expect(screen.getByLabelText('select-all-visible-cases')).toBeInTheDocument();
   });
 
-  it('keeps selection additive when selecting severity then risk class', () => {
+  it('clears severity selection when selecting a risk class cell', () => {
     renderMatrixDashboard();
 
     fireEvent.click(getMatrixDataButton('Severity Matrix'));
     expectSelectionSummary('P: 0 selected, S: 1 selected, D: 0 selected');
 
     fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
-    expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
+    expectSelectionSummary('P: 1 selected, S: 0 selected, D: 0 selected');
   });
 
-  it('keeps selection additive when selecting risk class then severity', () => {
+  it('allows severity selection after selecting a risk class cell', () => {
     renderMatrixDashboard();
 
     fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
@@ -151,14 +175,29 @@ describe('MatrixDashboard', () => {
     expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
   });
 
-  it('preserves severity selection when risk filter changes', () => {
+  it('clears severity and detectability selections when risk filter changes', () => {
     renderMatrixDashboard();
 
     fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
     fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
-    expectSelectionSummary('P: 1 selected, S: 1 selected, D: 0 selected');
+    expectSelectionSummary('P: 1 selected, S: 0 selected, D: 0 selected');
 
-    fireEvent.click(screen.getByRole('button', { name: 'False Low (Red)' }));
-    expectSelectionSummary('P: 0 selected, S: 1 selected, D: 0 selected');
+    fireEvent.click(screen.getByRole('button', { name: 'False Low' }));
+    expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
+  });
+
+  it('filters severity and detectability matrices when risk class selection is active', () => {
+    renderMatrixDashboard();
+
+    expect(screen.getByRole('button', { name: '3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '5' })).toBeInTheDocument();
+
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
+
+    expect(screen.queryByRole('button', { name: '3' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '5' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '1' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: '2' }).length).toBeGreaterThan(0);
   });
 });

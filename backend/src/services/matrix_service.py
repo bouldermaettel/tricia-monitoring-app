@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, tuple_
 from sqlalchemy.orm import Session
 
 from src.api.schemas.matrices import ConfusionMatrixResponse, MatrixCell, MatrixDimensionSet
@@ -25,6 +25,9 @@ class MatrixService:
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
         risk_level: str | None,
+        product_cells: list[tuple[int, int]] | None,
+        severity_cells: list[tuple[int, int]] | None = None,
+        detectability_cells: list[tuple[int, int]] | None = None,
     ):
         base_query = (
             select(ClassificationSnapshot.case_id)
@@ -42,6 +45,18 @@ class MatrixService:
             include_excluded=include_excluded,
             risk_level=risk_level,
         )
+        if product_cells:
+            expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+            observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
+            filtered_query = filtered_query.where(tuple_(expected_product, observed_product).in_(product_cells))
+        if severity_cells:
+            filtered_query = filtered_query.where(
+                tuple_(ClassificationSnapshot.user_s, ClassificationSnapshot.tricia_s).in_(severity_cells)
+            )
+        if detectability_cells:
+            filtered_query = filtered_query.where(
+                tuple_(ClassificationSnapshot.user_d, ClassificationSnapshot.tricia_d).in_(detectability_cells)
+            )
         return filtered_query.subquery()
 
     def _get_cells_for_dimension(
@@ -93,6 +108,9 @@ class MatrixService:
         end_date: date | None = None,
         problematic_only: bool | None = None,
         risk_level: str | None = None,
+        product_cells: list[tuple[int, int]] | None = None,
+        severity_cells: list[tuple[int, int]] | None = None,
+        detectability_cells: list[tuple[int, int]] | None = None,
     ) -> ConfusionMatrixResponse:
         threshold = self.db.scalar(select(ThresholdConfig).where(ThresholdConfig.config_key == threshold_key))
         acceptance = threshold.acceptance_threshold if threshold else 1
@@ -105,6 +123,9 @@ class MatrixService:
             acceptance_threshold=acceptance,
             risk_categories=risk_categories,
             risk_level=risk_level,
+            product_cells=product_cells,
+            severity_cells=severity_cells,
+            detectability_cells=detectability_cells,
         )
 
         severity_cells = self._get_cells_for_dimension(

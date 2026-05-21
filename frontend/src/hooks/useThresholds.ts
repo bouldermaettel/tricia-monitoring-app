@@ -11,6 +11,7 @@ export function useUpdateThresholds() {
         mutationFn: updateThresholds,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['thresholds'] });
+            queryClient.invalidateQueries({ queryKey: ['cases'] });
             queryClient.invalidateQueries({ queryKey: ['matrix'] });
         },
     });

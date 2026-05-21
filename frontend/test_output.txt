@@ -1,0 +1,752 @@
+
+> tricia-monitoring-frontend@0.1.0 test
+> vitest run tests/pages/MatrixDashboard.test.tsx
+
+
+ RUN  v2.1.9 /home/smc-dev/python-projects/tricia-monitoring-app/frontend
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > renders matrix view widgets
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > shows delete controls only to admins
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > keeps selection additive when selecting severity then risk class
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > keeps selection additive when selecting risk class then severity
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > preserves severity selection when risk filter changes
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > filters severity and detectability matrices when risk class selection is active
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+Error: Uncaught [ReferenceError: ResizeObserver is not defined]
+    at reportException (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
+    at innerInvokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
+    at invokeEventListeners (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
+    at HTMLUnknownElementImpl._dispatch (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
+    at HTMLUnknownElement.dispatchEvent (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at reportUncaughtErrorInDEV (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
+    at captureCommitPhaseError (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27165:5) ReferenceError: ResizeObserver is not defined
+    at /home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+    at commitHookEffectListMount (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitLayoutEffectOnFiber (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23312:15)
+    at commitLayoutMountEffects_complete (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24727:9)
+    at commitLayoutEffects_begin (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24713:7)
+    at commitLayoutEffects (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24651:3)
+    at commitRootImpl (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26862:5)
+    at commitRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26721:5)
+    at finishConcurrentRender (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:26020:9)
+    at performConcurrentWorkOnRoot (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:25848:7)
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+The above error occurred in the <ConfusionMatrixGrid> component:
+
+    at ConfusionMatrixGrid (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/matrix/ConfusionMatrixGrid.tsx:6:3)
+    at div
+    at div
+    at section
+    at div
+    at main
+    at div
+    at AppShell (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/components/common/AppShell.tsx:9:21)
+    at MatrixDashboard (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/src/pages/MatrixDashboard.tsx:171:65)
+    at Router (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+    at QueryClientProvider (file:///home/smc-dev/python-projects/tricia-monitoring-app/frontend/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:20:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+ ❯ tests/pages/MatrixDashboard.test.tsx (6 tests | 6 failed) 348ms
+   × MatrixDashboard > renders matrix view widgets 155ms
+     → ResizeObserver is not defined
+   × MatrixDashboard > shows delete controls only to admins 53ms
+     → ResizeObserver is not defined
+   × MatrixDashboard > keeps selection additive when selecting severity then risk class 44ms
+     → ResizeObserver is not defined
+   × MatrixDashboard > keeps selection additive when selecting risk class then severity 39ms
+     → ResizeObserver is not defined
+   × MatrixDashboard > preserves severity selection when risk filter changes 29ms
+     → ResizeObserver is not defined
+   × MatrixDashboard > filters severity and detectability matrices when risk class selection is active 26ms
+     → ResizeObserver is not defined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > renders matrix view widgets
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > shows delete controls only to admins
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > keeps selection additive when selecting severity then risk class
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > keeps selection additive when selecting risk class then severity
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > preserves severity selection when risk filter changes
+ FAIL  tests/pages/MatrixDashboard.test.tsx > MatrixDashboard > filters severity and detectability matrices when risk class selection is active
+ReferenceError: ResizeObserver is not defined
+ ❯ src/components/matrix/ConfusionMatrixGrid.tsx:52:22
+     50|     updateScale();
+     51| 
+     52|     const observer = new ResizeObserver(updateScale);
+       |                      ^
+     53|     observer.observe(container);
+     54|     observer.observe(content);
+ ❯ commitHookEffectListMount node_modules/react-dom/cjs/react-dom.development.js:23189:26
+ ❯ commitLayoutEffectOnFiber node_modules/react-dom/cjs/react-dom.development.js:23312:15
+ ❯ commitLayoutMountEffects_complete node_modules/react-dom/cjs/react-dom.development.js:24727:9
+ ❯ commitLayoutEffects_begin node_modules/react-dom/cjs/react-dom.development.js:24713:7
+ ❯ commitLayoutEffects node_modules/react-dom/cjs/react-dom.development.js:24651:3
+ ❯ commitRootImpl node_modules/react-dom/cjs/react-dom.development.js:26862:5
+ ❯ commitRoot node_modules/react-dom/cjs/react-dom.development.js:26721:5
+ ❯ finishConcurrentRender node_modules/react-dom/cjs/react-dom.development.js:26020:9
+ ❯ performConcurrentWorkOnRoot node_modules/react-dom/cjs/react-dom.development.js:25848:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ Test Files  1 failed (1)
+      Tests  6 failed (6)
+   Start at  10:14:33
+   Duration  2.31s (transform 285ms, setup 74ms, collect 547ms, tests 348ms, environment 557ms, prepare 248ms)
+

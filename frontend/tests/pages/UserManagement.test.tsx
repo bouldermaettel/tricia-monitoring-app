@@ -76,7 +76,7 @@ describe('UserManagement', () => {
       </MemoryRouter>
     );
 
-    await user.type(screen.getByPlaceholderText('External key'), 'new.user.1');
+    await user.type(screen.getByPlaceholderText('Username'), 'new.user.1');
     await user.type(screen.getByPlaceholderText('Display name'), 'New User 1');
     await user.type(screen.getByPlaceholderText('Acronym (e.g. mam)'), 'nu1');
     await user.type(screen.getByPlaceholderText('Password'), 'new-user-password');
