@@ -3,19 +3,11 @@ import { apiClient } from './api';
 const IMPORT_TEMPLATE_COLUMNS = [
     'vk_number',
     'device_name',
-    'analysis_date',
-    'input_timestamp',
-    'wimi_shortcut',
-    'validation_status',
     'TRI-S',
     'TRI-P',
     'TRI-D',
     'WIMI-S',
     'WIMI-D',
-    'category_code',
-    'risk_level',
-    'is_excluded',
-    'is_reviewed',
 ];
 
 export async function exportCasesCsv() {

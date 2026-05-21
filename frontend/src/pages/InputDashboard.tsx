@@ -47,6 +47,60 @@ function triggerDownload(blob: Blob, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function resolveBackendErrorMessage(error: unknown, fallback: string): string {
+  const response = typeof error === 'object' && error && 'response' in error
+    ? (error as { response?: { data?: unknown } }).response
+    : undefined;
+  const responseData = response?.data;
+
+  const detailFromData =
+    responseData && typeof responseData === 'object' && 'detail' in responseData
+      ? (responseData as { detail?: unknown }).detail
+      : undefined;
+
+  if (Array.isArray(detailFromData)) {
+    const normalized = detailFromData.map((entry) => {
+      if (entry && typeof entry === 'object' && 'msg' in entry) {
+        return String((entry as { msg?: unknown }).msg ?? '');
+      }
+      return String(entry);
+    }).join('; ');
+    if (normalized.trim()) {
+      return normalized;
+    }
+  }
+
+  if (typeof detailFromData === 'string' && detailFromData.trim()) {
+    return detailFromData;
+  }
+
+  const nestedErrorMessage =
+    responseData
+    && typeof responseData === 'object'
+    && 'error' in responseData
+    && (responseData as { error?: unknown }).error
+    && typeof (responseData as { error?: unknown }).error === 'object'
+    && 'message' in ((responseData as { error?: { message?: unknown } }).error ?? {})
+      ? String((responseData as { error?: { message?: unknown } }).error?.message ?? '')
+      : '';
+
+  if (nestedErrorMessage.trim()) {
+    return nestedErrorMessage;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+function splitImportErrorLines(message: string | null): string[] {
+  if (!message) {
+    return [];
+  }
+  return message
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function CategorySelect({
   label,
   value,
@@ -99,6 +153,7 @@ export function InputDashboard() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importErrorDialogOpen, setImportErrorDialogOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -114,6 +169,7 @@ export function InputDashboard() {
   const previewCases = useImportOverride((s) => s.cases);
   const previewControlItems = useImportOverride((s) => s.controlItems);
   const isPreviewOverrideActive = Boolean(previewSourceFileName && previewSourceFile);
+  const importErrorLines = splitImportErrorLines(importError);
 
   // Autofill user_s from tricia_s if not manually overridden
   useEffect(() => {
@@ -271,6 +327,7 @@ export function InputDashboard() {
     const nextFile = event.target.files?.[0] ?? null;
     setImportFile(nextFile);
     setImportError(null);
+    setImportErrorDialogOpen(false);
     setImportStatus(null);
     if (nextFile) setModeDialogOpen(true);
     if (importFileInputRef.current) {
@@ -286,6 +343,7 @@ export function InputDashboard() {
 
     setIsPreviewing(true);
     setImportError(null);
+    setImportErrorDialogOpen(false);
     setImportStatus(null);
     try {
       const preview = await previewImport(importFile);
@@ -301,8 +359,10 @@ export function InputDashboard() {
       setImportStatus(`Preview loaded from ${importFile.name}. Open Matrix/Control dashboards to review it.`);
       setModeDialogOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Preview failed.';
+      const message = resolveBackendErrorMessage(error, 'Preview failed.');
       setImportError(message);
+      setImportErrorDialogOpen(true);
+      setModeDialogOpen(false);
     } finally {
       setIsPreviewing(false);
     }
@@ -311,6 +371,7 @@ export function InputDashboard() {
   async function handleDownloadTemplate() {
     setIsDownloadingTemplate(true);
     setImportError(null);
+    setImportErrorDialogOpen(false);
     try {
       const blob = await exportImportTemplateXlsx();
       triggerDownload(blob, 'matrix-upload-template.xlsx');
@@ -330,6 +391,7 @@ export function InputDashboard() {
 
     setIsImporting(true);
     setImportError(null);
+    setImportErrorDialogOpen(false);
     setImportStatus(null);
     try {
       const result = await uploadImport(importFile);
@@ -339,8 +401,10 @@ export function InputDashboard() {
       );
       setModeDialogOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Import failed.';
+      const message = resolveBackendErrorMessage(error, 'Import failed.');
       setImportError(message);
+      setImportErrorDialogOpen(true);
+      setModeDialogOpen(false);
     } finally {
       setIsImporting(false);
     }
@@ -353,6 +417,7 @@ export function InputDashboard() {
 
   function handleChooseFile() {
     setImportError(null);
+    setImportErrorDialogOpen(false);
     setImportStatus(null);
     importFileInputRef.current?.click();
   }
@@ -449,7 +514,10 @@ export function InputDashboard() {
         <div className="mt-6 bg-white border border-stone-200 rounded-xl p-6 flex flex-col gap-3">
           <div>
             <h2 className="text-base font-semibold text-stone-900">Upload CSV or Excel</h2>
-            <p className="text-sm text-stone-500 mt-1">Upload a dataset and then choose Analyze only or Import to DB.</p>
+            <p className="text-sm text-stone-500 mt-1">
+              Upload only the required columns: vk_number, device_name, TRI-S, TRI-P, TRI-D, WIMI-S, and WIMI-D.
+              The app fills in the derived metadata.
+            </p>
           </div>
           <div className="flex flex-col gap-3">
             <input
@@ -482,7 +550,17 @@ export function InputDashboard() {
             </div>
             {importFile && <p className="text-xs text-stone-500">Selected file: {importFile.name}</p>}
           </div>
-          {importError && <p className="text-sm text-red-700">{importError}</p>}
+          {importError && (
+            importErrorLines.length > 1 ? (
+              <ul className="text-sm text-red-700 list-disc pl-5 space-y-1">
+                {importErrorLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-red-700">{importError}</p>
+            )
+          )}
           {importStatus && <p className="text-sm text-emerald-700">{importStatus}</p>}
         </div>
 
@@ -576,6 +654,39 @@ export function InputDashboard() {
                 className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60"
               >
                 {isImporting ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {importErrorDialogOpen && importError && (
+        <div
+          role="dialog"
+          aria-label="import-error-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
+          onClick={() => setImportErrorDialogOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-stone-900">Upload validation error</h3>
+            {importErrorLines.length > 1 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-stone-600">
+                {importErrorLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-stone-600 whitespace-pre-line">{importError}</p>
+            )}
+            <div className="mt-4 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setImportErrorDialogOpen(false)}
+                className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+              >
+                Close
               </button>
             </div>
           </div>

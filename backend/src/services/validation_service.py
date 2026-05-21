@@ -13,6 +13,20 @@ class ValidationService:
         self.db = db
 
     @staticmethod
+    def is_valid_vk_number(vk_number: str) -> bool:
+        normalized = vk_number.strip()
+        match = re.match(r"^Vk_?(\d{4})(\d{2})(\d{2})_(\d{3})$", normalized, flags=re.IGNORECASE)
+        if not match:
+            return False
+
+        year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        try:
+            parsed = date(year, month, day)
+        except ValueError:
+            return False
+        return parsed.year == year and parsed.month == month and parsed.day == day
+
+    @staticmethod
     def derive_analysis_date(vk_number: str) -> date:
         """Extract YYYYMMDD from VK identifiers in the form vk*_YYYYMMDD* (case-insensitive)."""
         match = re.match(r"^vk[^_]*_(20\d{2})(\d{2})(\d{2})", vk_number.strip(), flags=re.IGNORECASE)

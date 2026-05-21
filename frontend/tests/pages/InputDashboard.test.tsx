@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { InputDashboard } from '../../src/pages/InputDashboard';
 
 const createMutateAsync = vi.fn().mockResolvedValue({ id: '1' });
 const exportImportTemplateXlsx = vi.fn().mockResolvedValue(new Blob(['template']));
+const previewImport = vi.fn();
 
 vi.mock('../../src/hooks/useCases', () => ({
   useCreateCase: () => ({ mutateAsync: createMutateAsync, isPending: false, isError: false }),
@@ -15,10 +16,16 @@ vi.mock('../../src/services/exports', () => ({
   exportImportTemplateXlsx: () => exportImportTemplateXlsx(),
 }));
 
+vi.mock('../../src/services/imports', () => ({
+  previewImport: (file: File) => previewImport(file),
+  uploadImport: vi.fn(),
+}));
+
 describe('InputDashboard', () => {
   beforeEach(() => {
     createMutateAsync.mockClear();
     exportImportTemplateXlsx.mockClear();
+    previewImport.mockReset();
     if (!('createObjectURL' in URL)) {
       Object.defineProperty(URL, 'createObjectURL', {
         writable: true,
@@ -229,5 +236,97 @@ describe('InputDashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Download template' }));
 
     expect(exportImportTemplateXlsx).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an upload validation modal with the backend message', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    previewImport.mockRejectedValueOnce({
+      response: {
+        data: {
+          detail: "Row 2: column 'TRI-S' must be one of [1, 3, 5, 8, 10].",
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D'], 'bad.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Analyze only' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-error-dialog' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Row 2: column 'TRI-S' must be one of [1, 3, 5, 8, 10].")).toBeInTheDocument();
+  });
+
+  it('shows missing-column errors returned in backend error.message payloads', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    previewImport.mockRejectedValueOnce({
+      response: {
+        data: {
+          error: {
+            message: 'Invalid import file format (missing columns: wimi-d)',
+          },
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S'], 'missing-column.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Analyze only' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-error-dialog' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('Invalid import file format (missing columns: wimi-d)')).toBeInTheDocument();
+  });
+
+  it('shows all duplicate VK numbers returned by the backend', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    previewImport.mockRejectedValueOnce({
+      response: {
+        data: {
+          error: {
+            message: "VK-NR 'Vk_20240523_911' is already in the database.\nVK-NR 'Vk_20240523_912' is already in the database.",
+          },
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D'], 'duplicate.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Analyze only' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-error-dialog' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("VK-NR 'Vk_20240523_911' is already in the database.")).toBeInTheDocument();
+    expect(within(dialog).getByText("VK-NR 'Vk_20240523_912' is already in the database.")).toBeInTheDocument();
   });
 });
