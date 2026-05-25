@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm.session import Session
 
 from src.db.base import Base
 
@@ -20,3 +21,22 @@ class ClassificationSnapshot(Base):
     deviation_d: Mapped[int] = mapped_column(Integer)
     problem_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    @staticmethod
+    def sync_pk_sequence(db: Session) -> None:
+        bind = db.get_bind()
+        if bind is None or bind.dialect.name != "postgresql":
+            return
+
+        # Keep the sequence aligned with the current highest id to avoid duplicate PK inserts.
+        db.execute(
+            text(
+                """
+                SELECT setval(
+                    pg_get_serial_sequence('classification_snapshots', 'id'),
+                    COALESCE((SELECT MAX(id) FROM classification_snapshots), 0) + 1,
+                    false
+                )
+                """
+            )
+        )

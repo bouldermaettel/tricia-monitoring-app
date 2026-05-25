@@ -279,6 +279,7 @@ class ImportService:
         frame, fmt = self._read_frame(file_name, content)
         actor_shortcut = self._resolve_actor_shortcut(actor_id)
         parsed_rows = self._build_case_records(frame, actor_shortcut)
+        ClassificationSnapshot.sync_pk_sequence(self.db)
         uploaded_vk_numbers = [str(parsed["vk_number"]) for parsed in parsed_rows]
         existing_vk_numbers = set(
             self.db.scalars(select(Case.vk_number).where(Case.vk_number.in_(uploaded_vk_numbers))).all()

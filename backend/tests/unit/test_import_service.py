@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -112,3 +113,53 @@ def test_import_service_rejects_vk_numbers_already_in_database(db_session):
 
     with pytest.raises(ValueError, match=r"VK-NR 'Vk_20240523_001' is already in the database\."):
         service.process_file('duplicate.csv', duplicate_payload, 'bootstrap-admin')
+
+
+def test_import_service_syncs_snapshot_sequence_before_insert(db_session, monkeypatch):
+    csv_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,dev-1,1,1,5,1,5\n'
+    called = False
+
+    def _fake_sync_pk_sequence(_db):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(ClassificationSnapshot, 'sync_pk_sequence', staticmethod(_fake_sync_pk_sequence))
+
+    ImportService(db_session).process_file('sample.csv', csv_payload, 'tester')
+
+    assert called is True
+
+
+def test_classification_snapshot_sync_pk_sequence_uses_setval_on_postgres():
+    class FakeSession:
+        def __init__(self):
+            self.executed = None
+
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name='postgresql'))
+
+        def execute(self, statement):
+            self.executed = str(statement)
+
+    fake_db = FakeSession()
+    ClassificationSnapshot.sync_pk_sequence(fake_db)
+
+    assert fake_db.executed is not None
+    assert 'setval' in fake_db.executed.lower()
+
+
+def test_classification_snapshot_sync_pk_sequence_skips_non_postgres():
+    class FakeSession:
+        def __init__(self):
+            self.executed = None
+
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name='sqlite'))
+
+        def execute(self, statement):
+            self.executed = statement
+
+    fake_db = FakeSession()
+    ClassificationSnapshot.sync_pk_sequence(fake_db)
+
+    assert fake_db.executed is None

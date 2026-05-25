@@ -618,7 +618,7 @@ export function MatrixDashboard() {
     const caseById = new Map<string, { id: string }>();
     selectedRequests.forEach((request, index) => {
       const dim = request.dimension;
-      if (!caseIdsByDimension.has(dim)) caseIdsByDimension.set(dim, new Set());
+      if (!caseIdsByDimension.has(dim)) caseIdsByDimension.set(dim, new Set<string>());
       const query = selectedCaseQueries[index];
       (query.data?.items ?? []).forEach((item: { id: string }) => {
         caseIdsByDimension.get(dim)!.add(item.id);
@@ -630,7 +630,7 @@ export function MatrixDashboard() {
     for (const [, ids] of caseIdsByDimension) {
       intersectedIds = intersectedIds === null
         ? new Set(ids)
-        : new Set([...intersectedIds].filter((id) => ids.has(id)));
+        : new Set(Array.from(intersectedIds!).filter((id: any) => ids.has(id)));
     }
 
     return Array.from((intersectedIds ?? new Set<string>()).values())

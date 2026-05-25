@@ -130,6 +130,7 @@ class CaseService:
         self.db.add(case)
         self.db.flush()
 
+        ClassificationSnapshot.sync_pk_sequence(self.db)
         acceptance_threshold, risk_categories = self._get_threshold_context()
         user_d = payload.user_d if payload.user_d is not None else payload.tricia_d
         snapshot = ClassificationSnapshot(
@@ -366,6 +367,7 @@ class CaseService:
             tricia_d = 1
             user_s = 1
             user_d = 1
+            ClassificationSnapshot.sync_pk_sequence(self.db)
             snapshot = ClassificationSnapshot(
                 case_id=case.id,
                 tricia_s=tricia_s,
