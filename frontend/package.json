@@ -11,7 +11,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:low-memory": "NODE_OPTIONS=--max-old-space-size=12288 VITEST_LOW_MEMORY=1 vitest run",
+    "test:matrix:low-memory": "NODE_OPTIONS=--max-old-space-size=12288 VITEST_LOW_MEMORY=1 vitest run tests/pages/MatrixDashboard.test.tsx"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",

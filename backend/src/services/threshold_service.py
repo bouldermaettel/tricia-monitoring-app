@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from src.api.schemas.config import ThresholdConfigUpdateRequest
 from src.models.threshold_config import ThresholdConfig
+from src.models.user import User
 
 
 DEFAULT_RISK_CATEGORIES: list[dict[str, int | str]] = [
@@ -25,6 +26,10 @@ DEFAULT_PROBLEMATIC_CASE_THRESHOLDS: dict[str, int] = {
 class ThresholdService:
     def __init__(self, db: Session):
         self.db = db
+
+    def _resolve_actor_user_id(self, actor_id: str) -> str | None:
+        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
+        return actor.id if actor is not None else None
 
     def get(self, config_key: str = "default") -> ThresholdConfig:
         config = self.db.scalar(select(ThresholdConfig).where(ThresholdConfig.config_key == config_key))
@@ -58,7 +63,7 @@ class ThresholdService:
             config.risk_categories = self._normalize_risk_categories(payload.risk_categories)
         else:
             config.risk_categories = self._normalize_risk_categories(config.risk_categories)
-        config.updated_by_user_id = actor_id
+        config.updated_by_user_id = self._resolve_actor_user_id(actor_id)
         config.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(config)

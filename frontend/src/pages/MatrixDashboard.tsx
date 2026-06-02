@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/common/AppShell';
 import { ExportButton } from '../components/common/ExportButton';
 import { ThresholdConfigPanel } from '../components/common/ThresholdConfigPanel';
-import { CaseTable } from '../components/matrix/CaseTable';
+import { CaseTable, type CaseTableServerFilters } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
@@ -34,6 +34,7 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
 const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
 const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
+const CASES_PAGE_SIZE = 50;
 
 type MatrixCell = {
   expected_value: number;
@@ -179,15 +180,17 @@ function isOverrideCaseProblematic(
   return Math.abs(expectedClass - observedClass) > acceptanceThreshold;
 }
 
+function matchesRiskDirection(expectedClass: number, observedClass: number, riskFilter: RiskFilter): boolean {
+  if (riskFilter === 'all') return true;
+  if (riskFilter === 'false_low') return expectedClass > observedClass;
+  return expectedClass < observedClass;
+}
+
 function getProductRiskSelection(cells: MatrixCell[], riskFilter: RiskFilter): Array<{ expected: number; observed: number }> {
   if (riskFilter === 'all') return [];
   return cells
     .filter((cell) => cell.case_count > 0)
-    .filter((cell) =>
-      riskFilter === 'false_low'
-        ? cell.expected_value > cell.observed_value
-        : cell.expected_value < cell.observed_value
-    )
+    .filter((cell) => matchesRiskDirection(cell.expected_value, cell.observed_value, riskFilter))
     .map((cell) => ({ expected: cell.expected_value, observed: cell.observed_value }));
 }
 
@@ -218,6 +221,8 @@ export function MatrixDashboard() {
   const canDeleteCases = session?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedProduct, setCollapsedProduct] = useState(false);
+  const [casePage, setCasePage] = useState(1);
+  const [tableServerFilters, setTableServerFilters] = useState<CaseTableServerFilters>({});
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
     columns: [],
     rows: [],
@@ -266,10 +271,12 @@ export function MatrixDashboard() {
     () => normalizeProblematicCaseThresholds(thresholds.data?.problematic_case_thresholds),
     [thresholds.data?.problematic_case_thresholds]
   );
+  const riskDirectionParam = riskFilter === 'all' ? undefined : riskFilter;
 
   const sharedCaseParams = {
     include_excluded: includeExcluded,
     vk_number: requestedVkNumber || undefined,
+    risk_direction: riskDirectionParam,
     ...dateParams,
   };
 
@@ -278,24 +285,18 @@ export function MatrixDashboard() {
     problematic_only: problematicOnly,
   };
 
-  const baseCases = useCases(caseParams, { enabled: !isOverrideActive });
+  const baseCases = useCases({ ...caseParams, ...tableServerFilters, page: casePage, page_size: CASES_PAGE_SIZE }, { enabled: !isOverrideActive });
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
     return overrideCases.filter((item) => {
       if (!includeExcluded && item.is_excluded) return false;
+      const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, riskCategories);
+      const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, riskCategories);
+      if (expectedClass === null || observedClass === null) return false;
+      if (!matchesRiskDirection(expectedClass, observedClass, riskFilter)) return false;
       if (
         problematicOnly &&
-        !isOverrideCaseProblematic(
-          {
-            tricia_s: item.tricia_s,
-            tricia_p: item.tricia_p,
-            tricia_d: item.tricia_d,
-            user_s: item.user_s,
-            user_d: item.user_d,
-          },
-          riskCategories,
-          acceptanceThreshold
-        )
+        Math.abs(expectedClass - observedClass) <= acceptanceThreshold
       ) {
         return false;
       }
@@ -304,7 +305,7 @@ export function MatrixDashboard() {
       if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
       return true;
     });
-  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskCategories]);
+  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskCategories, riskFilter]);
 
   const problematicCasesQuery = useCases(
     {
@@ -334,24 +335,8 @@ export function MatrixDashboard() {
     if (!isOverrideActive) {
       return problematicCasesQuery.data?.total ?? 0;
     }
-    return overrideCases.filter((item) => {
-      if (!includeExcluded && item.is_excluded) return false;
-      if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
-      if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
-      if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
-      return isOverrideCaseProblematic(
-        {
-          tricia_s: item.tricia_s,
-          tricia_p: item.tricia_p,
-          tricia_d: item.tricia_d,
-          user_s: item.user_s,
-          user_d: item.user_d,
-        },
-        riskCategories,
-        acceptanceThreshold
-      );
-    }).length;
-  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicCasesQuery.data?.total, requestedVkNumber, riskCategories]);
+    return filteredOverrideCases.length;
+  }, [filteredOverrideCases.length, isOverrideActive, problematicCasesQuery.data?.total]);
 
   const problematicCountsByPeriod = useMemo(() => {
     if (!isOverrideActive) {
@@ -364,22 +349,10 @@ export function MatrixDashboard() {
 
     const countForWindow = (window: '3M' | '6M' | '12M') => {
       const params = getDateParams(window);
-      return overrideCases.filter((item) => {
-        if (!includeExcluded && item.is_excluded) return false;
-        if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
+      return filteredOverrideCases.filter((item) => {
         if (params.start_date && item.analysis_date < String(params.start_date)) return false;
         if (params.end_date && item.analysis_date > String(params.end_date)) return false;
-        return isOverrideCaseProblematic(
-          {
-            tricia_s: item.tricia_s,
-            tricia_p: item.tricia_p,
-            tricia_d: item.tricia_d,
-            user_s: item.user_s,
-            user_d: item.user_d,
-          },
-          riskCategories,
-          acceptanceThreshold
-        );
+        return true;
       }).length;
     };
 
@@ -388,7 +361,7 @@ export function MatrixDashboard() {
       '6M': countForWindow('6M'),
       '12M': countForWindow('12M'),
     };
-  }, [acceptanceThreshold, includeExcluded, isOverrideActive, overrideCases, problematicPeriodQueries, requestedVkNumber, riskCategories]);
+  }, [filteredOverrideCases, isOverrideActive, problematicPeriodQueries]);
 
   const problematicCaseTarget =
     dateWindow === '3M' || dateWindow === '6M' || dateWindow === '12M'
@@ -658,6 +631,38 @@ export function MatrixDashboard() {
     selectedCellsByDimension.detectability.length > 0 ||
     selectedCellsByDimension.product.length > 0;
 
+  const handleTableServerFilterChange = useCallback((next: CaseTableServerFilters) => {
+    setTableServerFilters((previous) => {
+      const previousJson = JSON.stringify(previous);
+      const nextJson = JSON.stringify(next);
+      return previousJson === nextJson ? previous : next;
+    });
+  }, []);
+
+  const handleExportStateChange = useCallback((next: { columns: string[]; rows: Array<Record<string, unknown>> }) => {
+    setExportState((previous) => {
+      const previousJson = JSON.stringify(previous);
+      const nextJson = JSON.stringify(next);
+      return previousJson === nextJson ? previous : next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setCasePage(1);
+  }, [dateFrom, dateTo, dateWindow, includeExcluded, isOverrideActive, problematicOnly, requestedVkNumber, riskFilter, hasSelection]);
+
+  useEffect(() => {
+    setCasePage(1);
+  }, [tableServerFilters]);
+
+  useEffect(() => {
+    const total = baseCases.data?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / CASES_PAGE_SIZE));
+    if (!isOverrideActive && !hasSelection && casePage > totalPages) {
+      setCasePage(totalPages);
+    }
+  }, [baseCases.data?.total, casePage, hasSelection, isOverrideActive]);
+
   function toggleMatrixCell(dimension: MatrixDimension, expected: number, observed: number) {
     setSelectedCellsByDimension((previous) => {
       const existing = previous[dimension];
@@ -883,6 +888,10 @@ export function MatrixDashboard() {
 
         <CaseTable
           items={displayedCases}
+          totalCount={!isOverrideActive && !hasSelection ? (baseCases.data?.total ?? displayedCases.length) : displayedCases.length}
+          page={!isOverrideActive && !hasSelection ? casePage : 1}
+          pageSize={!isOverrideActive && !hasSelection ? (baseCases.data?.page_size ?? CASES_PAGE_SIZE) : undefined}
+          onPageChange={!isOverrideActive && !hasSelection ? setCasePage : undefined}
           riskCategories={riskCategories}
           acceptanceThreshold={acceptanceThreshold}
           onMarkReviewed={isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } }))}
@@ -891,7 +900,8 @@ export function MatrixDashboard() {
           onAddComment={isOverrideActive ? undefined : ((id, text) => addComment.mutate({ caseId: id, text }))}
           onEditCase={isOverrideActive ? undefined : ((id, payload) => updateCase.mutateAsync({ caseId: id, payload }))}
           onDeleteCase={isOverrideActive || !canDeleteCases ? undefined : ((id) => deleteCase.mutate(id))}
-          onExportStateChange={setExportState}
+          onExportStateChange={handleExportStateChange}
+          onServerFilterChange={!isOverrideActive && !hasSelection ? handleTableServerFilterChange : undefined}
         />
 
         <ThresholdConfigPanel />

@@ -4,7 +4,9 @@ Monitoring web application with FastAPI backend and Vite React TypeScript fronte
 
 ## Database modes
 
-- Local and test defaults use SQLite.
+- Local app runtime uses PostgreSQL only.
+- SQLite is disabled for normal backend startup to avoid accidental local development against the wrong database.
+- Test fixtures still use isolated SQLite in-memory databases.
 - Azure deployment uses Azure Database for PostgreSQL Flexible Server provisioned from `infra/main.bicep`.
 - In Azure, `DATABASE_URL` is injected into the backend container as a secret and backend startup runs Alembic migrations when available.
 

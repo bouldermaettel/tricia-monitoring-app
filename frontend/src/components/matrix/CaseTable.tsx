@@ -64,8 +64,30 @@ type RiskCategory = {
   max_value: number;
 };
 
+export type CaseTableServerFilters = {
+  vk_number_contains?: string;
+  wimi_shortcut?: string;
+  device_name?: string;
+  tricia_p?: number;
+  tricia_s?: number;
+  user_s?: number;
+  tricia_d?: number;
+  user_d?: number;
+  category_code?: string;
+  comment_text?: string;
+  is_excluded?: boolean;
+  is_reviewed?: boolean;
+  has_edits?: boolean;
+  date_reported_from?: string;
+  date_reported_to?: string;
+};
+
 type Props = {
   items: CaseItem[];
+  totalCount?: number;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
   riskCategories?: RiskCategory[];
   acceptanceThreshold?: number;
   onMarkReviewed?: (id: string, isReviewed: boolean) => void;
@@ -75,6 +97,7 @@ type Props = {
   onEditCase?: (id: string, payload: Partial<EditValues>) => void | Promise<unknown>;
   onDeleteCase?: (id: string) => void;
   onExportStateChange?: (payload: { columns: string[]; rows: Array<Record<string, unknown>> }) => void;
+  onServerFilterChange?: (filters: CaseTableServerFilters) => void;
 };
 
 const CATEGORY_OPTIONS = [
@@ -211,6 +234,10 @@ function formatAuditCell(events: AuditEvent[]): string {
 
 export function CaseTable({
   items,
+  totalCount,
+  page = 1,
+  pageSize,
+  onPageChange,
   riskCategories = [],
   acceptanceThreshold = 1,
   onMarkReviewed,
@@ -220,6 +247,7 @@ export function CaseTable({
   onEditCase,
   onDeleteCase,
   onExportStateChange,
+  onServerFilterChange,
 }: Props) {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -399,6 +427,12 @@ export function CaseTable({
   );
 
   const filteredItems = useMemo(() => {
+    // When server-side filtering is enabled, avoid filtering the current page locally.
+    // Otherwise the table can appear empty while waiting for the server response.
+    if (onServerFilterChange) {
+      return items;
+    }
+
     const normalized = Object.fromEntries(
       (Object.entries(filters) as Array<[ColumnId, string]>).map(([key, value]) => [key, value.trim().toLowerCase()])
     ) as Record<ColumnId, string>;
@@ -434,7 +468,7 @@ export function CaseTable({
       }
       return true;
     });
-  }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items]);
+  }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items, onServerFilterChange]);
 
   const itemOrderById = useMemo(() => new Map(items.map((item, index) => [item.id, index])), [items]);
 
@@ -513,6 +547,53 @@ export function CaseTable({
     });
   }, [sortedItems]);
 
+  const serverFilters = useMemo<CaseTableServerFilters>(() => {
+    const parseNumber = (value: string): number | undefined => {
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    const parseBool = (value: string): boolean | undefined => {
+      const trimmed = value.trim().toLowerCase();
+      if (!trimmed) return undefined;
+      return trimmed === 'yes' ? true : trimmed === 'no' ? false : undefined;
+    };
+
+    return {
+      vk_number_contains: filters.vk_number.trim() || undefined,
+      wimi_shortcut: filters.wimi_shortcut.trim() || undefined,
+      device_name: filters.device_name.trim() || undefined,
+      tricia_p: parseNumber(filters.tricia_p),
+      tricia_s: parseNumber(filters.tricia_s),
+      user_s: parseNumber(filters.user_s),
+      tricia_d: parseNumber(filters.tricia_d),
+      user_d: parseNumber(filters.user_d),
+      category_code: filters.category_code.trim() || undefined,
+      comment_text: filters.comment.trim() || undefined,
+      is_excluded: parseBool(filters.is_excluded),
+      is_reviewed: parseBool(filters.is_reviewed),
+      has_edits:
+        filters.actions.trim() === 'edited'
+          ? true
+          : filters.actions.trim() === 'not_edited'
+            ? false
+            : undefined,
+      date_reported_from: dateFilterFrom || undefined,
+      date_reported_to: dateFilterTo || undefined,
+    };
+  }, [dateFilterFrom, dateFilterTo, filters]);
+
+  useEffect(() => {
+    if (!onServerFilterChange) return;
+
+    const timeoutId = window.setTimeout(() => {
+      onServerFilterChange(serverFilters);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [onServerFilterChange, serverFilters]);
+
   useEffect(() => {
     if (!onExportStateChange) return;
 
@@ -557,22 +638,42 @@ export function CaseTable({
   const D_OPTS = [1, 5, 10];
   const selectedVisibleCount = sortedItems.filter((item) => selectedCaseIds.has(item.id)).length;
   const allVisibleSelected = sortedItems.length > 0 && selectedVisibleCount === sortedItems.length;
-
-  if (items.length === 0) {
-    return (
-      <div className="rounded-xl border border-stone-200 bg-white p-8 text-center text-stone-400 text-sm">
-        No cases for the selected filters.
-      </div>
-    );
-  }
+  const resolvedTotalCount = totalCount ?? items.length;
+  const totalPages = pageSize && pageSize > 0 ? Math.max(1, Math.ceil(resolvedTotalCount / pageSize)) : 1;
+  const canPaginate = Boolean(onPageChange && pageSize && resolvedTotalCount > (pageSize ?? 0));
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
       <div className="px-4 py-3 border-b border-stone-200 bg-stone-50 flex items-center justify-between gap-3">
         <span className="text-xs text-stone-500">
-          Showing {filteredItems.length} of {items.length} cases
+          {resolvedTotalCount === items.length
+            ? `Showing ${filteredItems.length} of ${items.length} cases`
+            : `Showing ${filteredItems.length} of ${items.length} loaded cases (${resolvedTotalCount} total)`}
         </span>
         <div className="flex items-center gap-2">
+          {canPaginate && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page - 1)}
+                disabled={page <= 1}
+                className="px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-stone-500 min-w-[72px] text-center">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page + 1)}
+                disabled={page >= totalPages}
+                className="px-3 py-1.5 rounded text-sm font-medium bg-white border border-stone-200 hover:bg-stone-100 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
           {onDeleteCase && (
             <>
             </>

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from src.api.schemas.cases import CaseAuditTrailResponse, CaseAuditEventRecord, CaseCreateRequest, CaseListResponse, CaseRecord, CaseReviewUpdateRequest, CaseUpdateRequest
@@ -101,14 +101,14 @@ class CaseService:
         return abs(expected_class - observed_class) > acceptance_threshold
 
     def _resolve_actor_acronym(self, actor_id: str) -> str:
-        actor = self.db.scalar(select(User).where(User.id == actor_id))
+        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
         if actor and actor.shortcut:
             return actor.shortcut
         return actor_id
 
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
-        actor = self.db.scalar(select(User.id).where(User.id == actor_id))
-        return actor if actor is not None else None
+        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
+        return actor.id if actor is not None else None
 
     def create_case(self, payload: CaseCreateRequest, actor_id: str) -> Case:
         validator = ValidationService(self.db)
@@ -206,12 +206,28 @@ class CaseService:
         start_date=None,
         end_date=None,
         vk_number: str | None = None,
+        vk_number_contains: str | None = None,
         expected_value=None,
         observed_value=None,
         matrix_dimension: str = "detectability",
         problematic_only=None,
         include_excluded=False,
         risk_level=None,
+        risk_direction: str | None = None,
+        wimi_shortcut: str | None = None,
+        device_name: str | None = None,
+        tricia_p: int | None = None,
+        tricia_s: int | None = None,
+        user_s: int | None = None,
+        tricia_d: int | None = None,
+        user_d: int | None = None,
+        category_code: str | None = None,
+        comment_text: str | None = None,
+        is_excluded: bool | None = None,
+        is_reviewed: bool | None = None,
+        has_edits: bool | None = None,
+        date_reported_from=None,
+        date_reported_to=None,
     ) -> CaseListResponse:
         acceptance_threshold, risk_categories = self._get_threshold_context()
         query = select(Case, CaseReview, ClassificationSnapshot).join(
@@ -231,9 +247,52 @@ class CaseService:
             risk_categories=risk_categories,
             include_excluded=include_excluded,
             risk_level=risk_level,
+            risk_direction=risk_direction,
         )
         if vk_number:
             query = query.where(Case.vk_number == vk_number)
+        if vk_number_contains:
+            query = query.where(Case.vk_number.ilike(f"%{vk_number_contains}%"))
+        if wimi_shortcut:
+            query = query.where(Case.wimi_shortcut.ilike(f"%{wimi_shortcut}%"))
+        if device_name:
+            query = query.where(Case.device_name.ilike(f"%{device_name}%"))
+        if date_reported_from:
+            query = query.where(Case.analysis_date >= date_reported_from)
+        if date_reported_to:
+            query = query.where(Case.analysis_date <= date_reported_to)
+
+        if tricia_p is not None:
+            query = query.where(ClassificationSnapshot.tricia_p == tricia_p)
+        if tricia_s is not None:
+            query = query.where(ClassificationSnapshot.tricia_s == tricia_s)
+        if user_s is not None:
+            query = query.where(ClassificationSnapshot.user_s == user_s)
+        if tricia_d is not None:
+            query = query.where(ClassificationSnapshot.tricia_d == tricia_d)
+        if user_d is not None:
+            query = query.where(ClassificationSnapshot.user_d == user_d)
+
+        if category_code:
+            query = query.where(CaseReview.category_code == category_code)
+        if is_excluded is not None:
+            query = query.where(CaseReview.is_excluded.is_(is_excluded))
+        if is_reviewed is not None:
+            query = query.where(CaseReview.is_reviewed.is_(is_reviewed))
+
+        if comment_text:
+            query = query.where(
+                Case.id.in_(
+                    select(CaseComment.case_id).where(CaseComment.comment_text.ilike(f"%{comment_text}%"))
+                )
+            )
+
+        if has_edits is not None:
+            edited_case_ids = select(CaseAuditEvent.case_id).where(CaseAuditEvent.action.in_(['update', 'updated']))
+            if has_edits:
+                query = query.where(Case.id.in_(edited_case_ids))
+            else:
+                query = query.where(Case.id.not_in(edited_case_ids))
 
         total = self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = self.db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()

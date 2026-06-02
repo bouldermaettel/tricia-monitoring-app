@@ -17,6 +17,7 @@ from src.core.logging import configure_logging
 from src.db.base import Base
 import src.models  # noqa: F401
 from src.db.session import SessionLocal, engine
+from src.db.seeds.case_categories import seed_case_categories
 from src.services.user_service import UserService
 
 
@@ -45,6 +46,7 @@ def _initialize_database() -> None:
             _ensure_user_policy_schema()
             _ensure_postgres_sequences()
             _ensure_bootstrap_admin()
+            _ensure_reference_data()
             return
         except SQLAlchemyError as exc:
             if attempt == max_attempts:
@@ -218,6 +220,16 @@ def _ensure_bootstrap_admin() -> None:
         )
     except SQLAlchemyError:
         # Migrations may not be applied yet during early startup.
+        pass
+    finally:
+        db.close()
+
+
+def _ensure_reference_data() -> None:
+    db = SessionLocal()
+    try:
+        seed_case_categories(db)
+    except SQLAlchemyError:
         pass
     finally:
         db.close()

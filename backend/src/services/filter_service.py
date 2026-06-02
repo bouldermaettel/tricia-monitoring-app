@@ -32,6 +32,23 @@ def build_problematic_case_condition(
     )
 
 
+def build_risk_direction_condition(
+    risk_direction: str,
+    risk_categories: list[dict[str, int | str]],
+):
+    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+    observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
+
+    expected_class = _risk_class_expr(expected_product, risk_categories)
+    observed_class = _risk_class_expr(observed_product, risk_categories)
+
+    if risk_direction == "false_low":
+        return and_(expected_class > 0, observed_class > 0, expected_class > observed_class)
+    if risk_direction == "false_high":
+        return and_(expected_class > 0, observed_class > 0, expected_class < observed_class)
+    return None
+
+
 def apply_case_filters(
     query: Select,
     start_date: date | None = None,
@@ -45,6 +62,7 @@ def apply_case_filters(
     risk_categories: list[dict[str, int | str]] | None = None,
     include_excluded: bool = False,
     risk_level: str | None = None,
+    risk_direction: str | None = None,
 ) -> Select:
     if start_date:
         query = query.where(Case.analysis_date >= start_date)
@@ -90,4 +108,12 @@ def apply_case_filters(
         query = query.where((CaseReview.is_excluded.is_(False)) | (CaseReview.is_excluded.is_(None)))
     if risk_level:
         query = query.where(CaseReview.risk_level == risk_level)
+    if risk_direction and risk_categories:
+        condition = build_risk_direction_condition(risk_direction=risk_direction, risk_categories=risk_categories)
+        if condition is not None:
+            query = query.where(
+                Case.id.in_(
+                    select(ClassificationSnapshot.case_id).where(condition)
+                )
+            )
     return query

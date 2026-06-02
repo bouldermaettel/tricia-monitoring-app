@@ -5,6 +5,7 @@ import pytest
 
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
+from src.models.user import User
 from src.services.import_service import ImportService
 
 
@@ -48,6 +49,46 @@ def test_import_service_derives_missing_metadata(db_session):
     assert snapshot.user_s == 3
     assert snapshot.user_d == 5
     assert review.is_excluded is False
+
+
+def test_import_service_resolves_actor_by_external_key(db_session):
+    db_session.add(
+        User(
+            id='user-123',
+            external_key='688561e7-e6ae-4e5d-af3a-4b01a3aa5951',
+            shortcut='pat',
+            password_hash='hash',
+            display_name='Patrick',
+            role='user',
+            is_active=True,
+        )
+    )
+    db_session.commit()
+
+    csv_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1,1,1,5,3,5\n'
+    job = ImportService(db_session).process_file('sample.csv', csv_payload, '688561e7-e6ae-4e5d-af3a-4b01a3aa5951')
+
+    assert job.imported_rows == 1
+
+    case = db_session.query(Case).one()
+    assert case.created_by_user_id == 'user-123'
+    assert case.wimi_shortcut == 'pat'
+
+
+def test_import_service_leaves_unknown_actor_shortcut_empty(db_session):
+    csv_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1,1,1,5,3,5\n'
+    unknown_actor_id = '688561e7-e6ae-4e5d-af3a-4b01a3aa5951'
+
+    preview = ImportService(db_session).preview_file('sample.csv', csv_payload, unknown_actor_id)
+    assert preview['cases'][0]['wimi_shortcut'] is None
+
+    job = ImportService(db_session).process_file('sample.csv', csv_payload, unknown_actor_id)
+
+    assert job.imported_rows == 1
+
+    case = db_session.query(Case).one()
+    assert case.created_by_user_id is None
+    assert case.wimi_shortcut is None
 
 
 def test_import_service_rejects_wrong_columns(db_session):

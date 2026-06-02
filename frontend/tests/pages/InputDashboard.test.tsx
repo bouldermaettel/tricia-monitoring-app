@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useImportOverride } from '../../src/state/importOverride';
 import { InputDashboard } from '../../src/pages/InputDashboard';
 
 const createMutateAsync = vi.fn().mockResolvedValue({ id: '1' });
@@ -21,11 +22,33 @@ vi.mock('../../src/services/imports', () => ({
   uploadImport: vi.fn(),
 }));
 
+vi.mock('../../src/app/auth', () => ({
+  useAuth: () => ({
+    session: {
+      token: 'token',
+      refreshToken: 'refresh',
+      tokenType: 'bearer',
+      expiresAt: Date.now() + 60_000,
+      refreshExpiresAt: Date.now() + 120_000,
+      actorId: 'user-1',
+      externalKey: 'user-1',
+      acronym: 'mam',
+      displayName: 'Max Mustermann',
+      role: 'user',
+      mustChangePassword: false,
+    },
+    signIn: vi.fn(),
+    updateSession: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
+
 describe('InputDashboard', () => {
   beforeEach(() => {
     createMutateAsync.mockClear();
     exportImportTemplateXlsx.mockClear();
     previewImport.mockReset();
+    useImportOverride.getState().clearPreviewData();
     if (!('createObjectURL' in URL)) {
       Object.defineProperty(URL, 'createObjectURL', {
         writable: true,
@@ -75,7 +98,7 @@ describe('InputDashboard', () => {
 
     await user.type(screen.getByLabelText('vk-number'), 'Vk_20211123_023');
     await user.type(screen.getByLabelText('device-name'), 'Device-1');
-    await user.click(screen.getByText('Save'));
+    await user.click(screen.getByRole('button', { name: 'Save to analysis' }));
 
     expect(createMutateAsync).toHaveBeenCalledWith({
       vk_number: 'Vk_20211123_023',
@@ -328,5 +351,34 @@ describe('InputDashboard', () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText("VK-NR 'Vk_20240523_911' is already in the database.")).toBeInTheDocument();
     expect(within(dialog).getByText("VK-NR 'Vk_20240523_912' is already in the database.")).toBeInTheDocument();
+  });
+
+  it('uses the signed-in acronym for preview-import save entries', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    useImportOverride.getState().setPreviewData({
+      sourceFileName: 'sample.csv',
+      sourceFile: new File(['csv'], 'sample.csv', { type: 'text/csv' }),
+      cases: [],
+      controlItems: [],
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await user.type(screen.getByLabelText('vk-number'), 'Vk_20211123_023');
+    await user.type(screen.getByLabelText('device-name'), 'Device-1');
+    await user.click(screen.getByText('Save'));
+
+    const state = useImportOverride.getState();
+    expect(state.cases[0]?.wimi_shortcut).toBe('mam');
+    expect(state.controlItems[0]?.wimi_shortcut).toBe('mam');
+    expect(state.controlItems[0]?.user_id).toBe('mam');
   });
 });

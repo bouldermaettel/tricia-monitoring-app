@@ -10,6 +10,15 @@ from src.core.config import get_settings
 settings = get_settings()
 
 
+def _validate_database_url(raw_url: str) -> None:
+    url = make_url(raw_url)
+    if url.drivername == "sqlite" and not settings.allow_sqlite:
+        raise RuntimeError(
+            "SQLite is disabled for this application runtime. "
+            "Start local Postgres with ./dev-postgres.sh up and run the backend with ./dev-postgres.sh backend."
+        )
+
+
 def _prepare_database_url(raw_url: str) -> str:
     """Normalize SQLite file paths and ensure parent directory exists."""
     url = make_url(raw_url)
@@ -25,6 +34,7 @@ def _prepare_database_url(raw_url: str) -> str:
     return f"sqlite:///{db_path}"
 
 
+_validate_database_url(settings.database_url)
 database_url = _prepare_database_url(settings.database_url)
 connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
 engine = create_engine(database_url, future=True, connect_args=connect_args)

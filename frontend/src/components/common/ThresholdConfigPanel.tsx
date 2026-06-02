@@ -55,6 +55,17 @@ function normalizeProblematicCaseThresholds(input: unknown): ProblematicCaseThre
   };
 }
 
+function toBoundaryValue(value: number): number {
+  return Math.max(0, Math.trunc(Number(value) || 0));
+}
+
+function withRangeLabels(categories: RiskCategory[]): RiskCategory[] {
+  return categories.map((category) => ({
+    ...category,
+    label: `${category.min_value}-${category.max_value}`,
+  }));
+}
+
 export function ThresholdConfigPanel() {
   const { data } = useThresholds();
   const update = useUpdateThresholds();
@@ -65,12 +76,14 @@ export function ThresholdConfigPanel() {
     '12M': 40,
   });
   const [categories, setCategories] = useState<RiskCategory[]>(DEFAULT_RISK_CATEGORIES);
+  const [boundaryDrafts, setBoundaryDrafts] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setAcceptance(data?.acceptance_threshold ?? 1);
     setProblematicCaseThresholds(normalizeProblematicCaseThresholds(data?.problematic_case_thresholds));
-    setCategories(normalizeCategories(data?.risk_categories));
+    setCategories(withRangeLabels(normalizeCategories(data?.risk_categories)));
+    setBoundaryDrafts({});
   }, [data]);
 
   const hasCategoryError = useMemo(() => {
@@ -88,22 +101,66 @@ export function ThresholdConfigPanel() {
     const last = sorted[sorted.length - 1] ?? { min_value: 0, max_value: 0 };
     const nextMin = last.max_value + 1;
     const nextMax = nextMin + 100;
-    setCategories([
-      ...sorted,
-      {
-        label: `${nextMin}-${nextMax}`,
-        min_value: nextMin,
-        max_value: nextMax,
-      },
-    ]);
+    setCategories(
+      withRangeLabels([
+        ...sorted,
+        {
+          label: `${nextMin}-${nextMax}`,
+          min_value: nextMin,
+          max_value: nextMax,
+        },
+      ])
+    );
+    setBoundaryDrafts({});
   }
 
-  function updateCategory(index: number, patch: Partial<RiskCategory>) {
-    setCategories((previous) => previous.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  function getBoundaryDraftKey(index: number, boundary: 'min_value' | 'max_value') {
+    return `${index}-${boundary}`;
+  }
+
+  function updateCategoryBoundary(index: number, boundary: 'min_value' | 'max_value', rawValue: number) {
+    setCategories((previous) => {
+      const next = previous.map((item) => ({ ...item }));
+      const newValue = toBoundaryValue(rawValue);
+
+      if (boundary === 'min_value') {
+        next[index].min_value = newValue;
+        if (index > 0) {
+          next[index - 1].max_value = Math.max(next[index - 1].min_value, newValue - 1);
+        }
+        if (next[index].max_value < next[index].min_value) {
+          next[index].max_value = next[index].min_value;
+        }
+      } else {
+        next[index].max_value = Math.max(newValue, next[index].min_value);
+      }
+
+      for (let cursor = index + 1; cursor < next.length; cursor += 1) {
+        next[cursor].min_value = next[cursor - 1].max_value + 1;
+        if (next[cursor].max_value < next[cursor].min_value) {
+          next[cursor].max_value = next[cursor].min_value;
+        }
+      }
+
+      return withRangeLabels(next);
+    });
+  }
+
+  function commitCategoryBoundary(index: number, boundary: 'min_value' | 'max_value') {
+    const key = getBoundaryDraftKey(index, boundary);
+    const draftValue = boundaryDrafts[key];
+    if (draftValue === undefined) return;
+    updateCategoryBoundary(index, boundary, Number(draftValue));
+    setBoundaryDrafts((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
   }
 
   function removeCategory(index: number) {
     setCategories((previous) => previous.filter((_, i) => i !== index));
+    setBoundaryDrafts({});
   }
 
   return (
@@ -194,27 +251,50 @@ export function ThresholdConfigPanel() {
             </div>
 
             <div className="grid gap-2">
+              <div className="grid grid-cols-[auto_auto_auto_auto] gap-2 items-center text-[11px] font-semibold uppercase tracking-wide text-stone-500 px-1">
+                <span>Class</span>
+                <span>Lower boundary</span>
+                <span>Upper boundary</span>
+                <span className="text-right">Action</span>
+              </div>
               {categories.map((category, index) => (
-                <div key={`${index}-${category.label}`} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
-                  <input
-                    value={category.label}
-                    onChange={(e) => updateCategory(index, { label: e.target.value })}
-                    className="border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                    placeholder={`Category ${index + 1}`}
-                  />
+                <div key={index} className="grid grid-cols-[auto_auto_auto_auto] gap-2 items-center">
+                  <span className="text-sm text-stone-700 px-2 py-2">Class {index + 1}</span>
                   <input
                     type="number"
                     min={0}
-                    value={category.min_value}
-                    onChange={(e) => updateCategory(index, { min_value: Number(e.target.value) })}
+                    value={boundaryDrafts[getBoundaryDraftKey(index, 'min_value')] ?? String(category.min_value)}
+                    onChange={(e) =>
+                      setBoundaryDrafts((previous) => ({
+                        ...previous,
+                        [getBoundaryDraftKey(index, 'min_value')]: e.target.value,
+                      }))
+                    }
+                    onBlur={() => commitCategoryBoundary(index, 'min_value')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                      }
+                    }}
                     className="w-24 border border-stone-200 rounded-lg px-2 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                     aria-label={`category-${index + 1}-min`}
                   />
                   <input
                     type="number"
                     min={0}
-                    value={category.max_value}
-                    onChange={(e) => updateCategory(index, { max_value: Number(e.target.value) })}
+                    value={boundaryDrafts[getBoundaryDraftKey(index, 'max_value')] ?? String(category.max_value)}
+                    onChange={(e) =>
+                      setBoundaryDrafts((previous) => ({
+                        ...previous,
+                        [getBoundaryDraftKey(index, 'max_value')]: e.target.value,
+                      }))
+                    }
+                    onBlur={() => commitCategoryBoundary(index, 'max_value')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                      }
+                    }}
                     className="w-24 border border-stone-200 rounded-lg px-2 py-2 text-sm font-mono outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                     aria-label={`category-${index + 1}-max`}
                   />

@@ -25,6 +25,7 @@ class MatrixService:
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
         risk_level: str | None,
+        risk_direction: str | None,
         product_cells: list[tuple[int, int]] | None,
         severity_cells: list[tuple[int, int]] | None = None,
         detectability_cells: list[tuple[int, int]] | None = None,
@@ -44,6 +45,7 @@ class MatrixService:
             risk_categories=risk_categories,
             include_excluded=include_excluded,
             risk_level=risk_level,
+            risk_direction=risk_direction,
         )
         if product_cells:
             expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
@@ -108,6 +110,7 @@ class MatrixService:
         end_date: date | None = None,
         problematic_only: bool | None = None,
         risk_level: str | None = None,
+        risk_direction: str | None = None,
         product_cells: list[tuple[int, int]] | None = None,
         severity_cells: list[tuple[int, int]] | None = None,
         detectability_cells: list[tuple[int, int]] | None = None,
@@ -123,6 +126,7 @@ class MatrixService:
             acceptance_threshold=acceptance,
             risk_categories=risk_categories,
             risk_level=risk_level,
+            risk_direction=risk_direction,
             product_cells=product_cells,
             severity_cells=severity_cells,
             detectability_cells=detectability_cells,

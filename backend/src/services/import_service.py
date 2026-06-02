@@ -2,7 +2,7 @@ from datetime import date, datetime
 from io import BytesIO
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from src.services.validation_service import ValidationService
@@ -60,14 +60,14 @@ class ImportService:
         return abs(expected_class - observed_class) > acceptance_threshold
 
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
-        actor = self.db.scalar(select(User.id).where(User.id == actor_id))
-        return actor if actor is not None else None
+        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
+        return actor.id if actor is not None else None
 
-    def _resolve_actor_shortcut(self, actor_id: str) -> str:
-        actor = self.db.scalar(select(User).where(User.id == actor_id))
+    def _resolve_actor_shortcut(self, actor_id: str) -> str | None:
+        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
         if actor and actor.shortcut:
             return actor.shortcut
-        return actor_id
+        return None
 
     @staticmethod
     def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -190,7 +190,7 @@ class ImportService:
         return bool(value)
 
     @classmethod
-    def _row_to_case_record(cls, validated_row: dict[str, int | str], actor_shortcut: str) -> dict[str, object]:
+    def _row_to_case_record(cls, validated_row: dict[str, int | str], actor_shortcut: str | None) -> dict[str, object]:
         vk_number = str(validated_row["vk_number"])
         device_name = str(validated_row["device_name"])
         tricia_s = int(validated_row["tricia_s"])
@@ -221,7 +221,7 @@ class ImportService:
             "is_reviewed": False,
         }
 
-    def _build_case_records(self, frame: pd.DataFrame, actor_shortcut: str) -> list[dict[str, object]]:
+    def _build_case_records(self, frame: pd.DataFrame, actor_shortcut: str | None) -> list[dict[str, object]]:
         errors: list[str] = []
         records: list[dict[str, object]] = []
 

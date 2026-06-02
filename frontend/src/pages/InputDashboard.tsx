@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Download, Save, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../app/auth';
 import { DuplicateDialog } from '../components/input/DuplicateDialog';
 import { AppShell } from '../components/common/AppShell';
 import { useCreateCase } from '../hooks/useCases';
@@ -137,6 +138,7 @@ function CategorySelect({
 }
 
 export function InputDashboard() {
+  const { session } = useAuth();
   const navigate = useNavigate();
   const [vkNumber, setVkNumber] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -195,13 +197,14 @@ export function InputDashboard() {
     if (isPreviewOverrideActive && previewSourceFileName && previewSourceFile) {
       const now = new Date().toISOString();
       const today = now.slice(0, 10);
+      const actorShortcut = session?.acronym?.trim() || undefined;
       const nextCase = {
         id: normalizedVkNumber,
         vk_number: normalizedVkNumber,
         device_name: deviceName.trim(),
         analysis_date: today,
         input_timestamp: now,
-        wimi_shortcut: undefined,
+        wimi_shortcut: actorShortcut,
         validation_status: 'saved',
         tricia_s: triciaS,
         tricia_p: triciaP,

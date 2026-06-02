@@ -5,7 +5,7 @@ import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
 import { useFilters } from '../../src/state/filters';
 
 const useAuthMock = vi.fn();
-const mockCases = [
+const baseMockCases = [
   {
     id: 'case-1',
     vk_number: 'VK-1',
@@ -13,6 +13,7 @@ const mockCases = [
     date_reported: '2026-05-01',
     device_name: 'Device A',
     tricia_s: 1,
+    tricia_p: 5,
     user_s: 1,
     tricia_d: 2,
     user_d: 2,
@@ -20,8 +21,28 @@ const mockCases = [
     is_excluded: false,
     is_reviewed: false,
     comment_text: '',
+    analysis_date: '2026-05-01',
+  },
+  {
+    id: 'case-2',
+    vk_number: 'VK-2',
+    wimi_shortcut: 'def',
+    date_reported: '2026-04-15',
+    device_name: 'Device B',
+    tricia_s: 1,
+    tricia_p: 5,
+    user_s: 8,
+    tricia_d: 5,
+    user_d: 10,
+    category_code: 'problem',
+    is_excluded: false,
+    is_reviewed: false,
+    comment_text: '',
+    analysis_date: '2026-04-15',
   },
 ];
+let currentCases = [...baseMockCases];
+let lastUseCasesParams: Record<string, unknown> | undefined;
 
 vi.mock('../../src/app/auth', () => ({
   useAuth: () => useAuthMock(),
@@ -55,7 +76,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
                 { expected_value: 5, observed_value: 5, case_count: 1, within_threshold: true },
               ],
           product: [
-            { expected_value: 4, observed_value: 4, case_count: 1, within_threshold: true },
+            { expected_value: 400, observed_value: 25, case_count: 1, within_threshold: false },
             { expected_value: 9, observed_value: 9, case_count: 1, within_threshold: true },
           ],
         },
@@ -64,7 +85,54 @@ vi.mock('../../src/hooks/useMatrix', () => ({
   },
 }));
 vi.mock('../../src/hooks/useCases', () => ({
-  useCases: () => ({ data: { items: mockCases } }),
+  useCases: (params?: Record<string, unknown>) => {
+    lastUseCasesParams = params;
+    const riskDirection = params?.risk_direction;
+    const problematicOnly = Boolean(params?.problematic_only);
+    let items = currentCases;
+
+    if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
+      const needle = params.wimi_shortcut.trim().toLowerCase();
+      items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
+    }
+
+    if (riskDirection === 'false_low') {
+      items = items.filter((item) => item.id === 'case-2');
+    } else if (riskDirection === 'false_high') {
+      items = [];
+    }
+
+    if (problematicOnly) {
+      items = items.filter((item) => item.id === 'case-2');
+    }
+
+    if (params?.matrix_dimension === 'product') {
+      const expected = Number(params?.expected_value);
+      const observed = Number(params?.observed_value);
+      items = items.filter(
+        (item) => item.user_s * item.user_d * item.tricia_p === expected && item.tricia_s * item.tricia_d * item.tricia_p === observed
+      );
+    }
+
+    if (params?.matrix_dimension === 'severity') {
+      const expected = Number(params?.expected_value);
+      const observed = Number(params?.observed_value);
+      items = items.filter((item) => item.user_s === expected && item.tricia_s === observed);
+    }
+
+    if (params?.matrix_dimension === 'detectability') {
+      const expected = Number(params?.expected_value);
+      const observed = Number(params?.observed_value);
+      items = items.filter((item) => item.user_d === expected && item.tricia_d === observed);
+    }
+
+    const total = items.length;
+    const pageSize = Number(params?.page_size ?? total ?? 1);
+    const page = Number(params?.page ?? 1);
+    const paginatedItems = items.slice((page - 1) * pageSize, page * pageSize);
+
+    return { data: { items: paginatedItems, total, page, page_size: pageSize } };
+  },
   usePatchCaseReview: () => ({ mutate: vi.fn() }),
   useAddCaseComment: () => ({ mutate: vi.fn() }),
   useUpdateCase: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
@@ -76,7 +144,30 @@ vi.mock('../../src/hooks/useThresholds', () => ({
   useUpdateThresholds: () => ({ mutate: vi.fn() }),
 }));
 vi.mock('../../src/services/cases', () => ({
-  listCases: vi.fn(async () => ({ items: mockCases, total: mockCases.length, page: 1, page_size: 100, pages: 1 })),
+  listCases: vi.fn(async (params?: Record<string, unknown>) => {
+    const riskDirection = params?.risk_direction;
+    let items = currentCases;
+
+    if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
+      const needle = params.wimi_shortcut.trim().toLowerCase();
+      items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
+    }
+
+    if (riskDirection === 'false_low') {
+      items = items.filter((item) => item.id === 'case-2');
+    } else if (riskDirection === 'false_high') {
+      items = [];
+    }
+
+    if (params?.problematic_only) {
+      items = items.filter((item) => item.id === 'case-2');
+    }
+
+    const total = items.length;
+    const pageSize = Number(params?.page_size ?? total ?? 1);
+    const page = Number(params?.page ?? 1);
+    return { items: items.slice((page - 1) * pageSize, page * pageSize), total, page, page_size: pageSize, pages: Math.max(1, Math.ceil(total / pageSize)) };
+  }),
   getCaseAuditTrail: vi.fn(async () => ({ items: [] })),
 }));
 
@@ -104,8 +195,19 @@ function renderMatrixDashboard() {
   );
 }
 
+function getColumnFilterInput(columnLabel: string) {
+  const headerLabel = screen.getByText(columnLabel);
+  const th = headerLabel.closest('th');
+  if (!th) {
+    throw new Error(`Column header cell not found for ${columnLabel}`);
+  }
+  return within(th).getByPlaceholderText('Filter...');
+}
+
 describe('MatrixDashboard', () => {
   beforeEach(() => {
+    currentCases = [...baseMockCases];
+    lastUseCasesParams = undefined;
     useFilters.setState({
       includeExcluded: false,
       problematicOnly: false,
@@ -184,7 +286,24 @@ describe('MatrixDashboard', () => {
     expectSelectionSummary('P: 1 selected, S: 0 selected, D: 0 selected');
 
     fireEvent.click(screen.getByRole('button', { name: 'False Low' }));
-    expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
+    expectSelectionSummary('P: 1 selected, S: 0 selected, D: 0 selected');
+  });
+
+  it('shows empty table for False High when no matching cases exist', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'False High' }));
+
+    expect(screen.getByText('No cases for the selected filters.')).toBeInTheDocument();
+  });
+
+  it('keeps table empty when Problematic only has no matches in active risk filter', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'False High' }));
+    fireEvent.click(screen.getByLabelText('Problematic only'));
+
+    expect(screen.getByText('No cases for the selected filters.')).toBeInTheDocument();
   });
 
   it('filters severity and detectability matrices when risk class selection is active', () => {
@@ -199,5 +318,53 @@ describe('MatrixDashboard', () => {
     expect(screen.queryByRole('button', { name: '5' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '1' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '2' }).length).toBeGreaterThan(0);
+  });
+
+  it('shows the total case count and paginates beyond the first 50 rows', () => {
+    currentCases = Array.from({ length: 51 }, (_, index) => ({
+      ...baseMockCases[0],
+      id: `case-${index + 1}`,
+      vk_number: `VK-${index + 1}`,
+      device_name: `Device ${index + 1}`,
+      date_reported: '2026-05-01',
+      analysis_date: '2026-05-01',
+    }));
+
+    renderMatrixDashboard();
+
+    expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('VK-50')).toBeInTheDocument();
+    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByText('Showing 1 of 1 loaded cases (51 total)')).toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('VK-51')).toBeInTheDocument();
+  });
+
+  it('applies WIMI filter across all pages, not only loaded rows', () => {
+    currentCases = Array.from({ length: 51 }, (_, index) => ({
+      ...baseMockCases[0],
+      id: `case-${index + 1}`,
+      vk_number: `VK-${index + 1}`,
+      wimi_shortcut: index === 50 ? 'mam' : 'other',
+      device_name: `Device ${index + 1}`,
+      date_reported: '2026-05-01',
+      analysis_date: '2026-05-01',
+    }));
+
+    renderMatrixDashboard();
+
+    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+
+    fireEvent.change(getColumnFilterInput('WIMI'), { target: { value: 'mam' } });
+
+    expect(lastUseCasesParams).toMatchObject({
+      wimi_shortcut: 'mam',
+      page: 1,
+      page_size: 50,
+    });
   });
 });

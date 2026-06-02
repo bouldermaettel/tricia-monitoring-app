@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 
 import yaml
@@ -21,17 +22,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "local"
-    database_url: str = "sqlite:///./data/tricia-monitoring.db"
+    database_url: str = "postgresql+psycopg://monitoring:monitoring@127.0.0.1:5432/monitoring"
     cors_origins: str = "http://localhost:5173"
     secret_key: str = "change-me-in-production-32-byte-minimum-key"
     bootstrap_admin_username: str = ""
     bootstrap_admin_password: str = ""
     bootstrap_admin_display_name: str = "System Admin"
+    allow_sqlite: bool = False
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     settings = Settings()
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        settings.app_env = "test"
+        settings.allow_sqlite = True
     repo_config = _load_repo_config()
     bootstrap_admin = repo_config.get("auth", {}).get("bootstrap_admin", {})
 

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     addCaseComment,
     bulkDeleteCases,
@@ -16,6 +16,7 @@ export function useCases(params?: Record<string, unknown>, options?: { enabled?:
         queryKey: ['cases', params],
         queryFn: () => listCases(params),
         enabled: options?.enabled ?? true,
+        placeholderData: keepPreviousData,
     });
 }
 
