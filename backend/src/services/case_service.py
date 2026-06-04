@@ -203,6 +203,7 @@ class CaseService:
         self,
         page: int = 1,
         page_size: int = 50,
+        all_results: bool = False,
         start_date=None,
         end_date=None,
         vk_number: str | None = None,
@@ -295,7 +296,13 @@ class CaseService:
                 query = query.where(Case.id.not_in(edited_case_ids))
 
         total = self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
-        rows = self.db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+        if all_results:
+            rows = self.db.execute(query).all()
+            effective_page_size = total
+            page = 1
+        else:
+            rows = self.db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+            effective_page_size = page_size
 
         items = []
         for case, review, snapshot in rows:
@@ -351,7 +358,7 @@ class CaseService:
                     has_edits=has_edits,
                 )
             )
-        return CaseListResponse(items=items, page=page, page_size=page_size, total=total)
+        return CaseListResponse(items=items, page=page, page_size=effective_page_size, total=total)
 
     def update_review(self, case_id: str, payload: CaseReviewUpdateRequest, actor_id: str) -> CaseReview:
         case = self._resolve_case(case_id)

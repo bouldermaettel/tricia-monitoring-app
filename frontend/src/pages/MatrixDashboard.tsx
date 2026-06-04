@@ -34,7 +34,7 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
 const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
 const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
-const CASES_PAGE_SIZE = 50;
+const DEFAULT_CASES_PAGE_SIZE = 50;
 
 type MatrixCell = {
   expected_value: number;
@@ -231,6 +231,7 @@ export function MatrixDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedProduct, setCollapsedProduct] = useState(false);
   const [casePage, setCasePage] = useState(1);
+  const [casePageSize, setCasePageSize] = useState<number | undefined>(DEFAULT_CASES_PAGE_SIZE);
   const [tableServerFilters, setTableServerFilters] = useState<CaseTableServerFilters>({});
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
     columns: [],
@@ -290,12 +291,14 @@ export function MatrixDashboard() {
     ...dateParams,
   };
 
+  const casePageSizeParams = casePageSize === undefined ? { all: true } : { page_size: casePageSize };
+
   const caseParams = {
     ...sharedCaseParams,
     problematic_only: problematicOnly,
   };
 
-  const baseCases = useCases({ ...caseParams, ...tableServerFilters, page: casePage, page_size: CASES_PAGE_SIZE }, { enabled: !isOverrideActive });
+  const baseCases = useCases({ ...caseParams, ...tableServerFilters, page: casePage, ...casePageSizeParams }, { enabled: !isOverrideActive });
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
     return overrideCases.filter((item) => {
@@ -546,13 +549,14 @@ export function MatrixDashboard() {
 
   const selectedCaseQueries = useQueries({
     queries: (isOverrideActive ? [] : selectedRequests).map((request) => ({
-      queryKey: ['cases', caseParams, request.dimension, request.expected, request.observed],
+      queryKey: ['cases', caseParams, request.dimension, request.expected, request.observed, 'all'],
       queryFn: () =>
         listCases({
           ...caseParams,
           matrix_dimension: request.dimension,
           expected_value: request.expected,
           observed_value: request.observed,
+          all: true,
         }),
     })),
   });
@@ -621,9 +625,15 @@ export function MatrixDashboard() {
       .filter((item): item is { id: string } => item !== undefined);
   }, [filteredOverrideCases, isOverrideActive, selectedCaseQueries, selectedRequests]);
 
+  const pagedSelectedCases = useMemo(() => {
+    if (casePageSize === undefined) return selectedCases;
+    const start = (casePage - 1) * casePageSize;
+    return selectedCases.slice(start, start + casePageSize);
+  }, [casePage, casePageSize, selectedCases]);
+
   const displayedCases = isOverrideActive
-    ? selectedCases
-    : (selectedRequests.length > 0 ? selectedCases : baseCases.data?.items ?? []);
+    ? pagedSelectedCases
+    : (selectedRequests.length > 0 ? pagedSelectedCases : (baseCases.data?.items ?? []));
   // Severity matrix: use filtered query when product or detectability selection is active.
   const severityCells = isOverrideActive
     ? (filteredOverrideMatrices?.severity ?? overrideMatrices.severity)
@@ -649,6 +659,11 @@ export function MatrixDashboard() {
     });
   }, []);
 
+  const handlePageSizeChange = useCallback((nextPageSize?: number) => {
+    setCasePage(1);
+    setCasePageSize(nextPageSize);
+  }, []);
+
   const handleExportStateChange = useCallback((next: { columns: string[]; rows: Array<Record<string, unknown>> }) => {
     setExportState((previous) => {
       const previousJson = JSON.stringify(previous);
@@ -663,15 +678,21 @@ export function MatrixDashboard() {
 
   useEffect(() => {
     setCasePage(1);
+  }, [casePageSize]);
+
+  useEffect(() => {
+    setCasePage(1);
   }, [tableServerFilters]);
 
   useEffect(() => {
-    const total = baseCases.data?.total ?? 0;
-    const totalPages = Math.max(1, Math.ceil(total / CASES_PAGE_SIZE));
-    if (!isOverrideActive && !hasSelection && casePage > totalPages) {
+    if (casePageSize === undefined) return;
+
+    const total = isOverrideActive || hasSelection ? selectedCases.length : (baseCases.data?.total ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / casePageSize));
+    if (casePage > totalPages) {
       setCasePage(totalPages);
     }
-  }, [baseCases.data?.total, casePage, hasSelection, isOverrideActive]);
+  }, [baseCases.data?.total, casePage, casePageSize, hasSelection, isOverrideActive, selectedCases.length]);
 
   function toggleMatrixCell(dimension: MatrixDimension, expected: number, observed: number) {
     setSelectedCellsByDimension((previous) => {
@@ -890,19 +911,21 @@ export function MatrixDashboard() {
           dateFrom={dateFrom}
           dateTo={dateTo}
           riskFilter={riskFilter}
+          pageSize={casePageSize}
           onIncludeExcludedChange={setIncludeExcluded}
           onProblematicOnlyChange={setProblematicOnly}
           onDateWindowChange={setDateWindow}
           onCustomDateRangeChange={setCustomDateRange}
           onRiskFilterChange={setRiskFilter}
+          onPageSizeChange={handlePageSizeChange}
         />
 
         <CaseTable
           items={displayedCases}
-          totalCount={!isOverrideActive && !hasSelection ? (baseCases.data?.total ?? displayedCases.length) : displayedCases.length}
-          page={!isOverrideActive && !hasSelection ? casePage : 1}
-          pageSize={!isOverrideActive && !hasSelection ? (baseCases.data?.page_size ?? CASES_PAGE_SIZE) : undefined}
-          onPageChange={!isOverrideActive && !hasSelection ? setCasePage : undefined}
+          totalCount={selectedRequests.length > 0 || isOverrideActive ? selectedCases.length : (baseCases.data?.total ?? displayedCases.length)}
+          page={casePage}
+          pageSize={casePageSize}
+          onPageChange={casePageSize === undefined ? undefined : setCasePage}
           riskCategories={riskCategories}
           acceptanceThreshold={acceptanceThreshold}
           onMarkReviewed={isOverrideActive ? undefined : ((id, isReviewed) => patchReview.mutate({ caseId: id, payload: { is_reviewed: !isReviewed } }))}

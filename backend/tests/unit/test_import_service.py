@@ -3,10 +3,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.models.case import Case, CaseReview
+from src.models.case import Case, CaseAuditEvent, CaseComment, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.user import User
-from src.services.import_service import ImportService
+from src.services.import_service import DuplicateVkConflictError, ImportService
 
 
 def test_import_service_counts_rows(db_session):
@@ -152,8 +152,81 @@ def test_import_service_rejects_vk_numbers_already_in_database(db_session):
 
     service.process_file('existing.csv', existing_payload, 'bootstrap-admin')
 
-    with pytest.raises(ValueError, match=r"VK-NR 'Vk_20240523_001' is already in the database\."):
+    with pytest.raises(DuplicateVkConflictError) as exc_info:
         service.process_file('duplicate.csv', duplicate_payload, 'bootstrap-admin')
+
+    assert exc_info.value.duplicates == ['Vk_20240523_001']
+
+
+def test_import_service_skips_duplicate_vk_numbers_when_requested(db_session):
+    existing_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1,1,1,5,3,5\n'
+    mixed_payload = (
+        b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\n'
+        b'Vk_20240523_001,Device-1-changed,3,5,10,8,10\n'
+        b'Vk_20240524_002,Device-2,3,1,5,3,5\n'
+    )
+    service = ImportService(db_session)
+
+    service.process_file('existing.csv', existing_payload, 'bootstrap-admin')
+    result = service.process_file('mixed.csv', mixed_payload, 'bootstrap-admin', duplicate_action='skip')
+
+    assert result.job.total_rows == 2
+    assert result.job.imported_rows == 1
+    assert result.skipped_rows == 1
+    assert result.replaced_rows == 0
+
+    existing_case = db_session.query(Case).filter(Case.vk_number == 'Vk_20240523_001').one()
+    assert existing_case.device_name == 'Device-1'
+    assert db_session.query(Case).count() == 2
+
+
+def test_import_service_replaces_duplicate_and_preserves_review_comment_history(db_session):
+    existing_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1,1,1,5,3,5\n'
+    replacement_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1-replaced,8,5,10,10,5\n'
+    service = ImportService(db_session)
+
+    service.process_file('existing.csv', existing_payload, 'bootstrap-admin')
+    case = db_session.query(Case).filter(Case.vk_number == 'Vk_20240523_001').one()
+    review = db_session.query(CaseReview).filter(CaseReview.case_id == case.id).one()
+    review.category_code = 'cat-a'
+    review.is_excluded = True
+    review.is_reviewed = True
+    review.risk_level = 'high'
+    db_session.add(
+        CaseComment(
+            case_id=case.id,
+            comment_text='keep me',
+            created_by_user_id='bootstrap-admin',
+        )
+    )
+    db_session.commit()
+
+    result = service.process_file('replace.csv', replacement_payload, 'bootstrap-admin', duplicate_action='replace')
+
+    assert result.job.total_rows == 1
+    assert result.job.imported_rows == 1
+    assert result.replaced_rows == 1
+    assert result.skipped_rows == 0
+
+    replaced_case = db_session.query(Case).filter(Case.vk_number == 'Vk_20240523_001').one()
+    replaced_snapshot = db_session.query(ClassificationSnapshot).filter(ClassificationSnapshot.case_id == replaced_case.id).one()
+    replaced_review = db_session.query(CaseReview).filter(CaseReview.case_id == replaced_case.id).one()
+
+    assert replaced_case.device_name == 'Device-1-replaced'
+    assert replaced_snapshot.tricia_s == 8
+    assert replaced_snapshot.tricia_p == 5
+    assert replaced_snapshot.tricia_d == 10
+    assert replaced_snapshot.user_s == 10
+    assert replaced_snapshot.user_d == 5
+
+    assert replaced_review.category_code == 'cat-a'
+    assert replaced_review.is_excluded is True
+    assert replaced_review.is_reviewed is True
+    assert replaced_review.risk_level == 'high'
+    assert db_session.query(CaseComment).filter(CaseComment.case_id == replaced_case.id).count() == 1
+
+    audit_events = db_session.query(CaseAuditEvent).filter(CaseAuditEvent.case_id == replaced_case.id).all()
+    assert any(event.action == 'import_replaced' for event in audit_events)
 
 
 def test_import_service_syncs_snapshot_sequence_before_insert(db_session, monkeypatch):

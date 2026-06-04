@@ -1,8 +1,11 @@
 import { apiClient } from './api';
 
-export async function uploadImport(file: File) {
+export type ImportDuplicateAction = 'error' | 'replace' | 'skip';
+
+export async function uploadImport(file: File, duplicateAction: ImportDuplicateAction = 'error') {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('duplicate_action', duplicateAction);
     const { data } = await apiClient.post('/imports', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });

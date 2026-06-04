@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from dataclasses import dataclass
 from io import BytesIO
 
 import pandas as pd
@@ -6,7 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from src.services.validation_service import ValidationService
-from src.models.case import Case, CaseReview
+from src.models.case import Case, CaseAuditEvent, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.import_job import ImportJob
 from src.models.user import User
@@ -25,6 +26,22 @@ CANONICAL_IMPORT_COLUMNS: tuple[str, ...] = (
 
 SEVERITY_SCORE_VALUES: tuple[int, ...] = (1, 3, 5, 8, 10)
 PROBABILITY_DETECTABILITY_VALUES: tuple[int, ...] = (1, 5, 10)
+
+
+class DuplicateVkConflictError(ValueError):
+    def __init__(self, duplicates: list[str]):
+        self.duplicates = duplicates
+        super().__init__("Duplicate VK-NR values found in import file.")
+
+
+@dataclass
+class ImportProcessResult:
+    job: ImportJob
+    replaced_rows: int = 0
+    skipped_rows: int = 0
+
+    def __getattr__(self, name: str):
+        return getattr(self.job, name)
 
 
 class ImportService:
@@ -62,6 +79,28 @@ class ImportService:
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
         actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
         return actor.id if actor is not None else None
+
+    def _resolve_case_snapshot(self, case_id: str) -> ClassificationSnapshot:
+        snapshot = self.db.scalar(select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case_id))
+        if snapshot is None:
+            snapshot = ClassificationSnapshot(
+                case_id=case_id,
+                tricia_s=1,
+                tricia_p=1,
+                tricia_d=1,
+                user_s=1,
+                user_d=1,
+                deviation_s=0,
+                deviation_d=0,
+                problem_flag=False,
+            )
+            self.db.add(snapshot)
+        return snapshot
+
+    @staticmethod
+    def _audit_change(changes: dict[str, dict[str, object]], key: str, before: object, after: object) -> None:
+        if before != after:
+            changes[key] = {"from": before, "to": after}
 
     def _resolve_actor_shortcut(self, actor_id: str) -> str | None:
         actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
@@ -275,7 +314,13 @@ class ImportService:
             "control_items": control_items,
         }
 
-    def process_file(self, file_name: str, content: bytes, actor_id: str) -> ImportJob:
+    def process_file(
+        self,
+        file_name: str,
+        content: bytes,
+        actor_id: str,
+        duplicate_action: str = "error",
+    ) -> ImportProcessResult:
         frame, fmt = self._read_frame(file_name, content)
         actor_shortcut = self._resolve_actor_shortcut(actor_id)
         parsed_rows = self._build_case_records(frame, actor_shortcut)
@@ -284,81 +329,136 @@ class ImportService:
         existing_vk_numbers = set(
             self.db.scalars(select(Case.vk_number).where(Case.vk_number.in_(uploaded_vk_numbers))).all()
         )
-        if existing_vk_numbers:
-            duplicate_errors = [
-                f"VK-NR '{vk_number}' is already in the database."
-                for vk_number in sorted(existing_vk_numbers)
-            ]
-            raise ValueError("\n".join(duplicate_errors))
+        if duplicate_action not in {"error", "replace", "skip"}:
+            raise ValueError("Invalid duplicate action. Use one of: error, replace, skip.")
+
+        existing_cases = {
+            case.vk_number: case
+            for case in self.db.scalars(select(Case).where(Case.vk_number.in_(uploaded_vk_numbers))).all()
+        }
+        existing_vk_numbers = set(existing_cases.keys())
+        if existing_vk_numbers and duplicate_action == "error":
+            raise DuplicateVkConflictError(sorted(existing_vk_numbers))
 
         acceptance_threshold, risk_categories = self._get_threshold_context()
         total_rows = len(frame.index)
         imported_rows = 0
         error_rows = 0
+        replaced_rows = 0
+        skipped_rows = 0
+        actor_user_id = self._resolve_actor_user_id(actor_id)
+        actor_audit_id = actor_shortcut or actor_id
 
         for parsed in parsed_rows:
-            case = Case(
-                vk_number=parsed["vk_number"],
-                device_name=parsed["device_name"],
-                analysis_date=date.fromisoformat(str(parsed["analysis_date"])),
-                source_type="import",
-                created_by_user_id=self._resolve_actor_user_id(actor_id),
-                wimi_shortcut=parsed["wimi_shortcut"],
-                validation_status=parsed["validation_status"],
-            )
-            self.db.add(case)
-            self.db.flush()
+            vk_number = str(parsed["vk_number"])
+            existing_case = existing_cases.get(vk_number)
 
-            snapshot = self.db.scalar(select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case.id))
-            if snapshot is None:
-                snapshot = ClassificationSnapshot(
-                    case_id=case.id,
-                    tricia_s=int(parsed["tricia_s"]),
-                    tricia_p=int(parsed["tricia_p"]),
-                    tricia_d=int(parsed["tricia_d"]),
-                    user_s=int(parsed["user_s"]),
-                    user_d=int(parsed["user_d"]),
-                    deviation_s=abs(int(parsed["user_s"]) - int(parsed["tricia_s"])),
-                    deviation_d=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])),
-                    problem_flag=self._is_problematic_case(
-                        tricia_s=int(parsed["tricia_s"]),
-                        tricia_p=int(parsed["tricia_p"]),
-                        tricia_d=int(parsed["tricia_d"]),
-                        user_s=int(parsed["user_s"]),
-                        user_d=int(parsed["user_d"]),
-                        acceptance_threshold=acceptance_threshold,
-                        risk_categories=risk_categories,
-                    ),
+            if existing_case is not None and duplicate_action == "skip":
+                skipped_rows += 1
+                continue
+
+            if existing_case is None:
+                case = Case(
+                    vk_number=parsed["vk_number"],
+                    device_name=parsed["device_name"],
+                    analysis_date=date.fromisoformat(str(parsed["analysis_date"])),
+                    source_type="import",
+                    created_by_user_id=actor_user_id,
+                    wimi_shortcut=parsed["wimi_shortcut"],
+                    validation_status=parsed["validation_status"],
                 )
-                self.db.add(snapshot)
+                self.db.add(case)
+                self.db.flush()
             else:
-                snapshot.tricia_s = int(parsed["tricia_s"])
-                snapshot.tricia_p = int(parsed["tricia_p"])
-                snapshot.tricia_d = int(parsed["tricia_d"])
-                snapshot.user_s = int(parsed["user_s"])
-                snapshot.user_d = int(parsed["user_d"])
-                snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
-                snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
-                snapshot.problem_flag = self._is_problematic_case(
-                    tricia_s=snapshot.tricia_s,
-                    tricia_p=snapshot.tricia_p,
-                    tricia_d=snapshot.tricia_d,
-                    user_s=snapshot.user_s,
-                    user_d=snapshot.user_d,
-                    acceptance_threshold=acceptance_threshold,
-                    risk_categories=risk_categories,
+                case = existing_case
+                changed_fields: dict[str, dict[str, object]] = {}
+                next_device_name = str(parsed["device_name"])
+                next_analysis_date = date.fromisoformat(str(parsed["analysis_date"]))
+                next_wimi_shortcut = parsed["wimi_shortcut"]
+                next_validation_status = str(parsed["validation_status"])
+                next_source_type = "import"
+                next_timestamp = datetime.utcnow()
+
+                self._audit_change(changed_fields, "device_name", case.device_name, next_device_name)
+                self._audit_change(changed_fields, "analysis_date", str(case.analysis_date), str(next_analysis_date))
+                self._audit_change(changed_fields, "wimi_shortcut", case.wimi_shortcut, next_wimi_shortcut)
+                self._audit_change(changed_fields, "validation_status", case.validation_status, next_validation_status)
+                self._audit_change(changed_fields, "source_type", case.source_type, next_source_type)
+
+                case.device_name = next_device_name
+                case.analysis_date = next_analysis_date
+                case.wimi_shortcut = next_wimi_shortcut
+                case.validation_status = next_validation_status
+                case.source_type = next_source_type
+                case.input_timestamp = next_timestamp
+
+                if changed_fields:
+                    self.db.add(
+                        CaseAuditEvent(
+                            case_id=case.id,
+                            action="import_replaced",
+                            actor_id=actor_audit_id,
+                            changes=changed_fields,
+                        )
+                    )
+                replaced_rows += 1
+
+            snapshot = self._resolve_case_snapshot(case.id)
+
+            snapshot_changes: dict[str, dict[str, object]] = {}
+            next_tricia_s = int(parsed["tricia_s"])
+            next_tricia_p = int(parsed["tricia_p"])
+            next_tricia_d = int(parsed["tricia_d"])
+            next_user_s = int(parsed["user_s"])
+            next_user_d = int(parsed["user_d"])
+            next_deviation_s = abs(next_user_s - next_tricia_s)
+            next_deviation_d = abs(next_user_d - next_tricia_d)
+            next_problem_flag = self._is_problematic_case(
+                tricia_s=next_tricia_s,
+                tricia_p=next_tricia_p,
+                tricia_d=next_tricia_d,
+                user_s=next_user_s,
+                user_d=next_user_d,
+                acceptance_threshold=acceptance_threshold,
+                risk_categories=risk_categories,
+            )
+
+            self._audit_change(snapshot_changes, "tricia_s", snapshot.tricia_s, next_tricia_s)
+            self._audit_change(snapshot_changes, "tricia_p", snapshot.tricia_p, next_tricia_p)
+            self._audit_change(snapshot_changes, "tricia_d", snapshot.tricia_d, next_tricia_d)
+            self._audit_change(snapshot_changes, "user_s", snapshot.user_s, next_user_s)
+            self._audit_change(snapshot_changes, "user_d", snapshot.user_d, next_user_d)
+
+            snapshot.tricia_s = next_tricia_s
+            snapshot.tricia_p = next_tricia_p
+            snapshot.tricia_d = next_tricia_d
+            snapshot.user_s = next_user_s
+            snapshot.user_d = next_user_d
+            snapshot.deviation_s = next_deviation_s
+            snapshot.deviation_d = next_deviation_d
+            snapshot.problem_flag = next_problem_flag
+
+            if existing_case is not None and snapshot_changes:
+                self.db.add(
+                    CaseAuditEvent(
+                        case_id=case.id,
+                        action="import_replaced",
+                        actor_id=actor_audit_id,
+                        changes=snapshot_changes,
+                    )
                 )
 
-            review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
-            if review is None:
-                review = CaseReview(case_id=case.id)
-                self.db.add(review)
-            review.category_code = parsed["category_code"]
-            review.is_excluded = bool(parsed["is_excluded"])
-            review.is_reviewed = bool(parsed["is_reviewed"])
-            review.risk_level = str(parsed["risk_level"] or "none")
-            review.updated_by_user_id = self._resolve_actor_user_id(actor_id)
-            review.updated_at = datetime.utcnow()
+            if existing_case is None:
+                review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
+                if review is None:
+                    review = CaseReview(case_id=case.id)
+                    self.db.add(review)
+                review.category_code = parsed["category_code"]
+                review.is_excluded = bool(parsed["is_excluded"])
+                review.is_reviewed = bool(parsed["is_reviewed"])
+                review.risk_level = str(parsed["risk_level"] or "none")
+                review.updated_by_user_id = actor_user_id
+                review.updated_at = datetime.utcnow()
 
             imported_rows += 1
 
@@ -369,9 +469,9 @@ class ImportService:
             total_rows=total_rows,
             imported_rows=imported_rows,
             error_rows=error_rows,
-            created_by_user_id=self._resolve_actor_user_id(actor_id),
+            created_by_user_id=actor_user_id,
         )
         self.db.add(job)
         self.db.commit()
         self.db.refresh(job)
-        return job
+        return ImportProcessResult(job=job, replaced_rows=replaced_rows, skipped_rows=skipped_rows)

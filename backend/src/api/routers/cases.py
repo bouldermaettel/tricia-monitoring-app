@@ -65,6 +65,7 @@ def list_cases(
     date_reported_to: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
+    all_results: bool = Query(default=False, alias="all"),
     db: Session = Depends(get_db),
 ) -> CaseListResponse:
     from datetime import date
@@ -76,6 +77,7 @@ def list_cases(
     return CaseService(db).list_cases(
         page=page,
         page_size=page_size,
+        all_results=all_results,
         start_date=parsed_start,
         end_date=parsed_end,
         vk_number=vk_number,

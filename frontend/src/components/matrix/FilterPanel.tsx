@@ -11,11 +11,13 @@ type Props = {
   dateFrom?: string;
   dateTo?: string;
   riskFilter: RiskFilter;
+  pageSize?: number;
   onIncludeExcludedChange: (value: boolean) => void;
   onProblematicOnlyChange: (value: boolean) => void;
   onDateWindowChange: (window: DateWindow) => void;
   onCustomDateRangeChange: (from: string, to: string) => void;
   onRiskFilterChange: (filter: RiskFilter) => void;
+  onPageSizeChange: (value?: number) => void;
 };
 
 const DATE_WINDOWS: { value: DateWindow; label: string }[] = [
@@ -37,12 +39,21 @@ export function FilterPanel({
   dateFrom,
   dateTo,
   riskFilter,
+  pageSize,
   onIncludeExcludedChange,
   onProblematicOnlyChange,
   onDateWindowChange,
   onCustomDateRangeChange,
   onRiskFilterChange,
+  onPageSizeChange,
 }: Props) {
+  const PAGE_SIZE_OPTIONS: Array<{ value?: number; label: string }> = [
+    { value: 25, label: '25' },
+    { value: 50, label: '50' },
+    { value: 100, label: '100' },
+    { value: undefined, label: 'All' },
+  ];
+
   return (
     <div className="bg-white border border-stone-200 rounded-xl p-4 flex flex-wrap items-end gap-6">
       {/* Date window */}
@@ -95,6 +106,24 @@ export function FilterPanel({
               }`}
             >
               {v === 'all' ? 'All' : v === 'false_low' ? 'False Low' : 'False High'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Rows per page</span>
+        <div className="flex gap-1">
+          {PAGE_SIZE_OPTIONS.map(({ value, label }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => onPageSizeChange(value)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                pageSize === value ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>

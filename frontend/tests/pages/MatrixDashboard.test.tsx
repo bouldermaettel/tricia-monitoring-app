@@ -130,7 +130,7 @@ vi.mock('../../src/hooks/useCases', () => ({
     }
 
     const total = items.length;
-    const pageSize = Number(params?.page_size ?? total ?? 1);
+    const pageSize = params?.all ? total : Number(params?.page_size ?? total ?? 1);
     const page = Number(params?.page ?? 1);
     const paginatedItems = items.slice((page - 1) * pageSize, page * pageSize);
 
@@ -185,7 +185,7 @@ vi.mock('../../src/services/cases', () => ({
     }
 
     const total = items.length;
-    const pageSize = Number(params?.page_size ?? total ?? 1);
+    const pageSize = params?.all ? total : Number(params?.page_size ?? total ?? 1);
     const page = Number(params?.page ?? 1);
     return { items: items.slice((page - 1) * pageSize, page * pageSize), total, page, page_size: pageSize, pages: Math.max(1, Math.ceil(total / pageSize)) };
   }),
@@ -432,6 +432,53 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Showing 1 of 1 loaded cases (51 total)')).toBeInTheDocument();
     expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
     expect(screen.getByText('VK-51')).toBeInTheDocument();
+  });
+
+  it('lets matrix-filtered results change page size and switch to All', () => {
+    currentCases = Array.from({ length: 51 }, (_, index) => ({
+      ...baseMockCases[0],
+      id: `case-${index + 1}`,
+      vk_number: `VK-${index + 1}`,
+      device_name: `Device ${index + 1}`,
+      tricia_s: 1,
+      tricia_p: 5,
+      user_s: 1,
+      tricia_d: 2,
+      user_d: 2,
+      date_reported: '2026-05-01',
+      analysis_date: '2026-05-01',
+    }));
+
+    renderMatrixDashboard();
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+
+    expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('VK-50')).toBeInTheDocument();
+    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '25' }));
+
+    expect(screen.getByText('Showing 25 of 25 loaded cases (51 total)')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
+    expect(screen.getByText('VK-26')).toBeInTheDocument();
+    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    expect(screen.queryByText(/Page \d+ of \d+/)).not.toBeInTheDocument();
+    expect(screen.getByText('VK-51')).toBeInTheDocument();
+    expect(lastUseCasesParams).toMatchObject({
+      all: true,
+      matrix_dimension: 'severity',
+      expected_value: 1,
+      observed_value: 1,
+    });
   });
 
   it('applies WIMI filter across all pages, not only loaded rows', () => {

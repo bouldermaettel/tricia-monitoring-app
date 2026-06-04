@@ -8,6 +8,7 @@ import { InputDashboard } from '../../src/pages/InputDashboard';
 const createMutateAsync = vi.fn().mockResolvedValue({ id: '1' });
 const exportImportTemplateXlsx = vi.fn().mockResolvedValue(new Blob(['template']));
 const previewImport = vi.fn();
+const uploadImport = vi.fn();
 
 vi.mock('../../src/hooks/useCases', () => ({
   useCreateCase: () => ({ mutateAsync: createMutateAsync, isPending: false, isError: false }),
@@ -19,7 +20,7 @@ vi.mock('../../src/services/exports', () => ({
 
 vi.mock('../../src/services/imports', () => ({
   previewImport: (file: File) => previewImport(file),
-  uploadImport: vi.fn(),
+  uploadImport: (file: File, duplicateAction?: 'error' | 'replace' | 'skip') => uploadImport(file, duplicateAction),
 }));
 
 vi.mock('../../src/app/auth', () => ({
@@ -48,6 +49,7 @@ describe('InputDashboard', () => {
     createMutateAsync.mockClear();
     exportImportTemplateXlsx.mockClear();
     previewImport.mockReset();
+    uploadImport.mockReset();
     useImportOverride.getState().clearPreviewData();
     if (!('createObjectURL' in URL)) {
       Object.defineProperty(URL, 'createObjectURL', {
@@ -98,7 +100,7 @@ describe('InputDashboard', () => {
 
     await user.type(screen.getByLabelText('vk-number'), 'Vk_20211123_023');
     await user.type(screen.getByLabelText('device-name'), 'Device-1');
-    await user.click(screen.getByRole('button', { name: 'Save to analysis' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(createMutateAsync).toHaveBeenCalledWith({
       vk_number: 'Vk_20211123_023',
@@ -353,6 +355,127 @@ describe('InputDashboard', () => {
     expect(within(dialog).getByText("VK-NR 'Vk_20240523_912' is already in the database.")).toBeInTheDocument();
   });
 
+  it('asks for duplicate resolution and retries import with skip', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    uploadImport
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: {
+            detail: {
+              code: 'duplicate_vk_conflict',
+              duplicates: ['Vk_20240523_001'],
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        imported_rows: 3,
+        total_rows: 4,
+        skipped_rows: 1,
+        replaced_rows: 0,
+      });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D'], 'duplicate.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-duplicate-dialog' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('Vk_20240523_001')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Keep existing and skip duplicates' }));
+
+    expect(uploadImport).toHaveBeenNthCalledWith(1, file, 'error');
+    expect(uploadImport).toHaveBeenNthCalledWith(2, file, 'skip');
+    expect(await screen.findByText('Imported 3 of 4 rows from duplicate.csv (1 skipped).')).toBeInTheDocument();
+  });
+
+  it('asks for duplicate resolution and retries import with replace', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    uploadImport
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: {
+            detail: {
+              code: 'duplicate_vk_conflict',
+              duplicates: ['Vk_20240523_001'],
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        imported_rows: 4,
+        total_rows: 4,
+        skipped_rows: 0,
+        replaced_rows: 1,
+      });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D'], 'duplicate.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-duplicate-dialog' });
+    await user.click(within(dialog).getByRole('button', { name: 'Replace duplicates' }));
+
+    expect(uploadImport).toHaveBeenNthCalledWith(1, file, 'error');
+    expect(uploadImport).toHaveBeenNthCalledWith(2, file, 'replace');
+    expect(await screen.findByText('Imported 4 of 4 rows from duplicate.csv (1 replaced).')).toBeInTheDocument();
+  });
+
+  it('opens duplicate chooser from legacy duplicate validation message', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient();
+
+    uploadImport.mockRejectedValueOnce({
+      response: {
+        status: 422,
+        data: {
+          error: {
+            message: "VK-NR 'Vk_20240523_001' is already in the database.",
+          },
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <InputDashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const file = new File(['vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D'], 'duplicate.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('import-file'), file);
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'import-duplicate-dialog' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('Vk_20240523_001')).toBeInTheDocument();
+  });
+
   it('uses the signed-in acronym for preview-import save entries', async () => {
     const user = userEvent.setup();
     const client = new QueryClient();
@@ -374,7 +497,7 @@ describe('InputDashboard', () => {
 
     await user.type(screen.getByLabelText('vk-number'), 'Vk_20211123_023');
     await user.type(screen.getByLabelText('device-name'), 'Device-1');
-    await user.click(screen.getByText('Save'));
+    await user.click(screen.getByText('Save to analysis'));
 
     const state = useImportOverride.getState();
     expect(state.cases[0]?.wimi_shortcut).toBe('mam');

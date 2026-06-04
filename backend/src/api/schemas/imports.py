@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Literal
 
 
 class ImportPreviewCase(BaseModel):
@@ -41,3 +42,8 @@ class ImportJobResponse(BaseModel):
     total_rows: int
     imported_rows: int
     error_rows: int
+    replaced_rows: int = 0
+    skipped_rows: int = 0
+
+
+ImportDuplicateAction = Literal["error", "replace", "skip"]
