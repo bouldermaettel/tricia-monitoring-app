@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+// @vitest-environment happy-dom
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
@@ -43,6 +44,8 @@ const baseMockCases = [
 ];
 let currentCases = [...baseMockCases];
 let lastUseCasesParams: Record<string, unknown> | undefined;
+const activeClients: QueryClient[] = [];
+const activeUnmounts: Array<() => void> = [];
 
 vi.mock('../../src/app/auth', () => ({
   useAuth: () => useAuthMock(),
@@ -139,9 +142,27 @@ vi.mock('../../src/hooks/useCases', () => ({
   useDeleteCase: () => ({ mutate: vi.fn() }),
   useCaseAuditTrail: () => ({ data: { items: [] }, isLoading: false }),
 }));
+const updateThresholdsMock = vi.fn();
+
 vi.mock('../../src/hooks/useThresholds', () => ({
-  useThresholds: () => ({ data: { acceptance_threshold: 1 } }),
-  useUpdateThresholds: () => ({ mutate: vi.fn() }),
+  useThresholds: () => ({
+    data: {
+      acceptance_threshold: 1,
+      risk_categories: [
+        { label: 'Very Low', min_value: 0, max_value: 10 },
+        { label: 'Moderate', min_value: 11, max_value: 250 },
+        { label: 'Elevated', min_value: 251, max_value: 500 },
+        { label: 'Critical', min_value: 501, max_value: 1000 },
+      ],
+    },
+  }),
+  useUpdateThresholds: () => ({ mutate: updateThresholdsMock, isPending: false }),
+}));
+vi.mock('../../src/components/matrix/MatrixReportExportButton', () => ({
+  MatrixReportExportButton: () => null,
+}));
+vi.mock('../../src/components/common/ExportButton', () => ({
+  ExportButton: () => null,
 }));
 vi.mock('../../src/services/cases', () => ({
   listCases: vi.fn(async (params?: Record<string, unknown>) => {
@@ -185,14 +206,27 @@ function expectSelectionSummary(expected: string) {
 }
 
 function renderMatrixDashboard() {
-  const client = new QueryClient();
-  render(
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+      mutations: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  });
+  activeClients.push(client);
+  const rendered = render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <MatrixDashboard />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  activeUnmounts.push(rendered.unmount);
 }
 
 function getColumnFilterInput(columnLabel: string) {
@@ -208,6 +242,23 @@ describe('MatrixDashboard', () => {
   beforeEach(() => {
     currentCases = [...baseMockCases];
     lastUseCasesParams = undefined;
+    updateThresholdsMock.mockReset();
+    if (!('createObjectURL' in URL)) {
+      Object.defineProperty(URL, 'createObjectURL', {
+        writable: true,
+        value: vi.fn(() => 'blob:matrix-export'),
+      });
+    } else {
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:matrix-export');
+    }
+    if (!('revokeObjectURL' in URL)) {
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        writable: true,
+        value: vi.fn(),
+      });
+    } else {
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    }
     useFilters.setState({
       includeExcluded: false,
       problematicOnly: false,
@@ -230,6 +281,12 @@ describe('MatrixDashboard', () => {
     });
   });
 
+  afterEach(() => {
+    activeUnmounts.splice(0).forEach((unmount) => unmount());
+    activeClients.splice(0).forEach((client) => client.clear());
+    vi.restoreAllMocks();
+  });
+
   it('renders matrix view widgets', () => {
     renderMatrixDashboard();
 
@@ -238,11 +295,44 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
     expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
+    expect(screen.getByText('Very Low')).toBeInTheDocument();
+  });
+
+  it('preserves custom risk category names in settings and matrix labels', () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    const nameInput = screen.getByLabelText('category-1-label');
+    expect(nameInput).toHaveValue('Very Low');
+
+    fireEvent.change(nameInput, { target: { value: 'Field Review' } });
+    fireEvent.blur(nameInput);
+
+    expect(screen.getByDisplayValue('Field Review')).toBeInTheDocument();
+    expect(screen.getByText('Field Review (0-10)')).toBeInTheDocument();
+    expect(screen.getAllByText('Field Review').length).toBeGreaterThan(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(updateThresholdsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        risk_categories: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Field Review',
+            min_value: 0,
+            max_value: 10,
+          }),
+        ]),
+      })
+    );
   });
 
   it('shows delete controls only to admins', () => {
     renderMatrixDashboard();
     expect(screen.queryByLabelText('select-all-visible-cases')).not.toBeInTheDocument();
+
+    cleanup();
 
     useAuthMock.mockReturnValue({
       session: {

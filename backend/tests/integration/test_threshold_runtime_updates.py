@@ -13,6 +13,18 @@ def test_threshold_update_reflected_in_matrix(client):
     assert matrix.json()['threshold_key'] == 'default'
 
 
+def test_threshold_defaults_use_class_names(client):
+    response = client.get('/api/v1/config/thresholds')
+
+    assert response.status_code == 200
+    assert [category['label'] for category in response.json()['risk_categories']] == [
+        'Class 1',
+        'Class 2',
+        'Class 3',
+        'Class 4',
+    ]
+
+
 def test_create_case_uses_configured_acceptance_threshold(client):
     client.put(
         '/api/v1/config/thresholds',

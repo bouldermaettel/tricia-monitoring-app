@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 
-const IMPORT_TEMPLATE_COLUMNS = [
+export const IMPORT_TEMPLATE_COLUMNS = [
     'vk_number',
     'device_name',
     'TRI-S',
@@ -9,6 +9,20 @@ const IMPORT_TEMPLATE_COLUMNS = [
     'WIMI-S',
     'WIMI-D',
 ];
+
+const SHARED_EXPORT_COLUMN_NAMES: Record<string, string> = {
+    vk_number: 'vk_number',
+    device_name: 'device_name',
+    tricia_s: 'TRI-S',
+    tricia_p: 'TRI-P',
+    tricia_d: 'TRI-D',
+    user_s: 'WIMI-S',
+    user_d: 'WIMI-D',
+};
+
+export function getExportColumnName(column: string) {
+    return SHARED_EXPORT_COLUMN_NAMES[column] ?? column;
+}
 
 export async function exportCasesCsv() {
     const { data } = await apiClient.get('/exports/cases.csv', { responseType: 'blob' });

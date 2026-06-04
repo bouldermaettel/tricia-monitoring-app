@@ -10,6 +10,13 @@ from src.models.user import User
 
 
 DEFAULT_RISK_CATEGORIES: list[dict[str, int | str]] = [
+    {"label": "Class 1", "min_value": 0, "max_value": 10},
+    {"label": "Class 2", "min_value": 11, "max_value": 250},
+    {"label": "Class 3", "min_value": 251, "max_value": 500},
+    {"label": "Class 4", "min_value": 501, "max_value": 1000},
+]
+
+LEGACY_DEFAULT_RISK_CATEGORIES: list[dict[str, int | str]] = [
     {"label": "0-10", "min_value": 0, "max_value": 10},
     {"label": "11-250", "min_value": 11, "max_value": 250},
     {"label": "251-500", "min_value": 251, "max_value": 500},
@@ -34,6 +41,7 @@ class ThresholdService:
     def get(self, config_key: str = "default") -> ThresholdConfig:
         config = self.db.scalar(select(ThresholdConfig).where(ThresholdConfig.config_key == config_key))
         if config:
+            self._migrate_legacy_default_risk_categories(config)
             config.risk_categories = self._normalize_risk_categories(config.risk_categories)
             config.problematic_case_thresholds = self._normalize_problematic_case_thresholds(
                 config.problematic_case_thresholds
@@ -53,6 +61,24 @@ class ThresholdService:
         self.db.commit()
         self.db.refresh(config)
         return config
+
+    def _migrate_legacy_default_risk_categories(self, config: ThresholdConfig) -> None:
+        if config.config_key != "default":
+            return
+
+        categories = config.risk_categories
+        if not isinstance(categories, list) or len(categories) != len(LEGACY_DEFAULT_RISK_CATEGORIES):
+            return
+
+        for current, legacy, replacement in zip(categories, LEGACY_DEFAULT_RISK_CATEGORIES, DEFAULT_RISK_CATEGORIES):
+            if not isinstance(current, dict):
+                return
+            if current.get("label") != legacy["label"]:
+                return
+            if current.get("min_value") != legacy["min_value"] or current.get("max_value") != legacy["max_value"]:
+                return
+
+        config.risk_categories = [dict(category) for category in DEFAULT_RISK_CATEGORIES]
 
     def update(self, payload: ThresholdConfigUpdateRequest, actor_id: str) -> ThresholdConfig:
         config = self.get(payload.config_key)
@@ -92,11 +118,11 @@ class ThresholdService:
         normalized: list[dict[str, int | str]] = []
         for index, raw in enumerate(categories):
             if isinstance(raw, dict):
-                label = str(raw.get("label", "")).strip() or f"Category {index + 1}"
+                label = str(raw.get("label", "")).strip() or f"Class {index + 1}"
                 min_value = raw.get("min_value")
                 max_value = raw.get("max_value")
             else:
-                label = str(getattr(raw, "label", "")).strip() or f"Category {index + 1}"
+                label = str(getattr(raw, "label", "")).strip() or f"Class {index + 1}"
                 min_value = getattr(raw, "min_value", None)
                 max_value = getattr(raw, "max_value", None)
 

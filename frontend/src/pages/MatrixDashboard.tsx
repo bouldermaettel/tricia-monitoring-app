@@ -56,10 +56,10 @@ type ProblematicCaseThresholds = {
 };
 
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
-  { label: '0-10', min_value: 0, max_value: 10 },
-  { label: '11-250', min_value: 11, max_value: 250 },
-  { label: '251-500', min_value: 251, max_value: 500 },
-  { label: '501-1000', min_value: 501, max_value: 1000 },
+  { label: 'Class 1', min_value: 0, max_value: 10 },
+  { label: 'Class 2', min_value: 11, max_value: 250 },
+  { label: 'Class 3', min_value: 251, max_value: 500 },
+  { label: 'Class 4', min_value: 501, max_value: 1000 },
 ];
 
 function normalizeRiskCategories(input: unknown): RiskCategory[] {
@@ -73,7 +73,7 @@ function normalizeRiskCategories(input: unknown): RiskCategory[] {
       const maxValue = Number(candidate.max_value);
       if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return null;
       return {
-        label: (candidate.label ?? `Category ${index + 1}`).toString(),
+        label: (candidate.label ?? `Class ${index + 1}`).toString(),
         min_value: Math.max(0, Math.trunc(minValue)),
         max_value: Math.max(0, Math.trunc(maxValue)),
       };
@@ -95,6 +95,15 @@ function normalizeProblematicCaseThresholds(input: unknown): ProblematicCaseThre
     '6M': Number.isFinite(Number(candidate['6M'])) ? Math.max(0, Math.trunc(Number(candidate['6M']))) : 20,
     '12M': Number.isFinite(Number(candidate['12M'])) ? Math.max(0, Math.trunc(Number(candidate['12M']))) : 40,
   };
+}
+
+function getRiskCategoryDisplayLabel(category: RiskCategory, index: number): string {
+  const label = category.label?.trim();
+  return label ? label : `Class ${index + 1}`;
+}
+
+function buildRiskCategoryLabelMap(categories: RiskCategory[]): Map<number, string> {
+  return new Map(categories.map((category, index) => [index + 1, getRiskCategoryDisplayLabel(category, index)]));
 }
 
 function resolveRiskCategoryIndex(value: number, categories: RiskCategory[]): number | null {
@@ -267,6 +276,7 @@ export function MatrixDashboard() {
   const thresholds = useThresholds();
   const acceptanceThreshold = thresholds.data?.acceptance_threshold ?? 1;
   const riskCategories = useMemo(() => normalizeRiskCategories(thresholds.data?.risk_categories), [thresholds.data?.risk_categories]);
+  const riskCategoryLabelMap = useMemo(() => buildRiskCategoryLabelMap(riskCategories), [riskCategories]);
   const problematicCaseThresholds = useMemo(
     () => normalizeProblematicCaseThresholds(thresholds.data?.problematic_case_thresholds),
     [thresholds.data?.problematic_case_thresholds]
@@ -837,6 +847,7 @@ export function MatrixDashboard() {
                   selectedCells={selectedCellsByDimension.product}
                   rowAxisLabel="WIMI Risk Class"
                   columnAxisLabel="TRI Risk Class"
+                  axisValueFormatter={(value) => riskCategoryLabelMap.get(value) ?? `Class ${value}`}
                 />
                 <ConfusionMatrixGrid
                   title="Severity Matrix"
@@ -860,7 +871,7 @@ export function MatrixDashboard() {
               <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
                 {riskCategories.map((category, index) => (
                   <span key={`${category.label}-${index}`}>
-                    Class {index + 1}: {category.label} ({category.min_value}-{category.max_value})
+                    {getRiskCategoryDisplayLabel(category, index)} ({category.min_value}-{category.max_value})
                   </span>
                 ))}
               </div>

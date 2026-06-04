@@ -3,6 +3,7 @@ import { Check, MessageSquare, MinusCircle, Pencil, Tag, X } from 'lucide-react'
 import { useCaseAuditTrail } from '../../hooks/useCases';
 import { formatIsoDateToGerman } from '../../utils/date';
 import { downloadCaseAuditTrailXlsx } from '../../services/cases';
+import { getExportColumnName } from '../../services/exports';
 
 type CaseItem = {
   id: string;
@@ -597,20 +598,21 @@ export function CaseTable({
   useEffect(() => {
     if (!onExportStateChange) return;
 
-    const exportColumns = columns.map((columnId) => COLUMN_DB_NAMES[columnId]);
+    const exportColumns = columns.map((columnId) => getExportColumnName(COLUMN_DB_NAMES[columnId]));
 
     const exportRows = sortedItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
+        const exportColumnName = getExportColumnName(COLUMN_DB_NAMES[columnId]);
         if (columnId === 'comment') {
-          row[COLUMN_DB_NAMES[columnId]] = getCommentCellValue(item, commentInputs[item.id]);
+          row[exportColumnName] = getCommentCellValue(item, commentInputs[item.id]);
           return;
         }
         if (columnId === 'actions') {
-          row[COLUMN_DB_NAMES[columnId]] = Boolean(changedCaseIds[item.id] || item.has_edits);
+          row[exportColumnName] = Boolean(changedCaseIds[item.id] || item.has_edits);
           return;
         }
-        row[COLUMN_DB_NAMES[columnId]] = item[columnId as keyof CaseItem] ?? '';
+        row[exportColumnName] = item[columnId as keyof CaseItem] ?? '';
       });
       // hidden field used by lazy audit enrichment on export click
       row._case_id = item.id;

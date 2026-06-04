@@ -15,6 +15,7 @@ type Props = {
   rowAxisLabel?: string;
   columnAxisLabel?: string;
   fixedAxisValues?: number[];
+  axisValueFormatter?: (value: number) => string;
 };
 
 export function ConfusionMatrixGrid({
@@ -25,6 +26,7 @@ export function ConfusionMatrixGrid({
   rowAxisLabel,
   columnAxisLabel,
   fixedAxisValues,
+  axisValueFormatter,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +62,7 @@ export function ConfusionMatrixGrid({
     ? [...new Set(fixedAxisValues)]
     : [...new Set(cells.flatMap((c) => [c.expected_value, c.observed_value]))]
   ).sort((a, b) => a - b);
+  const formatAxisValue = (value: number) => axisValueFormatter?.(value) ?? String(value);
   const cellMap = new Map<string, Cell>();
   cells.forEach((c) => cellMap.set(`${c.expected_value}-${c.observed_value}`, c));
   const selectedSet = new Set(selectedCells.map((cell) => `${cell.expected}-${cell.observed}`));
@@ -100,7 +103,7 @@ export function ConfusionMatrixGrid({
                     <th className="p-2 text-xs text-stone-400 font-medium w-12" />
                     {allValues.map((v) => (
                       <th key={v} className="p-2 text-xs text-stone-500 font-semibold text-center w-20">
-                        {v}
+                        {formatAxisValue(v)}
                       </th>
                     ))}
                   </tr>
@@ -108,7 +111,7 @@ export function ConfusionMatrixGrid({
                 <tbody>
                   {allValues.map((expected) => (
                     <tr key={expected}>
-                      <th className="p-2 text-xs text-stone-500 font-semibold text-right pr-4">{expected}</th>
+                      <th className="p-2 text-xs text-stone-500 font-semibold text-right pr-4">{formatAxisValue(expected)}</th>
                       {allValues.map((observed) => {
                         const cell = cellMap.get(`${expected}-${observed}`);
                         const isSelected = selectedSet.has(`${expected}-${observed}`);

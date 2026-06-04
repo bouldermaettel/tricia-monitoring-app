@@ -15,10 +15,10 @@ type ProblematicCaseThresholds = {
 };
 
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
-  { label: '0-10', min_value: 0, max_value: 10 },
-  { label: '11-250', min_value: 11, max_value: 250 },
-  { label: '251-500', min_value: 251, max_value: 500 },
-  { label: '501-1000', min_value: 501, max_value: 1000 },
+  { label: 'Class 1', min_value: 0, max_value: 10 },
+  { label: 'Class 2', min_value: 11, max_value: 250 },
+  { label: 'Class 3', min_value: 251, max_value: 500 },
+  { label: 'Class 4', min_value: 501, max_value: 1000 },
 ];
 
 function normalizeCategories(input: unknown): RiskCategory[] {
@@ -32,7 +32,7 @@ function normalizeCategories(input: unknown): RiskCategory[] {
       const maxValue = Number(candidate.max_value);
       if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return null;
       return {
-        label: (candidate.label ?? `Category ${index + 1}`).toString(),
+        label: (candidate.label ?? `Class ${index + 1}`).toString(),
         min_value: Math.max(0, Math.trunc(minValue)),
         max_value: Math.max(0, Math.trunc(maxValue)),
       };
@@ -59,11 +59,9 @@ function toBoundaryValue(value: number): number {
   return Math.max(0, Math.trunc(Number(value) || 0));
 }
 
-function withRangeLabels(categories: RiskCategory[]): RiskCategory[] {
-  return categories.map((category) => ({
-    ...category,
-    label: `${category.min_value}-${category.max_value}`,
-  }));
+function normalizeCategoryLabel(label: string | undefined, fallback: string): string {
+  const normalized = label?.trim();
+  return normalized ? normalized : fallback;
 }
 
 export function ThresholdConfigPanel() {
@@ -82,7 +80,7 @@ export function ThresholdConfigPanel() {
   useEffect(() => {
     setAcceptance(data?.acceptance_threshold ?? 1);
     setProblematicCaseThresholds(normalizeProblematicCaseThresholds(data?.problematic_case_thresholds));
-    setCategories(withRangeLabels(normalizeCategories(data?.risk_categories)));
+    setCategories(normalizeCategories(data?.risk_categories));
     setBoundaryDrafts({});
   }, [data]);
 
@@ -102,16 +100,29 @@ export function ThresholdConfigPanel() {
     const nextMin = last.max_value + 1;
     const nextMax = nextMin + 100;
     setCategories(
-      withRangeLabels([
+      [
         ...sorted,
         {
-          label: `${nextMin}-${nextMax}`,
+          label: `Class ${sorted.length + 1}`,
           min_value: nextMin,
           max_value: nextMax,
         },
-      ])
+      ]
     );
     setBoundaryDrafts({});
+  }
+
+  function updateCategoryLabel(index: number, value: string) {
+    setCategories((previous) =>
+      previous.map((item, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...item,
+              label: value,
+            }
+          : item
+      )
+    );
   }
 
   function getBoundaryDraftKey(index: number, boundary: 'min_value' | 'max_value') {
@@ -142,7 +153,7 @@ export function ThresholdConfigPanel() {
         }
       }
 
-      return withRangeLabels(next);
+      return next;
     });
   }
 
@@ -251,15 +262,22 @@ export function ThresholdConfigPanel() {
             </div>
 
             <div className="grid gap-2">
-              <div className="grid grid-cols-[auto_auto_auto_auto] gap-2 items-center text-[11px] font-semibold uppercase tracking-wide text-stone-500 px-1">
-                <span>Class</span>
+              <div className="grid grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-2 items-center text-[11px] font-semibold uppercase tracking-wide text-stone-500 px-1">
+                <span>Name</span>
                 <span>Lower boundary</span>
                 <span>Upper boundary</span>
                 <span className="text-right">Action</span>
               </div>
               {categories.map((category, index) => (
-                <div key={index} className="grid grid-cols-[auto_auto_auto_auto] gap-2 items-center">
-                  <span className="text-sm text-stone-700 px-2 py-2">Class {index + 1}</span>
+                <div key={index} className="grid grid-cols-[minmax(0,1.4fr)_auto_auto_auto] gap-2 items-center">
+                  <input
+                    type="text"
+                    value={category.label}
+                    onChange={(e) => updateCategoryLabel(index, e.target.value)}
+                    onBlur={(e) => updateCategoryLabel(index, normalizeCategoryLabel(e.target.value, `Class ${index + 1}`))}
+                    className="min-w-0 border border-stone-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    aria-label={`category-${index + 1}-label`}
+                  />
                   <input
                     type="number"
                     min={0}
@@ -324,7 +342,10 @@ export function ThresholdConfigPanel() {
                 acceptance_threshold: acceptance,
                 problematic_case_thresholds: problematicCaseThresholds,
                 include_excluded_default: false,
-                risk_categories: categories,
+                risk_categories: categories.map((category, index) => ({
+                  ...category,
+                  label: normalizeCategoryLabel(category.label, `Class ${index + 1}`),
+                })),
               })
             }
             disabled={update.isPending || hasCategoryError}

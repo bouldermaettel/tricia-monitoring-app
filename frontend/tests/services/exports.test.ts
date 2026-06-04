@@ -1,4 +1,4 @@
-import { exportImportTemplateXlsx } from '../../src/services/exports';
+import { exportImportTemplateXlsx, getExportColumnName } from '../../src/services/exports';
 import { apiClient } from '../../src/services/api';
 
 vi.mock('../../src/services/api', () => ({
@@ -20,5 +20,15 @@ describe('exportImportTemplateXlsx', () => {
       },
       { responseType: 'blob' },
     );
+  });
+
+  it('maps matrix export fields to the same canonical names used by the template', () => {
+    expect(getExportColumnName('vk_number')).toBe('vk_number');
+    expect(getExportColumnName('device_name')).toBe('device_name');
+    expect(getExportColumnName('tricia_s')).toBe('TRI-S');
+    expect(getExportColumnName('tricia_p')).toBe('TRI-P');
+    expect(getExportColumnName('tricia_d')).toBe('TRI-D');
+    expect(getExportColumnName('user_s')).toBe('WIMI-S');
+    expect(getExportColumnName('user_d')).toBe('WIMI-D');
   });
 });

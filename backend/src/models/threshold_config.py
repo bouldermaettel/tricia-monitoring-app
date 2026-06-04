@@ -8,10 +8,10 @@ from src.db.base import Base
 
 def default_risk_categories() -> list[dict[str, int | str]]:
     return [
-        {"label": "0-10", "min_value": 0, "max_value": 10},
-        {"label": "11-250", "min_value": 11, "max_value": 250},
-        {"label": "251-500", "min_value": 251, "max_value": 500},
-        {"label": "501-1000", "min_value": 501, "max_value": 1000},
+        {"label": "Class 1", "min_value": 0, "max_value": 10},
+        {"label": "Class 2", "min_value": 11, "max_value": 250},
+        {"label": "Class 3", "min_value": 251, "max_value": 500},
+        {"label": "Class 4", "min_value": 501, "max_value": 1000},
     ]
 
 
