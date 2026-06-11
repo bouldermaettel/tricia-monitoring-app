@@ -94,3 +94,9 @@ Example:
 ### Security note
 
 Do not commit real secrets in `infra/parameters.json`. Prefer shell environment variables, CI secrets, or Key Vault-backed injection.
+
+
+###
+deployment:
+
+`source env_deploy.sh && ./deploy.sh pretricia imdrf-code-prediction-pre-tricia-rg switzerlandnorth`

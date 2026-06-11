@@ -57,11 +57,13 @@ function filterMockCases(params?: Record<string, unknown>) {
   }
 
   if (typeof params?.start_date === 'string' && params.start_date) {
-    items = items.filter((item) => (item.analysis_date ?? '') >= params.start_date);
+    const startDate = params.start_date;
+    items = items.filter((item) => (item.analysis_date ?? '') >= startDate);
   }
 
   if (typeof params?.end_date === 'string' && params.end_date) {
-    items = items.filter((item) => (item.analysis_date ?? '') <= params.end_date);
+    const endDate = params.end_date;
+    items = items.filter((item) => (item.analysis_date ?? '') <= endDate);
   }
 
   if (params?.risk_direction === 'false_low') {
