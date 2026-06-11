@@ -18,6 +18,7 @@ class ImportPreviewCase(BaseModel):
     risk_level: str | None = None
     is_excluded: bool = False
     is_reviewed: bool = False
+    problem_flag: bool = False
 
 
 class ImportPreviewControlItem(BaseModel):

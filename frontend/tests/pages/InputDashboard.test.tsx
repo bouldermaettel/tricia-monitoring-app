@@ -394,7 +394,7 @@ describe('InputDashboard', () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText('Vk_20240523_001')).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'Keep existing and skip duplicates' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Skip existing, only import new cases' }));
 
     expect(uploadImport).toHaveBeenNthCalledWith(1, file, 'error');
     expect(uploadImport).toHaveBeenNthCalledWith(2, file, 'skip');
@@ -437,7 +437,7 @@ describe('InputDashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Import' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'import-duplicate-dialog' });
-    await user.click(within(dialog).getByRole('button', { name: 'Replace duplicates' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Overwrite existing' }));
 
     expect(uploadImport).toHaveBeenNthCalledWith(1, file, 'error');
     expect(uploadImport).toHaveBeenNthCalledWith(2, file, 'replace');

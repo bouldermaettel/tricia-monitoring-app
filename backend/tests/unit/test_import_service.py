@@ -3,10 +3,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.api.schemas.config import ProblematicCaseThresholds, ThresholdConfigUpdateRequest
 from src.models.case import Case, CaseAuditEvent, CaseComment, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.user import User
 from src.services.import_service import DuplicateVkConflictError, ImportService
+from src.services.threshold_service import ThresholdService
 
 
 def test_import_service_counts_rows(db_session):
@@ -49,6 +51,29 @@ def test_import_service_derives_missing_metadata(db_session):
     assert snapshot.user_s == 3
     assert snapshot.user_d == 5
     assert review.is_excluded is False
+
+
+def test_import_preview_uses_database_thresholds_for_problem_flag(db_session):
+    ThresholdService(db_session).update(
+        ThresholdConfigUpdateRequest(
+            config_key='default',
+            acceptance_threshold=0,
+            problematic_case_thresholds=ProblematicCaseThresholds(**{'3M': 10, '6M': 20, '12M': 40}),
+            include_excluded_default=False,
+        ),
+        'tester',
+    )
+
+    csv_payload = (
+        b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\n'
+        b'Vk_20240523_001,Device-1,1,5,1,1,1\n'
+        b'Vk_20240524_002,Device-2,3,5,1,1,1\n'
+    )
+
+    preview = ImportService(db_session).preview_file('sample.csv', csv_payload, 'bootstrap-admin')
+
+    assert preview['cases'][0]['problem_flag'] is False
+    assert preview['cases'][1]['problem_flag'] is True
 
 
 def test_import_service_resolves_actor_by_external_key(db_session):

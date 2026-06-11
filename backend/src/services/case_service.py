@@ -231,10 +231,20 @@ class CaseService:
         date_reported_to=None,
     ) -> CaseListResponse:
         acceptance_threshold, risk_categories = self._get_threshold_context()
+        latest_snapshot_subquery = (
+            select(
+                ClassificationSnapshot.case_id.label('case_id'),
+                func.max(ClassificationSnapshot.id).label('snapshot_id'),
+            )
+            .group_by(ClassificationSnapshot.case_id)
+            .subquery()
+        )
         query = select(Case, CaseReview, ClassificationSnapshot).join(
             CaseReview, CaseReview.case_id == Case.id, isouter=True
         ).join(
-            ClassificationSnapshot, ClassificationSnapshot.case_id == Case.id, isouter=True
+            latest_snapshot_subquery, latest_snapshot_subquery.c.case_id == Case.id, isouter=True
+        ).join(
+            ClassificationSnapshot, ClassificationSnapshot.id == latest_snapshot_subquery.c.snapshot_id, isouter=True
         )
         query = apply_case_filters(
             query,

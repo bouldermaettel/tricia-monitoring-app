@@ -76,6 +76,28 @@ class ImportService:
             return False
         return abs(expected_class - observed_class) > acceptance_threshold
 
+    @classmethod
+    def _classify_case(
+        cls,
+        tricia_s: int,
+        tricia_p: int,
+        tricia_d: int,
+        user_s: int,
+        user_d: int,
+        acceptance_threshold: int,
+        risk_categories: list[dict[str, int | str]],
+    ) -> dict[str, int | bool | None]:
+        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
+        problem_flag = False
+        if expected_class is not None and observed_class is not None:
+            problem_flag = abs(expected_class - observed_class) > acceptance_threshold
+        return {
+            "expected_class": expected_class,
+            "observed_class": observed_class,
+            "problem_flag": problem_flag,
+        }
+
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
         actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
         return actor.id if actor is not None else None
@@ -293,9 +315,21 @@ class ImportService:
     def preview_file(self, file_name: str, content: bytes, actor_id: str = "system") -> dict[str, object]:
         frame, _ = self._read_frame(file_name, content)
         actor_shortcut = self._resolve_actor_shortcut(actor_id)
+        acceptance_threshold, risk_categories = self._get_threshold_context()
         case_items = self._build_case_records(frame, actor_shortcut)
+        preview_cases: list[dict[str, object]] = []
         control_items: list[dict[str, object]] = []
         for parsed in case_items:
+            classification = self._classify_case(
+                tricia_s=int(parsed["tricia_s"]),
+                tricia_p=int(parsed["tricia_p"]),
+                tricia_d=int(parsed["tricia_d"]),
+                user_s=int(parsed["user_s"]),
+                user_d=int(parsed["user_d"]),
+                acceptance_threshold=acceptance_threshold,
+                risk_categories=risk_categories,
+            )
+            preview_cases.append({**parsed, **classification})
             control_items.append(
                 {
                     "vk_number": parsed["vk_number"],
@@ -309,8 +343,8 @@ class ImportService:
             )
 
         return {
-            "total_rows": len(case_items),
-            "cases": case_items,
+            "total_rows": len(preview_cases),
+            "cases": preview_cases,
             "control_items": control_items,
         }
 
@@ -413,7 +447,7 @@ class ImportService:
             next_user_d = int(parsed["user_d"])
             next_deviation_s = abs(next_user_s - next_tricia_s)
             next_deviation_d = abs(next_user_d - next_tricia_d)
-            next_problem_flag = self._is_problematic_case(
+            classification = self._classify_case(
                 tricia_s=next_tricia_s,
                 tricia_p=next_tricia_p,
                 tricia_d=next_tricia_d,
@@ -422,6 +456,7 @@ class ImportService:
                 acceptance_threshold=acceptance_threshold,
                 risk_categories=risk_categories,
             )
+            next_problem_flag = bool(classification["problem_flag"])
 
             self._audit_change(snapshot_changes, "tricia_s", snapshot.tricia_s, next_tricia_s)
             self._audit_change(snapshot_changes, "tricia_p", snapshot.tricia_p, next_tricia_p)

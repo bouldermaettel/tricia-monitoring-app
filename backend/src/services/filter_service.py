@@ -79,31 +79,21 @@ def apply_case_filters(
         observed_field = ClassificationSnapshot.tricia_d
 
     if expected_value is not None:
-        query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(expected_field == expected_value)))
+        query = query.where(expected_field == expected_value)
     if observed_value is not None:
-        query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(observed_field == observed_value)))
+        query = query.where(observed_field == observed_value)
     if problematic_only:
         if acceptance_threshold is not None and risk_categories:
             query = query.where(
-                Case.id.in_(
-                    select(ClassificationSnapshot.case_id).where(
-                        build_problematic_case_condition(
-                            acceptance_threshold=acceptance_threshold,
-                            risk_categories=risk_categories,
-                        )
-                    )
+                build_problematic_case_condition(
+                    acceptance_threshold=acceptance_threshold,
+                    risk_categories=risk_categories,
                 )
             )
         elif problem_threshold is not None:
-            query = query.where(
-                Case.id.in_(
-                    select(ClassificationSnapshot.case_id).where(
-                        func.abs(ClassificationSnapshot.user_d - ClassificationSnapshot.tricia_d) > problem_threshold
-                    )
-                )
-            )
+            query = query.where(func.abs(ClassificationSnapshot.user_d - ClassificationSnapshot.tricia_d) > problem_threshold)
         else:
-            query = query.where(Case.id.in_(select(ClassificationSnapshot.case_id).where(ClassificationSnapshot.problem_flag.is_(True))))
+            query = query.where(ClassificationSnapshot.problem_flag.is_(True))
     if not include_excluded:
         query = query.where((CaseReview.is_excluded.is_(False)) | (CaseReview.is_excluded.is_(None)))
     if risk_level:
@@ -111,9 +101,5 @@ def apply_case_filters(
     if risk_direction and risk_categories:
         condition = build_risk_direction_condition(risk_direction=risk_direction, risk_categories=risk_categories)
         if condition is not None:
-            query = query.where(
-                Case.id.in_(
-                    select(ClassificationSnapshot.case_id).where(condition)
-                )
-            )
+            query = query.where(condition)
     return query

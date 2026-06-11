@@ -85,6 +85,10 @@ def delete_user(
     if actor.id == user_id:
         raise HTTPException(status_code=400, detail='Cannot delete currently authenticated admin user')
 
-    deleted = UserService(db).delete_user(user_id)
+    try:
+        deleted = UserService(db).delete_user(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     if not deleted:
         raise HTTPException(status_code=404, detail='User not found')

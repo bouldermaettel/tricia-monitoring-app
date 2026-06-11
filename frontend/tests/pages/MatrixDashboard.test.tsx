@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
 import { useFilters } from '../../src/state/filters';
+import { useImportOverride } from '../../src/state/importOverride';
 
 const useAuthMock = vi.fn();
 const baseMockCases = [
@@ -46,6 +47,55 @@ let currentCases = [...baseMockCases];
 let lastUseCasesParams: Record<string, unknown> | undefined;
 const activeClients: QueryClient[] = [];
 const activeUnmounts: Array<() => void> = [];
+
+function filterMockCases(params?: Record<string, unknown>) {
+  let items = currentCases;
+
+  if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
+    const needle = params.wimi_shortcut.trim().toLowerCase();
+    items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
+  }
+
+  if (typeof params?.start_date === 'string' && params.start_date) {
+    items = items.filter((item) => (item.analysis_date ?? '') >= params.start_date);
+  }
+
+  if (typeof params?.end_date === 'string' && params.end_date) {
+    items = items.filter((item) => (item.analysis_date ?? '') <= params.end_date);
+  }
+
+  if (params?.risk_direction === 'false_low') {
+    items = items.filter((item) => item.id === 'case-2');
+  } else if (params?.risk_direction === 'false_high') {
+    items = [];
+  }
+
+  if (params?.problematic_only) {
+    items = items.filter((item) => ('problem_flag' in item ? Boolean(item.problem_flag) : item.id === 'case-2'));
+  }
+
+  if (params?.matrix_dimension === 'product') {
+    const expected = Number(params?.expected_value);
+    const observed = Number(params?.observed_value);
+    items = items.filter(
+      (item) => item.user_s * item.user_d * item.tricia_p === expected && item.tricia_s * item.tricia_d * item.tricia_p === observed
+    );
+  }
+
+  if (params?.matrix_dimension === 'severity') {
+    const expected = Number(params?.expected_value);
+    const observed = Number(params?.observed_value);
+    items = items.filter((item) => item.user_s === expected && item.tricia_s === observed);
+  }
+
+  if (params?.matrix_dimension === 'detectability') {
+    const expected = Number(params?.expected_value);
+    const observed = Number(params?.observed_value);
+    items = items.filter((item) => item.user_d === expected && item.tricia_d === observed);
+  }
+
+  return items;
+}
 
 vi.mock('../../src/app/auth', () => ({
   useAuth: () => useAuthMock(),
@@ -90,44 +140,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
 vi.mock('../../src/hooks/useCases', () => ({
   useCases: (params?: Record<string, unknown>) => {
     lastUseCasesParams = params;
-    const riskDirection = params?.risk_direction;
-    const problematicOnly = Boolean(params?.problematic_only);
-    let items = currentCases;
-
-    if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
-      const needle = params.wimi_shortcut.trim().toLowerCase();
-      items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
-    }
-
-    if (riskDirection === 'false_low') {
-      items = items.filter((item) => item.id === 'case-2');
-    } else if (riskDirection === 'false_high') {
-      items = [];
-    }
-
-    if (problematicOnly) {
-      items = items.filter((item) => item.id === 'case-2');
-    }
-
-    if (params?.matrix_dimension === 'product') {
-      const expected = Number(params?.expected_value);
-      const observed = Number(params?.observed_value);
-      items = items.filter(
-        (item) => item.user_s * item.user_d * item.tricia_p === expected && item.tricia_s * item.tricia_d * item.tricia_p === observed
-      );
-    }
-
-    if (params?.matrix_dimension === 'severity') {
-      const expected = Number(params?.expected_value);
-      const observed = Number(params?.observed_value);
-      items = items.filter((item) => item.user_s === expected && item.tricia_s === observed);
-    }
-
-    if (params?.matrix_dimension === 'detectability') {
-      const expected = Number(params?.expected_value);
-      const observed = Number(params?.observed_value);
-      items = items.filter((item) => item.user_d === expected && item.tricia_d === observed);
-    }
+    const items = filterMockCases(params);
 
     const total = items.length;
     const pageSize = params?.all ? total : Number(params?.page_size ?? total ?? 1);
@@ -166,23 +179,7 @@ vi.mock('../../src/components/common/ExportButton', () => ({
 }));
 vi.mock('../../src/services/cases', () => ({
   listCases: vi.fn(async (params?: Record<string, unknown>) => {
-    const riskDirection = params?.risk_direction;
-    let items = currentCases;
-
-    if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
-      const needle = params.wimi_shortcut.trim().toLowerCase();
-      items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
-    }
-
-    if (riskDirection === 'false_low') {
-      items = items.filter((item) => item.id === 'case-2');
-    } else if (riskDirection === 'false_high') {
-      items = [];
-    }
-
-    if (params?.problematic_only) {
-      items = items.filter((item) => item.id === 'case-2');
-    }
+    const items = filterMockCases(params);
 
     const total = items.length;
     const pageSize = params?.all ? total : Number(params?.page_size ?? total ?? 1);
@@ -243,6 +240,7 @@ describe('MatrixDashboard', () => {
     currentCases = [...baseMockCases];
     lastUseCasesParams = undefined;
     updateThresholdsMock.mockReset();
+    useImportOverride.getState().clearPreviewData();
     if (!('createObjectURL' in URL)) {
       Object.defineProperty(URL, 'createObjectURL', {
         writable: true,
@@ -284,6 +282,7 @@ describe('MatrixDashboard', () => {
   afterEach(() => {
     activeUnmounts.splice(0).forEach((unmount) => unmount());
     activeClients.splice(0).forEach((client) => client.clear());
+    useImportOverride.getState().clearPreviewData();
     vi.restoreAllMocks();
   });
 
@@ -394,6 +393,138 @@ describe('MatrixDashboard', () => {
     fireEvent.click(screen.getByLabelText('Problematic only'));
 
     expect(screen.getByText('No cases for the selected filters.')).toBeInTheDocument();
+  });
+
+  it('uses preview problem flags for override problematic counts', () => {
+    useImportOverride.getState().setPreviewData({
+      sourceFileName: 'sample.csv',
+      sourceFile: new File(['csv'], 'sample.csv', { type: 'text/csv' }),
+      cases: [
+        {
+          id: 'preview-1',
+          vk_number: 'VK-1',
+          device_name: 'Preview A',
+          analysis_date: '2026-05-01',
+          validation_status: 'saved',
+          tricia_s: 1,
+          tricia_p: 5,
+          tricia_d: 1,
+          user_s: 1,
+          user_d: 1,
+          is_excluded: false,
+          is_reviewed: false,
+          problem_flag: false,
+        },
+        {
+          id: 'preview-2',
+          vk_number: 'VK-2',
+          device_name: 'Preview B',
+          analysis_date: '2026-05-02',
+          validation_status: 'saved',
+          tricia_s: 3,
+          tricia_p: 5,
+          tricia_d: 1,
+          user_s: 1,
+          user_d: 1,
+          is_excluded: false,
+          is_reviewed: false,
+          problem_flag: true,
+        },
+      ],
+      controlItems: [],
+    });
+
+    renderMatrixDashboard();
+
+    expect(screen.getByText('#Problematic: 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Problematic only'));
+
+    expect(screen.getByText('#Problematic: 1')).toBeInTheDocument();
+    expect(screen.getByText('VK-2')).toBeInTheDocument();
+    expect(screen.queryByText('VK-1')).not.toBeInTheDocument();
+  });
+
+  it('shows only the triggered period classes in All Time mode', async () => {
+    currentCases = Array.from({ length: 11 }, (_, index) => ({
+      ...baseMockCases[1],
+      id: `problem-${index + 1}`,
+      vk_number: `VK-PROBLEM-${index + 1}`,
+      analysis_date: '2026-06-01',
+      date_reported: '2026-06-01',
+      problem_flag: true,
+    }));
+
+    useFilters.setState({
+      includeExcluded: false,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: 'ALL',
+      dateFrom: undefined,
+      dateTo: undefined,
+      riskFilter: 'all',
+    });
+
+    renderMatrixDashboard();
+
+    expect(await screen.findByText('#Problematic: 11 (Triggered: 3M)')).toBeInTheDocument();
+  });
+
+  it('shows triggered period classes in Custom mode', async () => {
+    currentCases = Array.from({ length: 11 }, (_, index) => ({
+      ...baseMockCases[1],
+      id: `custom-problem-${index + 1}`,
+      vk_number: `VK-CUSTOM-${index + 1}`,
+      analysis_date: '2026-06-01',
+      date_reported: '2026-06-01',
+      problem_flag: true,
+    }));
+
+    useFilters.setState({
+      includeExcluded: false,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: 'CUSTOM',
+      dateFrom: '2026-05-01',
+      dateTo: '2026-06-11',
+      riskFilter: 'all',
+    });
+
+    renderMatrixDashboard();
+
+    expect(await screen.findByText('#Problematic: 11 (Triggered: 3M)')).toBeInTheDocument();
+  });
+
+  it('does not show 6M trigger when custom range is under 3 months', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    currentCases = Array.from({ length: 25 }, (_, index) => ({
+      ...baseMockCases[1],
+      id: `custom-short-${index + 1}`,
+      vk_number: `VK-CUSTOM-SHORT-${index + 1}`,
+      analysis_date: today,
+      date_reported: today,
+      problem_flag: true,
+    }));
+
+    useFilters.setState({
+      includeExcluded: false,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: 'CUSTOM',
+      dateFrom: today,
+      dateTo: today,
+      riskFilter: 'all',
+    });
+
+    renderMatrixDashboard();
+
+    expect(await screen.findByText('#Problematic: 25 (Triggered: 3M)')).toBeInTheDocument();
   });
 
   it('filters severity and detectability matrices when risk class selection is active', () => {

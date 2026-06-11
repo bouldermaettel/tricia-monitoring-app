@@ -31,6 +31,32 @@ function getDateParams(window: string, dateFrom?: string, dateTo?: string) {
   };
 }
 
+function parseIsoDate(value?: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function monthsBetween(start: Date, end: Date): number {
+  const millis = end.getTime() - start.getTime();
+  if (millis <= 0) return 0;
+  const days = millis / (1000 * 60 * 60 * 24);
+  return days / 30.4375;
+}
+
+function getEligibleTriggeredWindows(dateWindow: string, dateFrom?: string, dateTo?: string): Array<'3M' | '6M' | '12M'> {
+  if (dateWindow !== 'CUSTOM') return PERIOD_WINDOWS;
+
+  const start = parseIsoDate(dateFrom);
+  const end = parseIsoDate(dateTo);
+  if (!start || !end) return PERIOD_WINDOWS;
+
+  const spanInMonths = monthsBetween(start, end);
+  if (spanInMonths < 3) return ['3M'];
+  if (spanInMonths < 6) return ['3M', '6M'];
+  return PERIOD_WINDOWS;
+}
+
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
 const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
 const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
@@ -50,6 +76,12 @@ type RiskCategory = {
 };
 
 type ProblematicCaseThresholds = {
+  '3M': number;
+  '6M': number;
+  '12M': number;
+};
+
+type ProblematicCountsByPeriod = {
   '3M': number;
   '6M': number;
   '12M': number;
@@ -172,23 +204,6 @@ function buildRiskClassMatrix(
   };
 }
 
-function isOverrideCaseProblematic(
-  item: {
-    tricia_s: number;
-    tricia_p: number;
-    tricia_d: number;
-    user_s: number;
-    user_d: number;
-  },
-  categories: RiskCategory[],
-  acceptanceThreshold: number
-): boolean {
-  const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, categories);
-  const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, categories);
-  if (expectedClass === null || observedClass === null) return false;
-  return Math.abs(expectedClass - observedClass) > acceptanceThreshold;
-}
-
 function matchesRiskDirection(expectedClass: number, observedClass: number, riskFilter: RiskFilter): boolean {
   if (riskFilter === 'all') return true;
   if (riskFilter === 'false_low') return expectedClass > observedClass;
@@ -298,19 +313,23 @@ export function MatrixDashboard() {
     problematic_only: problematicOnly,
   };
 
+  const problematicCountParams = {
+    ...sharedCaseParams,
+    ...tableServerFilters,
+    problematic_only: true,
+    page_size: 1,
+  };
+
   const baseCases = useCases({ ...caseParams, ...tableServerFilters, page: casePage, ...casePageSizeParams }, { enabled: !isOverrideActive });
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
     return overrideCases.filter((item) => {
       if (!includeExcluded && item.is_excluded) return false;
-      const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, riskCategories);
-      const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, riskCategories);
+      const expectedClass = item.expected_class ?? resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, riskCategories);
+      const observedClass = item.observed_class ?? resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, riskCategories);
       if (expectedClass === null || observedClass === null) return false;
       if (!matchesRiskDirection(expectedClass, observedClass, riskFilter)) return false;
-      if (
-        problematicOnly &&
-        Math.abs(expectedClass - observedClass) <= acceptanceThreshold
-      ) {
+      if (problematicOnly && !item.problem_flag) {
         return false;
       }
       if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
@@ -318,46 +337,44 @@ export function MatrixDashboard() {
       if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
       return true;
     });
-  }, [acceptanceThreshold, dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskCategories, riskFilter]);
+  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, problematicOnly, requestedVkNumber, riskCategories, riskFilter]);
 
   const problematicCasesQuery = useCases(
-    {
-      ...sharedCaseParams,
-      problematic_only: true,
-      page_size: 1,
-    },
+    problematicCountParams,
     { enabled: !isOverrideActive }
   );
 
   const problematicPeriodQueries = useQueries({
     queries: isOverrideActive
       ? []
-      : PERIOD_WINDOWS.map((window) => ({
-          queryKey: ['cases', { ...sharedCaseParams, problematic_only: true, ...getDateParams(window), page_size: 1 }, 'problematic-period', window],
-          queryFn: () =>
-            listCases({
-              ...sharedCaseParams,
-              problematic_only: true,
-              ...getDateParams(window),
-              page_size: 1,
-            }),
-        })),
+      : PERIOD_WINDOWS.map((window) => {
+          const params = {
+            ...problematicCountParams,
+            ...getDateParams(window),
+          };
+          return {
+            queryKey: ['cases', params, 'problematic-period', window],
+            queryFn: () => listCases(params),
+          };
+        }),
   });
 
   const problematicCaseCount = useMemo(() => {
     if (!isOverrideActive) {
       return problematicCasesQuery.data?.total ?? 0;
     }
-    return filteredOverrideCases.length;
-  }, [filteredOverrideCases.length, isOverrideActive, problematicCasesQuery.data?.total]);
+    return filteredOverrideCases.filter((item) => item.problem_flag).length;
+  }, [filteredOverrideCases, isOverrideActive, problematicCasesQuery.data?.total]);
 
-  const problematicCountsByPeriod = useMemo(() => {
+  const problematicCountsByPeriod = useMemo<ProblematicCountsByPeriod>(() => {
     if (!isOverrideActive) {
-      return {
-        '3M': problematicPeriodQueries[0]?.data?.total ?? 0,
-        '6M': problematicPeriodQueries[1]?.data?.total ?? 0,
-        '12M': problematicPeriodQueries[2]?.data?.total ?? 0,
-      };
+      return PERIOD_WINDOWS.reduce<ProblematicCountsByPeriod>(
+        (acc, window, index) => {
+          acc[window] = problematicPeriodQueries[index]?.data?.total ?? 0;
+          return acc;
+        },
+        { '3M': 0, '6M': 0, '12M': 0 }
+      );
     }
 
     const countForWindow = (window: '3M' | '6M' | '12M') => {
@@ -365,6 +382,7 @@ export function MatrixDashboard() {
       return filteredOverrideCases.filter((item) => {
         if (params.start_date && item.analysis_date < String(params.start_date)) return false;
         if (params.end_date && item.analysis_date > String(params.end_date)) return false;
+        if (!item.problem_flag) return false;
         return true;
       }).length;
     };
@@ -380,14 +398,19 @@ export function MatrixDashboard() {
     dateWindow === '3M' || dateWindow === '6M' || dateWindow === '12M'
       ? problematicCaseThresholds[dateWindow]
       : undefined;
+  const isAggregateTriggerWindow = dateWindow === 'ALL' || dateWindow === 'CUSTOM';
+  const eligibleTriggeredWindows = useMemo(
+    () => getEligibleTriggeredWindows(dateWindow, dateFrom, dateTo),
+    [dateFrom, dateTo, dateWindow]
+  );
   const triggeredPeriods =
-    dateWindow === 'ALL'
-      ? PERIOD_WINDOWS.filter((window) => problematicCountsByPeriod[window] > problematicCaseThresholds[window])
+    isAggregateTriggerWindow
+      ? eligibleTriggeredWindows.filter((window) => problematicCountsByPeriod[window] > problematicCaseThresholds[window])
       : [];
-  const problemAlarmActive = dateWindow === 'ALL'
+  const problemAlarmActive = isAggregateTriggerWindow
     ? triggeredPeriods.length > 0
     : problematicCaseTarget !== undefined && problematicCaseCount > problematicCaseTarget;
-  const problemAlarmLabel = dateWindow === 'ALL' && triggeredPeriods.length > 0
+  const problemAlarmLabel = isAggregateTriggerWindow && triggeredPeriods.length > 0
     ? `Triggered: ${triggeredPeriods.join(', ')}`
     : undefined;
 

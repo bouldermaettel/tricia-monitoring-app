@@ -1,11 +1,14 @@
 from uuid import uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.api.schemas.users import UserCreateRequest, UserUpdateRequest
 from src.core.security import hash_password, verify_password
+from src.models.case import Case, CaseComment, CaseReview
+from src.models.import_job import ImportJob
+from src.models.threshold_config import ThresholdConfig
 from src.models.user import User
 
 ALLOWED_ROLES = {"user", "admin"}
@@ -98,8 +101,32 @@ class UserService:
         user = self.db.scalar(select(User).where(User.id == user_id))
         if user is None:
             return False
+
+        # Preserve historical records while allowing user cleanup.
+        self.db.execute(
+            update(Case).where(Case.created_by_user_id == user_id).values(created_by_user_id=None)
+        )
+        self.db.execute(
+            update(CaseReview).where(CaseReview.updated_by_user_id == user_id).values(updated_by_user_id=None)
+        )
+        self.db.execute(
+            update(CaseComment).where(CaseComment.created_by_user_id == user_id).values(created_by_user_id=None)
+        )
+        self.db.execute(
+            update(ImportJob).where(ImportJob.created_by_user_id == user_id).values(created_by_user_id=None)
+        )
+        self.db.execute(
+            update(ThresholdConfig)
+            .where(ThresholdConfig.updated_by_user_id == user_id)
+            .values(updated_by_user_id=None)
+        )
+
         self.db.delete(user)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ValueError("User cannot be deleted because related records still reference this account") from exc
         return True
 
     def change_password(self, user: User, current_password: str, new_password: str) -> User:

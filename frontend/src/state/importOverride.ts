@@ -17,6 +17,9 @@ type PreviewCase = {
     risk_level?: string;
     is_excluded?: boolean;
     is_reviewed?: boolean;
+    problem_flag?: boolean;
+    expected_class?: number | null;
+    observed_class?: number | null;
 };
 
 type PreviewControlItem = {

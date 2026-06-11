@@ -62,3 +62,45 @@ def test_admin_can_update_and_delete_user(client):
         headers=headers,
     )
     assert deleted.status_code == 204
+
+
+def test_admin_can_delete_user_referenced_by_case_records(client):
+    headers = _admin_headers(client)
+    created = client.post(
+        '/api/v1/users',
+        json={
+            'external_key': 'ops.user.3',
+            'acronym': 'ou3',
+            'password': 'ops-user-pass-3',
+            'display_name': 'Ops User 3',
+            'role': 'user',
+            'is_active': True,
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201
+    user_id = created.json()['id']
+
+    create_case = client.post(
+        '/api/v1/cases',
+        json={
+            'vk_number': 'Vk_20990101_001',
+            'device_name': 'Delete User Regression Device',
+            'tricia_s': 1,
+            'tricia_p': 1,
+            'tricia_d': 1,
+            'wimi_s': 1,
+            'wimi_d': 1,
+            'user_s': 1,
+            'user_p': 1,
+            'user_d': 1,
+        },
+        headers={'X-Actor-Key': user_id},
+    )
+    assert create_case.status_code == 201
+
+    deleted = client.delete(
+        f'/api/v1/users/{user_id}',
+        headers=headers,
+    )
+    assert deleted.status_code == 204

@@ -779,7 +779,7 @@ export function InputDashboard() {
                 disabled={isImporting}
                 className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100 disabled:opacity-60"
               >
-                Keep existing and skip duplicates
+                Skip existing, only import new cases
               </button>
               <button
                 type="button"
@@ -787,7 +787,7 @@ export function InputDashboard() {
                 disabled={isImporting}
                 className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60"
               >
-                Replace duplicates
+                Overwrite existing
               </button>
             </div>
           </div>
