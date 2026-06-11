@@ -240,7 +240,7 @@ def create_app() -> FastAPI:
     configure_logging()
     _initialize_database()
 
-    app = FastAPI(title="Monitoring Tool API", version="0.1.0")
+    app = FastAPI(title="Monitoring Tool API", version="1.0.0")
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
         CORSMiddleware,

@@ -38,7 +38,9 @@ APP_BASE="tricia-${NAMESPACE}"
 BACKEND_APP="${APP_BASE}-backend"
 FRONTEND_APP="${APP_BASE}-frontend"
 ACR_NAME="$(echo "tricia${NAMESPACE}acr" | tr -d '-')"
-IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d%H%M%S)}"
+# Extract version from frontend/package.json
+FRONTEND_VERSION=$(jq -r '.version' "$PROJECT_ROOT/frontend/package.json" 2>/dev/null || echo "")
+IMAGE_TAG="${IMAGE_TAG:-${FRONTEND_VERSION:-$(date +%Y%m%d%H%M%S)}}"
 BACKEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-backend:${IMAGE_TAG}"
 FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-frontend:${IMAGE_TAG}"
 

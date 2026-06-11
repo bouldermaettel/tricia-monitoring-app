@@ -6,6 +6,8 @@ import { useAuth } from '../../app/auth';
 export function AppShell({ children }: PropsWithChildren) {
   const { pathname } = useLocation();
   const { session, signOut } = useAuth();
+  const version = import.meta.env.VITE_APP_VERSION || 'dev';
+
   const navItems = [
     { to: '/input', label: 'Input', icon: ClipboardList },
     { to: '/matrix', label: 'Matrix', icon: BarChart3 },
@@ -18,7 +20,9 @@ export function AppShell({ children }: PropsWithChildren) {
     <div className="min-h-screen bg-stone-50">
       <header className="bg-stone-900 text-white shadow-md">
         <div className="max-w-screen-xl mx-auto px-6 flex items-center gap-8 h-14">
-          <span className="font-bold text-amber-400 tracking-tight text-base">Tricia Monitor</span>
+          <span className="font-bold text-amber-400 tracking-tight text-base">
+            Tricia Monitor <span className="text-xs text-stone-400">v{version}</span>
+          </span>
           <nav className="flex gap-1">
             {navItems.map(({ to, label, icon: Icon }) => {
               const active = pathname.startsWith(to);
