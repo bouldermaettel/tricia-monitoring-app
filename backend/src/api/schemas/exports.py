@@ -5,4 +5,5 @@ from pydantic import BaseModel
 
 class TableExportRequest(BaseModel):
     columns: list[str]
-    rows: list[dict[str, Any]]
+    rows: list[dict[str, Any]] | None = None
+    filters: dict[str, Any] | None = None

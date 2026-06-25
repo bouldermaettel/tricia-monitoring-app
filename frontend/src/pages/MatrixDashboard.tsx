@@ -306,6 +306,13 @@ export function MatrixDashboard() {
     ...dateParams,
   };
 
+  // Alarm counts are global for the active period and should not vary by risk direction.
+  const sharedProblematicCountParams = {
+    include_excluded: false,
+    vk_number: requestedVkNumber || undefined,
+    ...dateParams,
+  };
+
   const casePageSizeParams = casePageSize === undefined ? { all: true } : { page_size: casePageSize };
 
   const caseParams = {
@@ -314,13 +321,24 @@ export function MatrixDashboard() {
   };
 
   const problematicCountParams = {
-    ...sharedCaseParams,
+    ...sharedProblematicCountParams,
     ...tableServerFilters,
     problematic_only: true,
     page_size: 1,
   };
 
   const baseCases = useCases({ ...caseParams, ...tableServerFilters, page: casePage, ...casePageSizeParams }, { enabled: !isOverrideActive });
+  const problematicOverrideCases = useMemo(() => {
+    if (!isOverrideActive) return [];
+    return overrideCases.filter((item) => {
+      if (item.is_excluded) return false;
+      if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
+      if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
+      if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
+      return true;
+    });
+  }, [dateParams.end_date, dateParams.start_date, isOverrideActive, overrideCases, requestedVkNumber]);
+
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
     return overrideCases.filter((item) => {
@@ -363,8 +381,8 @@ export function MatrixDashboard() {
     if (!isOverrideActive) {
       return problematicCasesQuery.data?.total ?? 0;
     }
-    return filteredOverrideCases.filter((item) => item.problem_flag).length;
-  }, [filteredOverrideCases, isOverrideActive, problematicCasesQuery.data?.total]);
+    return problematicOverrideCases.filter((item) => item.problem_flag).length;
+  }, [isOverrideActive, problematicCasesQuery.data?.total, problematicOverrideCases]);
 
   const problematicCountsByPeriod = useMemo<ProblematicCountsByPeriod>(() => {
     if (!isOverrideActive) {
@@ -379,7 +397,7 @@ export function MatrixDashboard() {
 
     const countForWindow = (window: '3M' | '6M' | '12M') => {
       const params = getDateParams(window);
-      return filteredOverrideCases.filter((item) => {
+      return problematicOverrideCases.filter((item) => {
         if (params.start_date && item.analysis_date < String(params.start_date)) return false;
         if (params.end_date && item.analysis_date > String(params.end_date)) return false;
         if (!item.problem_flag) return false;
@@ -392,7 +410,7 @@ export function MatrixDashboard() {
       '6M': countForWindow('6M'),
       '12M': countForWindow('12M'),
     };
-  }, [filteredOverrideCases, isOverrideActive, problematicPeriodQueries]);
+  }, [isOverrideActive, problematicOverrideCases, problematicPeriodQueries]);
 
   const problematicCaseTarget =
     dateWindow === '3M' || dateWindow === '6M' || dateWindow === '12M'
@@ -748,6 +766,9 @@ export function MatrixDashboard() {
       detectability: [],
       product: [],
     });
+    if (riskFilter !== 'all') {
+      setRiskFilter('all');
+    }
   }
 
   function clearVkFilter() {
@@ -804,12 +825,26 @@ export function MatrixDashboard() {
     return { columns: enrichedCols, rows: enrichedRows };
   }
 
+  const currentFilters = useMemo(() => ({
+    include_excluded: includeExcluded,
+    vk_number_contains: requestedVkNumber || undefined,
+    risk_direction: riskDirectionParam,
+    problematic_only: problematicOnly,
+    ...dateParams,
+    ...tableServerFilters,
+  }), [includeExcluded, requestedVkNumber, riskDirectionParam, problematicOnly, dateParams, tableServerFilters]);
+
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Matrix Dashboard</h1>
         <div className="flex gap-2">
-          <ExportButton columns={exportState.columns} rows={exportState.rows} fileNamePrefix="matrix-table" onBeforeExport={handleEnrichExport} />
+          <ExportButton
+            columns={[...exportState.columns, 'audit_trail']}
+            rows={exportState.rows}
+            filters={currentFilters}
+            fileNamePrefix="matrix-table"
+          />
           <MatrixReportExportButton
             fileNamePrefix="matrix-report"
             generatedAt={new Date().toLocaleString('de-DE')}
@@ -863,17 +898,6 @@ export function MatrixDashboard() {
       )}
 
       <div className="flex flex-col gap-6">
-        {hasSelection && (
-          <div className="flex items-center">
-            <button
-              onClick={clearAllSelection}
-              className="ml-auto text-sm text-stone-500 hover:text-stone-800 underline"
-            >
-              Deselect all
-            </button>
-          </div>
-        )}
-
         <section className="rounded-xl border border-stone-200 bg-white overflow-hidden">
           <button
             className="w-full px-4 py-3 text-left text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100"
@@ -919,6 +943,17 @@ export function MatrixDashboard() {
                   </span>
                 ))}
               </div>
+
+              {hasSelection && (
+                <div className="flex justify-end px-4 pb-4">
+                  <button
+                    onClick={clearAllSelection}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 transition-colors"
+                  >
+                    Deselect all
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>

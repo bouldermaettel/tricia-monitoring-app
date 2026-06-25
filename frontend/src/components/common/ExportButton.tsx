@@ -16,6 +16,7 @@ function triggerDownload(blob: Blob, fileName: string) {
 type Props = {
   columns: string[];
   rows: Array<Record<string, unknown>>;
+  filters?: Record<string, unknown>;
   fileNamePrefix: string;
   /** Optional async hook called before each export. Receives current columns/rows and
    *  returns enriched columns/rows (e.g. to lazily add audit trail data). */
@@ -25,9 +26,9 @@ type Props = {
   ) => Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }>;
 };
 
-export function ExportButton({ columns, rows, fileNamePrefix, onBeforeExport }: Props) {
+export function ExportButton({ columns, rows, filters, fileNamePrefix, onBeforeExport }: Props) {
   const [loading, setLoading] = useState(false);
-  const disabled = rows.length === 0 || columns.length === 0 || loading;
+  const disabled = (rows.length === 0 && !filters) || columns.length === 0 || loading;
 
   async function resolveData() {
     if (onBeforeExport) {
@@ -40,7 +41,7 @@ export function ExportButton({ columns, rows, fileNamePrefix, onBeforeExport }: 
     setLoading(true);
     try {
       const data = await resolveData();
-      const blob = await exportVisibleTableCsv(data.columns, data.rows);
+      const blob = await exportVisibleTableCsv(data.columns, data.rows, filters);
       triggerDownload(blob, `${fileNamePrefix}.csv`);
     } finally {
       setLoading(false);
@@ -51,7 +52,7 @@ export function ExportButton({ columns, rows, fileNamePrefix, onBeforeExport }: 
     setLoading(true);
     try {
       const data = await resolveData();
-      const blob = await exportVisibleTableXlsx(data.columns, data.rows);
+      const blob = await exportVisibleTableXlsx(data.columns, data.rows, filters);
       triggerDownload(blob, `${fileNamePrefix}.xlsx`);
     } finally {
       setLoading(false);

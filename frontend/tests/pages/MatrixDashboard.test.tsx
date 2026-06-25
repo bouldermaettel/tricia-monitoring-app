@@ -51,6 +51,10 @@ const activeUnmounts: Array<() => void> = [];
 function filterMockCases(params?: Record<string, unknown>) {
   let items = currentCases;
 
+  if (!params?.include_excluded) {
+    items = items.filter((item) => !item.is_excluded);
+  }
+
   if (typeof params?.wimi_shortcut === 'string' && params.wimi_shortcut.trim()) {
     const needle = params.wimi_shortcut.trim().toLowerCase();
     items = items.filter((item) => (item.wimi_shortcut ?? '').toLowerCase().includes(needle));
@@ -67,9 +71,9 @@ function filterMockCases(params?: Record<string, unknown>) {
   }
 
   if (params?.risk_direction === 'false_low') {
-    items = items.filter((item) => item.id === 'case-2');
+    items = items.filter((item) => item.user_s * item.user_d * item.tricia_p > item.tricia_s * item.tricia_d * item.tricia_p);
   } else if (params?.risk_direction === 'false_high') {
-    items = [];
+    items = items.filter((item) => item.user_s * item.user_d * item.tricia_p < item.tricia_s * item.tricia_d * item.tricia_p);
   }
 
   if (params?.problematic_only) {
@@ -445,6 +449,64 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('#Problematic: 1')).toBeInTheDocument();
     expect(screen.getByText('VK-2')).toBeInTheDocument();
     expect(screen.queryByText('VK-1')).not.toBeInTheDocument();
+  });
+
+  it('keeps problematic count stable across risk filters and excludes omitted cases from alarm count', () => {
+    currentCases = [
+      {
+        ...baseMockCases[0],
+        id: 'problem-false-low',
+        vk_number: 'VK-FL',
+        tricia_s: 1,
+        tricia_p: 5,
+        tricia_d: 1,
+        user_s: 8,
+        user_d: 10,
+        is_excluded: false,
+        problem_flag: true,
+      },
+      {
+        ...baseMockCases[1],
+        id: 'problem-false-high',
+        vk_number: 'VK-FH',
+        tricia_s: 8,
+        tricia_p: 5,
+        tricia_d: 10,
+        user_s: 1,
+        user_d: 1,
+        is_excluded: false,
+        problem_flag: true,
+      },
+      {
+        ...baseMockCases[1],
+        id: 'problem-excluded',
+        vk_number: 'VK-EXCLUDED',
+        is_excluded: true,
+        problem_flag: true,
+      },
+    ];
+
+    useFilters.setState({
+      includeExcluded: true,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: 'ALL',
+      dateFrom: undefined,
+      dateTo: undefined,
+      riskFilter: 'all',
+    });
+
+    renderMatrixDashboard();
+
+    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'False Low' }));
+    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'False High' }));
+    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
   });
 
   it('shows only the triggered period classes in All Time mode', async () => {

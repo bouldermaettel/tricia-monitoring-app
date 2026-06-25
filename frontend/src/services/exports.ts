@@ -34,19 +34,19 @@ export async function exportCasesXlsx() {
     return data as Blob;
 }
 
-export async function exportVisibleTableCsv(columns: string[], rows: Array<Record<string, unknown>>) {
+export async function exportVisibleTableCsv(columns: string[], rows: Array<Record<string, unknown>>, filters?: Record<string, unknown>) {
     const { data } = await apiClient.post(
         '/exports/table.csv',
-        { columns, rows },
+        { columns, rows: filters ? [] : rows, filters },
         { responseType: 'blob' }
     );
     return data as Blob;
 }
 
-export async function exportVisibleTableXlsx(columns: string[], rows: Array<Record<string, unknown>>) {
+export async function exportVisibleTableXlsx(columns: string[], rows: Array<Record<string, unknown>>, filters?: Record<string, unknown>) {
     const { data } = await apiClient.post(
         '/exports/table.xlsx',
-        { columns, rows },
+        { columns, rows: filters ? [] : rows, filters },
         { responseType: 'blob' }
     );
     return data as Blob;
