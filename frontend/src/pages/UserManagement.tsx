@@ -17,6 +17,11 @@ export function UserManagement() {
   const [isActive, setIsActive] = useState(true);
   const [editing, setEditing] = useState<Record<string, { display_name: string; acronym: string; role: string; is_active: boolean; password: string }>>({});
 
+  const isSignedInUser = (userId: string, externalKey: string) => {
+    if (session?.actorId && userId === session.actorId) return true;
+    return Boolean(session?.externalKey && externalKey === session.externalKey);
+  };
+
   const hasError = usersQuery.isError || createUser.isError || updateUser.isError || deleteUser.isError;
   const errorMessage = usersQuery.error instanceof Error
     ? usersQuery.error.message
@@ -144,6 +149,7 @@ export function UserManagement() {
 
   async function onSaveUser(
     userId: string,
+    userExternalKey: string,
     originalDisplayName: string,
     originalAcronym: string,
     originalRole: string,
@@ -158,6 +164,17 @@ export function UserManagement() {
     if (acronym && acronym !== originalAcronym) payload.acronym = acronym;
     if (draft?.role !== undefined && draft.role !== originalRole) payload.role = draft.role;
     if (draft?.is_active !== undefined && draft.is_active !== originalActive) payload.is_active = draft.is_active;
+
+    // Keep client-side behavior aligned with backend constraints for self-admin edits.
+    if (isSignedInUser(userId, userExternalKey)) {
+      if (payload.role !== undefined && payload.role !== 'admin') {
+        delete payload.role;
+      }
+      if (payload.is_active === false) {
+        delete payload.is_active;
+      }
+    }
+
     if (password) {
       payload.password = password;
     }
@@ -311,6 +328,8 @@ export function UserManagement() {
                     <select
                       value={editing[user.id]?.role ?? user.role}
                       onChange={(e) => onEditRoleChange(user.id, user.display_name, user.acronym, user.role, e.target.value, user.is_active)}
+                      disabled={isSignedInUser(user.id, user.external_key)}
+                      title={isSignedInUser(user.id, user.external_key) ? 'You cannot downgrade your own admin role' : undefined}
                       className="border border-stone-300 rounded px-2 py-1"
                     >
                       <option value="user">user</option>
@@ -323,6 +342,8 @@ export function UserManagement() {
                       type="checkbox"
                       checked={editing[user.id]?.is_active ?? user.is_active}
                       onChange={(e) => onEditActiveChange(user.id, user.display_name, user.acronym, user.role, e.target.checked, user.is_active)}
+                      disabled={isSignedInUser(user.id, user.external_key)}
+                      title={isSignedInUser(user.id, user.external_key) ? 'You cannot deactivate your own account' : undefined}
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -339,7 +360,7 @@ export function UserManagement() {
                     <div className="flex gap-2 whitespace-nowrap">
                       <button
                         type="button"
-                        onClick={() => onSaveUser(user.id, user.display_name, user.acronym, user.role, user.is_active)}
+                        onClick={() => onSaveUser(user.id, user.external_key, user.display_name, user.acronym, user.role, user.is_active)}
                         disabled={updateUser.isPending}
                         className="bg-stone-900 text-white rounded px-3 py-1 text-xs hover:bg-stone-700 disabled:opacity-60"
                       >

@@ -104,3 +104,37 @@ def test_admin_can_delete_user_referenced_by_case_records(client):
         headers=headers,
     )
     assert deleted.status_code == 204
+
+
+def test_admin_cannot_change_own_role_from_admin(client):
+    headers = _admin_headers(client)
+
+    me = client.get('/api/v1/auth/me', headers=headers)
+    assert me.status_code == 200
+    my_user_id = me.json()['id']
+
+    response = client.patch(
+        f'/api/v1/users/{my_user_id}',
+        json={'role': 'user'},
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'Cannot change your own role from admin'
+
+
+def test_admin_cannot_deactivate_own_account(client):
+    headers = _admin_headers(client)
+
+    me = client.get('/api/v1/auth/me', headers=headers)
+    assert me.status_code == 200
+    my_user_id = me.json()['id']
+
+    response = client.patch(
+        f'/api/v1/users/{my_user_id}',
+        json={'is_active': False},
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'Cannot deactivate your own account'

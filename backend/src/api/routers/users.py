@@ -56,8 +56,15 @@ def update_user(
     user_id: str,
     payload: UserUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    actor: User = Depends(require_admin),
 ) -> UserRecord:
+    if actor.id == user_id:
+        requested_role = payload.role.lower().strip() if payload.role is not None else None
+        if requested_role is not None and requested_role != 'admin':
+            raise HTTPException(status_code=400, detail='Cannot change your own role from admin')
+        if payload.is_active is False:
+            raise HTTPException(status_code=400, detail='Cannot deactivate your own account')
+
     service = UserService(db)
     try:
         user = service.update_user(user_id, payload)

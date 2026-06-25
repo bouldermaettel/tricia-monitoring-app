@@ -139,6 +139,8 @@ describe('UserManagement', () => {
     );
 
     expect(screen.getByLabelText('password-bootstrap-admin')).toBeInTheDocument();
+    expect(screen.getAllByRole('combobox')[2]).toBeDisabled();
+    expect(screen.getByLabelText('active-bootstrap-admin')).toBeDisabled();
     expect(screen.getAllByRole('button', { name: 'Reset Password' })[1]).toBeDisabled();
     expect(screen.getAllByRole('button', { name: 'Delete' })[1]).toBeDisabled();
   });
