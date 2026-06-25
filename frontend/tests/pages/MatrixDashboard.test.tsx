@@ -7,7 +7,29 @@ import { useFilters } from '../../src/state/filters';
 import { useImportOverride } from '../../src/state/importOverride';
 
 const useAuthMock = vi.fn();
-const baseMockCases = [
+type MockCase = {
+  id: string;
+  vk_number: string;
+  wimi_shortcut?: string;
+  date_reported?: string;
+  device_name: string;
+  tricia_s: number;
+  tricia_p: number;
+  user_s: number;
+  tricia_d: number;
+  user_d: number;
+  category_code?: string;
+  is_excluded: boolean;
+  is_reviewed: boolean;
+  comment_text?: string;
+  analysis_date: string;
+  validation_status?: string;
+  expected_class?: number;
+  observed_class?: number;
+  problem_flag?: boolean;
+};
+
+const baseMockCases: MockCase[] = [
   {
     id: 'case-1',
     vk_number: 'VK-1',
@@ -43,7 +65,7 @@ const baseMockCases = [
     analysis_date: '2026-04-15',
   },
 ];
-let currentCases = [...baseMockCases];
+let currentCases: MockCase[] = [...baseMockCases];
 let lastUseCasesParams: Record<string, unknown> | undefined;
 const activeClients: QueryClient[] = [];
 const activeUnmounts: Array<() => void> = [];
