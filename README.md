@@ -10,6 +10,10 @@ Monitoring web application with FastAPI backend and Vite React TypeScript fronte
 - Azure deployment uses Azure Database for PostgreSQL Flexible Server provisioned from `infra/main.bicep`.
 - In Azure, `DATABASE_URL` is injected into the backend container as a secret and backend startup runs Alembic migrations when available.
 
+## Deployment
+
+For instructions on how to deploy this application to Azure, please refer to the [Deployment Guide](docs/deployment.md).
+
 ## Development
 
 - Backend: `PYTHONPATH=backend .venv/bin/python -m uvicorn src.main:app --reload`

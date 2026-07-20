@@ -242,8 +242,8 @@ function buildLocalMatrixCells(
 
 export function MatrixDashboard() {
   const { session } = useAuth();
-  const canManageSettings = session?.role === 'admin';
-  const canDeleteCases = session?.role === 'admin';
+  const canManageSettings = session?.role?.toLowerCase().trim() === 'admin';
+  const canDeleteCases = session?.role?.toLowerCase().trim() === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedProduct, setCollapsedProduct] = useState(false);
   const [casePage, setCasePage] = useState(1);
