@@ -483,7 +483,7 @@ describe('MatrixDashboard', () => {
     expect(screen.queryByText('VK-1')).not.toBeInTheDocument();
   });
 
-  it('keeps problematic count stable across risk filters and excludes omitted cases from alarm count', () => {
+  it('keeps problematic count stable across risk filters and includes omitted cases when Include omitted is enabled', () => {
     currentCases = [
       {
         ...baseMockCases[0],
@@ -532,12 +532,64 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'False Low' }));
-    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'False High' }));
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
+  });
+
+  it('excludes omitted cases from problematic count when Include omitted is disabled', () => {
+    currentCases = [
+      {
+        ...baseMockCases[0],
+        id: 'problem-false-low',
+        vk_number: 'VK-FL',
+        tricia_s: 1,
+        tricia_p: 5,
+        tricia_d: 1,
+        user_s: 8,
+        user_d: 10,
+        is_excluded: false,
+        problem_flag: true,
+      },
+      {
+        ...baseMockCases[1],
+        id: 'problem-false-high',
+        vk_number: 'VK-FH',
+        tricia_s: 8,
+        tricia_p: 5,
+        tricia_d: 10,
+        user_s: 1,
+        user_d: 1,
+        is_excluded: false,
+        problem_flag: true,
+      },
+      {
+        ...baseMockCases[1],
+        id: 'problem-excluded',
+        vk_number: 'VK-EXCLUDED',
+        is_excluded: true,
+        problem_flag: true,
+      },
+    ];
+
+    useFilters.setState({
+      includeExcluded: false,
+      problematicOnly: false,
+      selectedExpected: undefined,
+      selectedObserved: undefined,
+      selectedDimension: 'detectability',
+      dateWindow: 'ALL',
+      dateFrom: undefined,
+      dateTo: undefined,
+      riskFilter: 'all',
+    });
+
+    renderMatrixDashboard();
+
     expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
   });
 

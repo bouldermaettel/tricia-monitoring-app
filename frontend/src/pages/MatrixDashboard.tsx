@@ -310,7 +310,7 @@ export function MatrixDashboard() {
 
   // Alarm counts are global for the active period and should not vary by risk direction.
   const sharedProblematicCountParams = {
-    include_excluded: false,
+    include_excluded: includeExcluded,
     vk_number: requestedVkNumber || undefined,
     ...dateParams,
   };
@@ -333,13 +333,13 @@ export function MatrixDashboard() {
   const problematicOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
     return overrideCases.filter((item) => {
-      if (item.is_excluded) return false;
+      if (!includeExcluded && item.is_excluded) return false;
       if (requestedVkNumber && item.vk_number !== requestedVkNumber) return false;
       if (dateParams.start_date && item.analysis_date < String(dateParams.start_date)) return false;
       if (dateParams.end_date && item.analysis_date > String(dateParams.end_date)) return false;
       return true;
     });
-  }, [dateParams.end_date, dateParams.start_date, isOverrideActive, overrideCases, requestedVkNumber]);
+  }, [dateParams.end_date, dateParams.start_date, includeExcluded, isOverrideActive, overrideCases, requestedVkNumber]);
 
   const filteredOverrideCases = useMemo(() => {
     if (!isOverrideActive) return [];
