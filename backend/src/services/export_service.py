@@ -107,7 +107,8 @@ class ExportService:
                 "risk_direction", "wimi_shortcut", "device_name",
                 "tricia_p", "tricia_s", "user_s", "tricia_d", "user_d",
                 "category_code", "is_excluded", "is_reviewed", "comment_text",
-                "has_edits", "date_reported_from", "date_reported_to", "all"
+                "has_edits", "date_reported_from", "date_reported_to", "all",
+                "product_cells", "severity_cells", "detectability_cells"
             }
         }
         
@@ -116,6 +117,23 @@ class ExportService:
         for dkey in ["start_date", "end_date", "date_reported_from", "date_reported_to"]:
             if isinstance(valid_params.get(dkey), str):
                 valid_params[dkey] = date.fromisoformat(valid_params[dkey])
+
+        # Handle matrix cell filtering if they were passed as strings
+        for ckey in ["product_cells", "severity_cells", "detectability_cells"]:
+            val = valid_params.get(ckey)
+            if isinstance(val, str):
+                cells = []
+                for token in val.split(','):
+                    token = token.strip()
+                    if not token:
+                        continue
+                    parts = token.split(':', maxsplit=1)
+                    if len(parts) == 2:
+                        try:
+                            cells.append((int(parts[0]), int(parts[1])))
+                        except ValueError:
+                            pass
+                valid_params[ckey] = cells if cells else None
 
         service = CaseService(self.db)
         res = service.list_cases(all_results=True, **valid_params)

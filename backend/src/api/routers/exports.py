@@ -36,6 +36,9 @@ def export_cases_csv(
     has_edits: bool | None = Query(default=None),
     date_reported_from: str | None = Query(default=None),
     date_reported_to: str | None = Query(default=None),
+    product_cells: str | None = Query(default=None),
+    severity_cells: str | None = Query(default=None),
+    detectability_cells: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     filters = {
@@ -48,7 +51,9 @@ def export_cases_csv(
         "user_s": user_s, "tricia_d": tricia_d, "user_d": user_d,
         "category_code": category_code, "comment_text": comment_text,
         "is_excluded": is_excluded, "is_reviewed": is_reviewed, "has_edits": has_edits,
-        "date_reported_from": date_reported_from, "date_reported_to": date_reported_to
+        "date_reported_from": date_reported_from, "date_reported_to": date_reported_to,
+        "product_cells": product_cells, "severity_cells": severity_cells,
+        "detectability_cells": detectability_cells
     }
     content = ExportService(db).filtered_table_to_csv([], filters)
     return Response(content=content, media_type="text/csv")
@@ -81,6 +86,9 @@ def export_cases_xlsx(
     has_edits: bool | None = Query(default=None),
     date_reported_from: str | None = Query(default=None),
     date_reported_to: str | None = Query(default=None),
+    product_cells: str | None = Query(default=None),
+    severity_cells: str | None = Query(default=None),
+    detectability_cells: str | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     filters = {
@@ -93,7 +101,9 @@ def export_cases_xlsx(
         "user_s": user_s, "tricia_d": tricia_d, "user_d": user_d,
         "category_code": category_code, "comment_text": comment_text,
         "is_excluded": is_excluded, "is_reviewed": is_reviewed, "has_edits": has_edits,
-        "date_reported_from": date_reported_from, "date_reported_to": date_reported_to
+        "date_reported_from": date_reported_from, "date_reported_to": date_reported_to,
+        "product_cells": product_cells, "severity_cells": severity_cells,
+        "detectability_cells": detectability_cells
     }
     content = ExportService(db).filtered_table_to_xlsx([], filters)
     return Response(

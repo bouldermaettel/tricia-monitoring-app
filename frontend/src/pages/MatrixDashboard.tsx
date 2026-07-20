@@ -249,9 +249,10 @@ export function MatrixDashboard() {
   const [casePage, setCasePage] = useState(1);
   const [casePageSize, setCasePageSize] = useState<number | undefined>(DEFAULT_CASES_PAGE_SIZE);
   const [tableServerFilters, setTableServerFilters] = useState<CaseTableServerFilters>({});
-  const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> }>({
+  const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>>; filters: CaseTableServerFilters }>({
     columns: [],
     rows: [],
+    filters: {},
   });
   const overrideCases = useImportOverride((s) => s.cases);
   const overrideSourceFile = useImportOverride((s) => s.sourceFileName);
@@ -591,10 +592,11 @@ export function MatrixDashboard() {
 
   const selectedCaseQueries = useQueries({
     queries: (isOverrideActive ? [] : selectedRequests).map((request) => ({
-      queryKey: ['cases', caseParams, request.dimension, request.expected, request.observed, 'all'],
+      queryKey: ['cases', caseParams, tableServerFilters, request.dimension, request.expected, request.observed, 'all'],
       queryFn: () =>
         listCases({
           ...caseParams,
+          ...tableServerFilters,
           matrix_dimension: request.dimension,
           expected_value: request.expected,
           observed_value: request.observed,
@@ -706,7 +708,7 @@ export function MatrixDashboard() {
     setCasePageSize(nextPageSize);
   }, []);
 
-  const handleExportStateChange = useCallback((next: { columns: string[]; rows: Array<Record<string, unknown>> }) => {
+  const handleExportStateChange = useCallback((next: { columns: string[]; rows: Array<Record<string, unknown>>; filters: CaseTableServerFilters }) => {
     setExportState((previous) => {
       const previousJson = JSON.stringify(previous);
       const nextJson = JSON.stringify(next);
@@ -831,9 +833,12 @@ export function MatrixDashboard() {
     vk_number_contains: requestedVkNumber || undefined,
     risk_direction: riskDirectionParam,
     problematic_only: problematicOnly,
+    product_cells: selectedProductRawCells.length > 0 ? selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') : undefined,
+    severity_cells: selectedCellsByDimension.severity.length > 0 ? selectedCellsByDimension.severity.map(c => `${c.expected}:${c.observed}`).join(',') : undefined,
+    detectability_cells: selectedCellsByDimension.detectability.length > 0 ? selectedCellsByDimension.detectability.map(c => `${c.expected}:${c.observed}`).join(',') : undefined,
     ...dateParams,
-    ...tableServerFilters,
-  }), [includeExcluded, requestedVkNumber, riskDirectionParam, problematicOnly, dateParams, tableServerFilters]);
+    ...exportState.filters,
+  }), [dateParams, exportState.filters, includeExcluded, problematicOnly, requestedVkNumber, riskDirectionParam, selectedCellsByDimension, selectedProductRawCells]);
 
   return (
     <AppShell>

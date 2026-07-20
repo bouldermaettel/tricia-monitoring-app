@@ -229,6 +229,9 @@ class CaseService:
         has_edits: bool | None = None,
         date_reported_from=None,
         date_reported_to=None,
+        product_cells=None,
+        severity_cells=None,
+        detectability_cells=None,
     ) -> CaseListResponse:
         acceptance_threshold, risk_categories = self._get_threshold_context()
         latest_snapshot_subquery = (
@@ -259,6 +262,9 @@ class CaseService:
             include_excluded=include_excluded,
             risk_level=risk_level,
             risk_direction=risk_direction,
+            product_cells=product_cells,
+            severity_cells=severity_cells,
+            detectability_cells=detectability_cells,
         )
         if vk_number:
             query = query.where(Case.vk_number == vk_number)

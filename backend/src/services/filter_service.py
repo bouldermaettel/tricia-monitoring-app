@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Select, and_, case, func, select
+from sqlalchemy import Select, and_, case, func, select, tuple_
 
 from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
@@ -63,11 +63,28 @@ def apply_case_filters(
     include_excluded: bool = False,
     risk_level: str | None = None,
     risk_direction: str | None = None,
+    product_cells: list[tuple[int, int]] | None = None,
+    severity_cells: list[tuple[int, int]] | None = None,
+    detectability_cells: list[tuple[int, int]] | None = None,
 ) -> Select:
     if start_date:
         query = query.where(Case.analysis_date >= start_date)
     if end_date:
         query = query.where(Case.analysis_date <= end_date)
+
+    if product_cells:
+        expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+        observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
+        query = query.where(tuple_(expected_product, observed_product).in_(product_cells))
+    if severity_cells:
+        query = query.where(
+            tuple_(ClassificationSnapshot.user_s, ClassificationSnapshot.tricia_s).in_(severity_cells)
+        )
+    if detectability_cells:
+        query = query.where(
+            tuple_(ClassificationSnapshot.user_d, ClassificationSnapshot.tricia_d).in_(detectability_cells)
+        )
+
     if matrix_dimension == "severity":
         expected_field = ClassificationSnapshot.user_s
         observed_field = ClassificationSnapshot.tricia_s

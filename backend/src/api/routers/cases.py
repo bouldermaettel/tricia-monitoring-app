@@ -63,12 +63,31 @@ def list_cases(
     has_edits: bool | None = Query(default=None),
     date_reported_from: str | None = Query(default=None),
     date_reported_to: str | None = Query(default=None),
+    product_cells: str | None = Query(default=None),
+    severity_cells: str | None = Query(default=None),
+    detectability_cells: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     all_results: bool = Query(default=False, alias="all"),
     db: Session = Depends(get_db),
 ) -> CaseListResponse:
     from datetime import date
+
+    def _parse_cells(raw: str | None) -> list[tuple[int, int]] | None:
+        if not raw:
+            return None
+        result: list[tuple[int, int]] = []
+        for token in raw.split(','):
+            token = token.strip()
+            if not token:
+                continue
+            parts = token.split(':', maxsplit=1)
+            if len(parts) == 2:
+                try:
+                    result.append((int(parts[0]), int(parts[1])))
+                except ValueError:
+                    pass
+        return result or None
 
     parsed_start = date.fromisoformat(start_date) if start_date else None
     parsed_end = date.fromisoformat(end_date) if end_date else None
@@ -103,6 +122,9 @@ def list_cases(
         has_edits=has_edits,
         date_reported_from=parsed_date_reported_from,
         date_reported_to=parsed_date_reported_to,
+        product_cells=_parse_cells(product_cells),
+        severity_cells=_parse_cells(severity_cells),
+        detectability_cells=_parse_cells(detectability_cells),
     )
 
 

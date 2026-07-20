@@ -97,7 +97,7 @@ type Props = {
   onAddComment?: (id: string, text: string) => void;
   onEditCase?: (id: string, payload: Partial<EditValues>) => void | Promise<unknown>;
   onDeleteCase?: (id: string) => void;
-  onExportStateChange?: (payload: { columns: string[]; rows: Array<Record<string, unknown>> }) => void;
+  onExportStateChange?: (payload: { columns: string[]; rows: Array<Record<string, unknown>>; filters: CaseTableServerFilters }) => void;
   onServerFilterChange?: (filters: CaseTableServerFilters) => void;
 };
 
@@ -619,8 +619,8 @@ export function CaseTable({
       return row;
     });
 
-    onExportStateChange({ columns: exportColumns, rows: exportRows });
-  }, [changedCaseIds, columns, commentInputs, onExportStateChange, sortedItems]);
+    onExportStateChange({ columns: exportColumns, rows: exportRows, filters: serverFilters });
+  }, [changedCaseIds, columns, commentInputs, onExportStateChange, serverFilters, sortedItems]);
 
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,

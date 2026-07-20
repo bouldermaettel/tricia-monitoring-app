@@ -60,5 +60,7 @@ describe('CaseTable export state', () => {
       'WIMI-D': 10,
       _case_id: 'case-1',
     });
+
+    expect(lastPayload.filters).toMatchObject({});
   });
 });
