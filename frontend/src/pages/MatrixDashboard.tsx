@@ -242,6 +242,7 @@ function buildLocalMatrixCells(
 
 export function MatrixDashboard() {
   const { session } = useAuth();
+  const canManageSettings = session?.role === 'admin';
   const canDeleteCases = session?.role === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [collapsedProduct, setCollapsedProduct] = useState(false);
@@ -996,7 +997,7 @@ export function MatrixDashboard() {
           onServerFilterChange={!isOverrideActive && !hasSelection ? handleTableServerFilterChange : undefined}
         />
 
-        <ThresholdConfigPanel />
+        {canManageSettings ? <ThresholdConfigPanel /> : null}
       </div>
     </AppShell>
   );

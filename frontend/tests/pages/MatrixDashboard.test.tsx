@@ -70,6 +70,17 @@ let lastUseCasesParams: Record<string, unknown> | undefined;
 const activeClients: QueryClient[] = [];
 const activeUnmounts: Array<() => void> = [];
 
+function mockSession(role: 'admin' | 'user') {
+  useAuthMock.mockReturnValue({
+    session: {
+      actorId: `${role}-1`,
+      externalKey: `${role}-1`,
+      displayName: role === 'admin' ? 'Matrix Admin' : 'Matrix User',
+      role,
+    },
+  });
+}
+
 function filterMockCases(params?: Record<string, unknown>) {
   let items = currentCases;
 
@@ -297,14 +308,7 @@ describe('MatrixDashboard', () => {
       riskFilter: 'all',
     });
     useAuthMock.mockReset();
-    useAuthMock.mockReturnValue({
-      session: {
-        actorId: 'user-1',
-        externalKey: 'user-1',
-        displayName: 'Matrix User',
-        role: 'user',
-      },
-    });
+    mockSession('user');
   });
 
   afterEach(() => {
@@ -325,7 +329,20 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Very Low')).toBeInTheDocument();
   });
 
+  it('shows settings only to admins', () => {
+    renderMatrixDashboard();
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+
+    cleanup();
+
+    mockSession('admin');
+    renderMatrixDashboard();
+
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+  });
+
   it('preserves custom risk category names in settings and matrix labels', () => {
+    mockSession('admin');
     renderMatrixDashboard();
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -361,14 +378,7 @@ describe('MatrixDashboard', () => {
 
     cleanup();
 
-    useAuthMock.mockReturnValue({
-      session: {
-        actorId: 'admin-1',
-        externalKey: 'admin-1',
-        displayName: 'Matrix Admin',
-        role: 'admin',
-      },
-    });
+    mockSession('admin');
 
     renderMatrixDashboard();
     expect(screen.getByLabelText('select-all-visible-cases')).toBeInTheDocument();
