@@ -308,10 +308,9 @@ export function MatrixDashboard() {
     ...dateParams,
   };
 
-  // Alarm counts are global for the active period and should not vary by risk direction.
+  // Alarm counts are global for the active period and should not vary by risk direction or table search.
   const sharedProblematicCountParams = {
     include_excluded: includeExcluded,
-    vk_number: requestedVkNumber || undefined,
     ...dateParams,
   };
 
@@ -325,6 +324,12 @@ export function MatrixDashboard() {
   const problematicCountParams = {
     ...sharedProblematicCountParams,
     ...tableServerFilters,
+    problematic_only: true,
+    page_size: 1,
+  };
+
+  const periodProblematicCountParams = {
+    ...sharedProblematicCountParams,
     problematic_only: true,
     page_size: 1,
   };
@@ -364,12 +369,17 @@ export function MatrixDashboard() {
     { enabled: !isOverrideActive }
   );
 
+  const periodProblematicCasesQuery = useCases(
+    periodProblematicCountParams,
+    { enabled: !isOverrideActive }
+  );
+
   const problematicPeriodQueries = useQueries({
     queries: isOverrideActive
       ? []
       : PERIOD_WINDOWS.map((window) => {
           const params = {
-            ...problematicCountParams,
+            ...periodProblematicCountParams,
             ...getDateParams(window),
           };
           return {
@@ -383,8 +393,17 @@ export function MatrixDashboard() {
     if (!isOverrideActive) {
       return problematicCasesQuery.data?.total ?? 0;
     }
+    // For override mode, applying column filters locally is complex,
+    // so for now we use the same count as periodTotal if we don't have local filter logic.
     return problematicOverrideCases.filter((item) => item.problem_flag).length;
   }, [isOverrideActive, problematicCasesQuery.data?.total, problematicOverrideCases]);
+
+  const periodProblematicCaseCount = useMemo(() => {
+    if (!isOverrideActive) {
+      return periodProblematicCasesQuery.data?.total ?? 0;
+    }
+    return problematicOverrideCases.filter((item) => item.problem_flag).length;
+  }, [isOverrideActive, periodProblematicCasesQuery.data?.total, problematicOverrideCases]);
 
   const problematicCountsByPeriod = useMemo<ProblematicCountsByPeriod>(() => {
     if (!isOverrideActive) {
@@ -429,7 +448,7 @@ export function MatrixDashboard() {
       : [];
   const problemAlarmActive = isAggregateTriggerWindow
     ? triggeredPeriods.length > 0
-    : problematicCaseTarget !== undefined && problematicCaseCount > problematicCaseTarget;
+    : problematicCaseTarget !== undefined && periodProblematicCaseCount > problematicCaseTarget;
   const problemAlarmLabel = isAggregateTriggerWindow && triggeredPeriods.length > 0
     ? `Triggered: ${triggeredPeriods.join(', ')}`
     : undefined;
@@ -968,6 +987,7 @@ export function MatrixDashboard() {
           includeExcluded={includeExcluded}
           problematicOnly={problematicOnly}
           problematicCount={problematicCaseCount}
+          periodProblematicCount={periodProblematicCaseCount}
           problematicCaseThreshold={problematicCaseTarget}
           problemAlarmActive={problemAlarmActive}
           problemAlarmLabel={problemAlarmLabel}

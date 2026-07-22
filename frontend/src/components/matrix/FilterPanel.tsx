@@ -4,6 +4,7 @@ type Props = {
   includeExcluded: boolean;
   problematicOnly: boolean;
   problematicCount: number;
+  periodProblematicCount: number;
   problematicCaseThreshold?: number;
   problemAlarmActive: boolean;
   problemAlarmLabel?: string;
@@ -32,6 +33,7 @@ export function FilterPanel({
   includeExcluded,
   problematicOnly,
   problematicCount,
+  periodProblematicCount,
   problematicCaseThreshold,
   problemAlarmActive,
   problemAlarmLabel,
@@ -129,6 +131,16 @@ export function FilterPanel({
         </div>
       </div>
 
+      {/* Period-only indicator */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Period Status</span>
+        <div className={`text-xs px-2 py-1.5 rounded border flex items-center h-[32px] ${problemAlarmActive ? 'border-red-300 bg-red-50 text-red-700 animate-pulse' : 'border-stone-200 bg-stone-50 text-stone-600'}`}>
+          # Probl. (period): {periodProblematicCount}
+          {problematicCaseThreshold !== undefined ? ` / limit ${problematicCaseThreshold}` : ''}
+          {problemAlarmLabel ? ` (${problemAlarmLabel})` : ''}
+        </div>
+      </div>
+
       {/* Toggles */}
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Filters</span>
@@ -142,10 +154,8 @@ export function FilterPanel({
             />
             <span className="text-sm text-stone-700">Problematic only</span>
           </label>
-          <div className={`text-xs px-2 py-1 rounded border ${problemAlarmActive ? 'border-red-300 bg-red-50 text-red-700 animate-pulse' : 'border-stone-200 bg-stone-50 text-stone-600'}`}>
-            #Problematic: {problematicCount}
-            {problematicCaseThreshold !== undefined ? ` / limit ${problematicCaseThreshold}` : ''}
-            {problemAlarmLabel ? ` (${problemAlarmLabel})` : ''}
+          <div className="text-xs px-2 py-1 rounded border border-stone-200 bg-stone-50 text-stone-600">
+            # Probl. (filtered): {problematicCount}
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input

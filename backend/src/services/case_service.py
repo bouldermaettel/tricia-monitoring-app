@@ -293,9 +293,15 @@ class CaseService:
         if category_code:
             query = query.where(CaseReview.category_code == category_code)
         if is_excluded is not None:
-            query = query.where(CaseReview.is_excluded.is_(is_excluded))
+            if is_excluded:
+                query = query.where(CaseReview.is_excluded.is_(True))
+            else:
+                query = query.where((CaseReview.is_excluded.is_(False)) | (CaseReview.is_excluded.is_(None)))
         if is_reviewed is not None:
-            query = query.where(CaseReview.is_reviewed.is_(is_reviewed))
+            if is_reviewed:
+                query = query.where(CaseReview.is_reviewed.is_(True))
+            else:
+                query = query.where((CaseReview.is_reviewed.is_(False)) | (CaseReview.is_reviewed.is_(None)))
 
         if comment_text:
             query = query.where(
