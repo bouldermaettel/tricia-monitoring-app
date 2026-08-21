@@ -1,0 +1,63 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "namespace": {
+            "value": "monitoring"
+        },
+        "backendImage": {
+            "value": "triciamonitoringacr.azurecr.io/tricia-monitoring-backend:20260427154200"
+        },
+        "frontendImage": {
+            "value": "triciamonitoringacr.azurecr.io/tricia-monitoring-frontend:20260427154200"
+        },
+        "secretKey": {
+            "value": "theoneandonlysecretkeyfortriciamonitoring$1"
+        },
+        "postgresAdminUsername": {
+            "value": "triciaadmin"
+        },
+        "postgresAdminPassword": {
+            "value": "swissmedic$01"
+        },
+        "postgresDatabaseName": {
+            "value": "tricia_monitoring"
+        },
+        "postgresSkuName": {
+            "value": "Standard_B1ms"
+        },
+        "postgresSkuTier": {
+            "value": "Burstable"
+        },
+        "postgresStorageGb": {
+            "value": 32
+        },
+        "postgresVersion": {
+            "value": "16"
+        },
+        "corsOrigins": {
+            "value": "https://tricia-monitoring-frontend.bluesmoke-809936f2.switzerlandnorth.azurecontainerapps.io"
+        },
+        "bootstrapAdminUsername": {
+            "value": "tricia.admin"
+        },
+        "bootstrapAdminPassword": {
+            "value": "swissmedic$01"
+        },
+        "bootstrapAdminDisplayName": {
+            "value": "Tricia Admin"
+        },
+        "backendCpu": {
+            "value": "0.5"
+        },
+        "backendMemory": {
+            "value": "1Gi"
+        },
+        "frontendCpu": {
+            "value": "0.5"
+        },
+        "frontendMemory": {
+            "value": "1Gi"
+        }
+    }
+}

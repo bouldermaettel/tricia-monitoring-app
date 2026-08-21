@@ -2,7 +2,7 @@
 
 # Deploy Tricia Monitoring App to Azure Container Apps
 # Pattern mirrors infra_example: ACR build + Bicep deployment.
-# Database in Azure is PostgreSQL Flexible Server provisioned by infra/main.bicep.
+# Database in Azure is PostgreSQL Flexible Server provisioned by infra/archive/main.bicep.
 # Usage:
 #   ./deploy.sh <namespace> [resource-group] [location] [parameters-file]
 #
@@ -171,7 +171,7 @@ fi
 
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
-  --template-file "$PROJECT_ROOT/infra/main.bicep" \
+  --template-file "$PROJECT_ROOT/infra/archive/main.bicep" \
   --parameters "${DEPLOY_PARAMS[@]}" \
   --output none
 echo "✅ Bicep deployment complete"

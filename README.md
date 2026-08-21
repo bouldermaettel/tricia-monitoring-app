@@ -7,7 +7,7 @@ Monitoring web application with FastAPI backend and Vite React TypeScript fronte
 - Local app runtime uses PostgreSQL only.
 - SQLite is disabled for normal backend startup to avoid accidental local development against the wrong database.
 - Test fixtures still use isolated SQLite in-memory databases.
-- Azure deployment uses Azure Database for PostgreSQL Flexible Server provisioned from `infra/main.bicep`.
+- The legacy namespace deployment uses Azure Database for PostgreSQL Flexible Server provisioned from `infra/archive/main.bicep`.
 - In Azure, `DATABASE_URL` is injected into the backend container as a secret and backend startup runs Alembic migrations when available.
 
 ## Deployment
@@ -54,12 +54,35 @@ Local Postgres URL used by the helper:
 
 ## Deployment
 
-Deployment source of truth is:
+The original namespace-based deployment source of truth is:
 
 - `deploy.sh` for build and deploy orchestration
-- `infra/main.bicep` for infrastructure and Container Apps configuration
+- `infra/archive/main.bicep` for the legacy namespace infrastructure and Container Apps configuration
 
-Files in `infra/aca/` are legacy examples and are not used by `deploy.sh`.
+Files in `infra/archive/aca/` are legacy examples and are not used by `deploy.sh`.
+
+### Live prod/dev deployment with IaC
+
+The currently used split frontend/backend environments are managed by:
+
+- `deploy-live.sh` — selects `prod` or `dev`
+- `infra/live/main.bicep` — shared live Container Apps configuration
+- `docs/development-environment-clone.md` — clone and sanitized-data strategy
+
+Use an untracked environment file containing the target environment's
+`DATABASE_URL`, `SECRET_KEY`, `BOOTSTRAP_ADMIN_USERNAME`, and
+`BOOTSTRAP_ADMIN_PASSWORD`:
+
+```bash
+WHAT_IF=1 ENV_FILE=.env.tricia-dev ./deploy-live.sh dev 20260722161758
+ENV_FILE=.env.tricia-dev ./deploy-live.sh dev 20260722161758
+ENV_FILE=.env.tricia-prod ./deploy-live.sh prod 20260722161758
+```
+
+The live IaC reuses the existing ACR, Container Apps environment, and
+PostgreSQL server for the selected target. It manages application
+configuration only; database creation and sanitized data copying are separate
+operations and must not be run against production accidentally.
 
 ### Namespace-based sandbox deployment
 
