@@ -12,7 +12,10 @@ type PreviewCase = {
     tricia_p: number;
     tricia_d: number;
     user_s: number;
+    user_p?: number;
     user_d: number;
+    tri_risk?: number;
+    wimi_risk?: number;
     category_code?: string;
     risk_level?: string;
     is_excluded?: boolean;

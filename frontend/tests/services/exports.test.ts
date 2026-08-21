@@ -15,7 +15,7 @@ describe('exportImportTemplateXlsx', () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       '/exports/table.xlsx',
       {
-        columns: ['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-D'],
+        columns: ['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-P', 'WIMI-D'],
         rows: [],
       },
       { responseType: 'blob' },
@@ -29,6 +29,9 @@ describe('exportImportTemplateXlsx', () => {
     expect(getExportColumnName('tricia_p')).toBe('TRI-P');
     expect(getExportColumnName('tricia_d')).toBe('TRI-D');
     expect(getExportColumnName('user_s')).toBe('WIMI-S');
+    expect(getExportColumnName('user_p')).toBe('WIMI-P');
     expect(getExportColumnName('user_d')).toBe('WIMI-D');
+    expect(getExportColumnName('tri_risk')).toBe('TRI-RISK');
+    expect(getExportColumnName('wimi_risk')).toBe('WIMI-RISK');
   });
 });

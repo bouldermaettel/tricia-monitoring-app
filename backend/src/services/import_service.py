@@ -21,8 +21,11 @@ CANONICAL_IMPORT_COLUMNS: tuple[str, ...] = (
     "TRI-P",
     "TRI-D",
     "WIMI-S",
+    "WIMI-P",
     "WIMI-D",
 )
+LEGACY_IMPORT_COLUMNS: tuple[str, ...] = tuple(column for column in CANONICAL_IMPORT_COLUMNS if column != "WIMI-P")
+DERIVED_IMPORT_COLUMNS = ("TRI-RISK", "WIMI-RISK")
 
 SEVERITY_SCORE_VALUES: tuple[int, ...] = (1, 3, 5, 8, 10)
 PROBABILITY_DETECTABILITY_VALUES: tuple[int, ...] = (1, 5, 10)
@@ -66,11 +69,12 @@ class ImportService:
         tricia_p: int,
         tricia_d: int,
         user_s: int,
+        user_p: int,
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
     ) -> bool:
-        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        expected_class = cls._resolve_risk_class(user_s * user_p * user_d, risk_categories)
         observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
@@ -83,11 +87,12 @@ class ImportService:
         tricia_p: int,
         tricia_d: int,
         user_s: int,
+        user_p: int,
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
     ) -> dict[str, int | bool | None]:
-        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        expected_class = cls._resolve_risk_class(user_s * user_p * user_d, risk_categories)
         observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         problem_flag = False
         if expected_class is not None and observed_class is not None:
@@ -111,6 +116,7 @@ class ImportService:
                 tricia_p=1,
                 tricia_d=1,
                 user_s=1,
+                user_p=1,
                 user_d=1,
                 deviation_s=0,
                 deviation_d=0,
@@ -143,10 +149,14 @@ class ImportService:
     @classmethod
     def _validate_columns(cls, frame: pd.DataFrame) -> None:
         actual_columns = [cls._normalize_column_name(column) for column in frame.columns]
-        expected_columns = [cls._normalize_column_name(column) for column in CANONICAL_IMPORT_COLUMNS]
-
-        missing_columns = [column for column in expected_columns if column not in actual_columns]
-        extra_columns = [column for column in actual_columns if column not in expected_columns]
+        new_columns = [cls._normalize_column_name(column) for column in CANONICAL_IMPORT_COLUMNS]
+        legacy_columns = [cls._normalize_column_name(column) for column in LEGACY_IMPORT_COLUMNS]
+        derived_columns = [cls._normalize_column_name(column) for column in DERIVED_IMPORT_COLUMNS]
+        actual_set = set(actual_columns)
+        is_legacy = set(legacy_columns).issubset(actual_set) and len(actual_columns) == len(legacy_columns)
+        required_columns = legacy_columns if is_legacy else new_columns
+        missing_columns = [column for column in required_columns if column not in actual_set]
+        extra_columns = [column for column in actual_columns if column not in set(new_columns + derived_columns)]
 
         if missing_columns or extra_columns:
             details: list[str] = []
@@ -156,7 +166,7 @@ class ImportService:
                 details.append(f"unexpected columns: {', '.join(extra_columns)}")
             raise ValueError("Invalid import file format (" + "; ".join(details) + ")")
 
-        if len(actual_columns) != len(expected_columns):
+        if len(actual_columns) != len(set(actual_columns)):
             raise ValueError("Invalid import file format (duplicate or reordered columns detected)")
 
     def _read_frame(self, file_name: str, content: bytes) -> tuple[pd.DataFrame, str]:
@@ -227,7 +237,32 @@ class ImportService:
         tricia_p = cls._parse_required_score(row, row_number, "TRI-P", PROBABILITY_DETECTABILITY_VALUES, errors)
         tricia_d = cls._parse_required_score(row, row_number, "TRI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
         user_s = cls._parse_required_score(row, row_number, "WIMI-S", SEVERITY_SCORE_VALUES, errors)
+        raw_user_p = cls._first_value(row, ["WIMI-P"], None)
+        user_p = (
+            cls._parse_required_score(row, row_number, "WIMI-P", PROBABILITY_DETECTABILITY_VALUES, errors)
+            if raw_user_p is not None
+            else tricia_p
+        )
         user_d = cls._parse_required_score(row, row_number, "WIMI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
+
+        if errors:
+            return None, errors
+
+        supplied_tri_risk = cls._first_value(row, ["TRI-RISK"], None)
+        supplied_wimi_risk = cls._first_value(row, ["WIMI-RISK"], None)
+        expected_tri_risk = int(tricia_s) * int(tricia_p) * int(tricia_d)
+        expected_wimi_risk = int(user_s) * int(user_p) * int(user_d)
+        for label, supplied, expected in (
+            ("TRI-RISK", supplied_tri_risk, expected_tri_risk),
+            ("WIMI-RISK", supplied_wimi_risk, expected_wimi_risk),
+        ):
+            if supplied is None:
+                continue
+            try:
+                if int(supplied) != expected:
+                    errors.append(f"Row {row_number}: column '{label}' must equal {expected}.")
+            except (TypeError, ValueError):
+                errors.append(f"Row {row_number}: column '{label}' must equal {expected}.")
 
         if errors:
             return None, errors
@@ -239,6 +274,7 @@ class ImportService:
             "tricia_p": int(tricia_p),
             "tricia_d": int(tricia_d),
             "user_s": int(user_s),
+            "user_p": int(user_p),
             "user_d": int(user_d),
         }, []
 
@@ -258,6 +294,7 @@ class ImportService:
         tricia_p = int(validated_row["tricia_p"])
         tricia_d = int(validated_row["tricia_d"])
         user_s = int(validated_row["user_s"])
+        user_p = int(validated_row["user_p"])
         user_d = int(validated_row["user_d"])
 
         analysis_date = ValidationService.derive_analysis_date(vk_number)
@@ -275,7 +312,10 @@ class ImportService:
             "tricia_p": tricia_p,
             "tricia_d": tricia_d,
             "user_s": user_s,
+            "user_p": user_p,
             "user_d": user_d,
+            "tri_risk": tricia_s * tricia_p * tricia_d,
+            "wimi_risk": user_s * user_p * user_d,
             "category_code": None,
             "risk_level": None,
             "is_excluded": False,
@@ -325,6 +365,7 @@ class ImportService:
                 tricia_p=int(parsed["tricia_p"]),
                 tricia_d=int(parsed["tricia_d"]),
                 user_s=int(parsed["user_s"]),
+                user_p=int(parsed["user_p"]),
                 user_d=int(parsed["user_d"]),
                 acceptance_threshold=acceptance_threshold,
                 risk_categories=risk_categories,
@@ -444,6 +485,7 @@ class ImportService:
             next_tricia_p = int(parsed["tricia_p"])
             next_tricia_d = int(parsed["tricia_d"])
             next_user_s = int(parsed["user_s"])
+            next_user_p = int(parsed["user_p"])
             next_user_d = int(parsed["user_d"])
             next_deviation_s = abs(next_user_s - next_tricia_s)
             next_deviation_d = abs(next_user_d - next_tricia_d)
@@ -452,6 +494,7 @@ class ImportService:
                 tricia_p=next_tricia_p,
                 tricia_d=next_tricia_d,
                 user_s=next_user_s,
+                user_p=next_user_p,
                 user_d=next_user_d,
                 acceptance_threshold=acceptance_threshold,
                 risk_categories=risk_categories,
@@ -462,13 +505,17 @@ class ImportService:
             self._audit_change(snapshot_changes, "tricia_p", snapshot.tricia_p, next_tricia_p)
             self._audit_change(snapshot_changes, "tricia_d", snapshot.tricia_d, next_tricia_d)
             self._audit_change(snapshot_changes, "user_s", snapshot.user_s, next_user_s)
+            self._audit_change(snapshot_changes, "user_p", snapshot.user_p, next_user_p)
             self._audit_change(snapshot_changes, "user_d", snapshot.user_d, next_user_d)
 
             snapshot.tricia_s = next_tricia_s
             snapshot.tricia_p = next_tricia_p
             snapshot.tricia_d = next_tricia_d
             snapshot.user_s = next_user_s
+            snapshot.user_p = next_user_p
             snapshot.user_d = next_user_d
+            snapshot.tri_risk = next_tricia_s * next_tricia_p * next_tricia_d
+            snapshot.wimi_risk = next_user_s * next_user_p * next_user_d
             snapshot.deviation_s = next_deviation_s
             snapshot.deviation_d = next_deviation_d
             snapshot.problem_flag = next_problem_flag

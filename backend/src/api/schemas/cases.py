@@ -15,6 +15,7 @@ class CaseValidationRequest(BaseModel):
     tricia_p: ProbabilityValue
     tricia_d: DetectabilityValue
     user_s: SeverityValue
+    user_p: ProbabilityValue | None = None
     user_d: DetectabilityValue | None = None
 
 
@@ -52,7 +53,10 @@ class CaseRecord(BaseModel):
     tricia_p: int | None = None
     tricia_d: int | None = None
     user_s: int | None = None
+    user_p: int | None = None
     user_d: int | None = None
+    tri_risk: int | None = None
+    wimi_risk: int | None = None
     risk_level: str | None = None
     category_code: str | None = None
     is_excluded: bool = False
@@ -77,6 +81,7 @@ class CaseUpdateRequest(BaseModel):
     tricia_p: ProbabilityValue | None = None
     tricia_d: DetectabilityValue | None = None
     user_s: SeverityValue | None = None
+    user_p: ProbabilityValue | None = None
     user_d: DetectabilityValue | None = None
 
 

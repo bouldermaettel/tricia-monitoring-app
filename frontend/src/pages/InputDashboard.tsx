@@ -206,8 +206,10 @@ export function InputDashboard() {
   const [triciaP, setTriciaP] = useState<number>(1);
   const [triciaD, setTriciaD] = useState<number>(1);
   const [userS, setUserS] = useState<number>(1);
+  const [userP, setUserP] = useState<number>(1);
   const [userD, setUserD] = useState<number>(1);
   const [userSManual, setUserSManual] = useState(false);
+  const [userPManual, setUserPManual] = useState(false);
   const [userDManual, setUserDManual] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [invalidVkFormatOpen, setInvalidVkFormatOpen] = useState(false);
@@ -239,6 +241,10 @@ export function InputDashboard() {
   useEffect(() => {
     if (!userSManual) setUserS(triciaS);
   }, [triciaS, userSManual]);
+
+  useEffect(() => {
+    if (!userPManual) setUserP(triciaP);
+  }, [triciaP, userPManual]);
 
   // Autofill user_d from tricia_d if not manually overridden
   useEffect(() => {
@@ -272,7 +278,10 @@ export function InputDashboard() {
         tricia_p: triciaP,
         tricia_d: triciaD,
         user_s: userS,
+        user_p: userP,
         user_d: userD,
+        tri_risk: triciaS * triciaP * triciaD,
+        wimi_risk: userS * userP * userD,
         category_code: undefined,
         risk_level: 'none',
         is_excluded: false,
@@ -315,8 +324,10 @@ export function InputDashboard() {
       setTriciaP(1);
       setTriciaD(1);
       setUserS(1);
+      setUserP(1);
       setUserD(1);
       setUserSManual(false);
+      setUserPManual(false);
       setUserDManual(false);
       setDuplicateOpen(false);
       setImportStatus(`Analysis dataset updated in memory (${previewSourceFileName}).`);
@@ -330,6 +341,7 @@ export function InputDashboard() {
         tricia_p: triciaP,
         tricia_d: triciaD,
         user_s: userS,
+        user_p: userP,
         user_d: userD,
         validation_status: 'saved',
       });
@@ -340,8 +352,10 @@ export function InputDashboard() {
       setTriciaP(1);
       setTriciaD(1);
       setUserS(1);
+      setUserP(1);
       setUserD(1);
       setUserSManual(false);
+      setUserPManual(false);
       setUserDManual(false);
       setDuplicateOpen(false);
     } catch (error) {
@@ -573,6 +587,13 @@ export function InputDashboard() {
                 options={S_OPTIONS}
               />
               <CategorySelect
+                label="WIMI-P"
+                value={userP}
+                onChange={(v) => { setUserP(v); setUserPManual(true); }}
+                highlight={userPManual && userP !== triciaP}
+                options={PD_OPTIONS}
+              />
+              <CategorySelect
                 label="WIMI-D"
                 value={userD}
                 onChange={(v) => { setUserD(v); setUserDManual(true); }}
@@ -599,7 +620,7 @@ export function InputDashboard() {
           <div>
             <h2 className="text-base font-semibold text-stone-900">Upload CSV or Excel</h2>
             <p className="text-sm text-stone-500 mt-1">
-              Upload only the required columns: vk_number, device_name, TRI-S, TRI-P, TRI-D, WIMI-S, and WIMI-D.
+              Upload columns: vk_number, device_name, TRI-S, TRI-P, TRI-D, WIMI-S, WIMI-P, and WIMI-D. Legacy files without WIMI-P remain supported.
               The app fills in the derived metadata.
             </p>
           </div>

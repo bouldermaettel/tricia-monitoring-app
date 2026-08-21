@@ -16,6 +16,7 @@ type Props = {
   columnAxisLabel?: string;
   fixedAxisValues?: number[];
   axisValueFormatter?: (value: number) => string;
+  emphasis?: boolean;
 };
 
 export function ConfusionMatrixGrid({
@@ -27,6 +28,7 @@ export function ConfusionMatrixGrid({
   columnAxisLabel,
   fixedAxisValues,
   axisValueFormatter,
+  emphasis = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -76,7 +78,7 @@ export function ConfusionMatrixGrid({
   }
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-6">
+    <div className={`rounded-xl border border-stone-200 bg-white ${emphasis ? 'p-7' : 'p-6'}`}>
       <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">
         {title}
       </h2>
@@ -102,7 +104,7 @@ export function ConfusionMatrixGrid({
                   <tr>
                     <th className="p-2 text-xs text-stone-400 font-medium w-12" />
                     {allValues.map((v) => (
-                      <th key={v} className="p-2 text-xs text-stone-500 font-semibold text-center w-20">
+                      <th key={v} className={`p-2 text-xs text-stone-500 font-semibold text-center whitespace-nowrap ${emphasis ? 'w-24' : 'w-20'}`}>
                         {formatAxisValue(v)}
                       </th>
                     ))}
@@ -111,7 +113,9 @@ export function ConfusionMatrixGrid({
                 <tbody>
                   {allValues.map((expected) => (
                     <tr key={expected}>
-                      <th className="p-2 text-xs text-stone-500 font-semibold text-right pr-4">{formatAxisValue(expected)}</th>
+                      <th className={`p-2 text-xs text-stone-500 font-semibold text-right pr-4 whitespace-nowrap ${emphasis ? 'min-w-[5.5rem]' : ''}`}>
+                        {formatAxisValue(expected)}
+                      </th>
                       {allValues.map((observed) => {
                         const cell = cellMap.get(`${expected}-${observed}`);
                         const isSelected = selectedSet.has(`${expected}-${observed}`);
@@ -138,7 +142,7 @@ export function ConfusionMatrixGrid({
                             <button
                               onClick={() => hasData && onCellToggle(expected, observed)}
                               disabled={!hasData}
-                              className={`w-16 h-14 rounded-lg border font-mono text-sm font-semibold transition-all ${colorClass} ${
+                              className={`${emphasis ? 'w-20 h-[4.375rem] text-base' : 'w-16 h-14 text-sm'} rounded-lg border font-mono font-semibold transition-all ${colorClass} ${
                                 isSelected ? 'ring-2 ring-amber-400 ring-offset-1 scale-105 shadow-md' : 'hover:scale-105'
                               } disabled:cursor-default`}
                             >

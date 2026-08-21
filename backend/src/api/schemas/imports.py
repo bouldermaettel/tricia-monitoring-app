@@ -13,7 +13,10 @@ class ImportPreviewCase(BaseModel):
     tricia_p: int
     tricia_d: int
     user_s: int
+    user_p: int
     user_d: int
+    tri_risk: int | None = None
+    wimi_risk: int | None = None
     category_code: str | None = None
     risk_level: str | None = None
     is_excluded: bool = False

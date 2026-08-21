@@ -19,7 +19,7 @@ def build_problematic_case_condition(
     acceptance_threshold: int,
     risk_categories: list[dict[str, int | str]],
 ):
-    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
     observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
 
     expected_class = _risk_class_expr(expected_product, risk_categories)
@@ -36,7 +36,7 @@ def build_risk_direction_condition(
     risk_direction: str,
     risk_categories: list[dict[str, int | str]],
 ):
-    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+    expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
     observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
 
     expected_class = _risk_class_expr(expected_product, risk_categories)
@@ -66,6 +66,8 @@ def apply_case_filters(
     product_cells: list[tuple[int, int]] | None = None,
     severity_cells: list[tuple[int, int]] | None = None,
     detectability_cells: list[tuple[int, int]] | None = None,
+    probability_cells: list[tuple[int, int]] | None = None,
+    risk_cells: list[tuple[int, int]] | None = None,
 ) -> Select:
     if start_date:
         query = query.where(Case.analysis_date >= start_date)
@@ -73,7 +75,7 @@ def apply_case_filters(
         query = query.where(Case.analysis_date <= end_date)
 
     if product_cells:
-        expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+        expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
         observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
         query = query.where(tuple_(expected_product, observed_product).in_(product_cells))
     if severity_cells:
@@ -84,13 +86,24 @@ def apply_case_filters(
         query = query.where(
             tuple_(ClassificationSnapshot.user_d, ClassificationSnapshot.tricia_d).in_(detectability_cells)
         )
+    if probability_cells:
+        query = query.where(
+            tuple_(ClassificationSnapshot.user_p, ClassificationSnapshot.tricia_p).in_(probability_cells)
+        )
+    if risk_cells:
+        expected_risk = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
+        observed_risk = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_p * ClassificationSnapshot.tricia_d
+        query = query.where(tuple_(expected_risk, observed_risk).in_(risk_cells))
 
     if matrix_dimension == "severity":
         expected_field = ClassificationSnapshot.user_s
         observed_field = ClassificationSnapshot.tricia_s
-    elif matrix_dimension == "product":
-        expected_field = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+    elif matrix_dimension in {"product", "risk"}:
+        expected_field = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
         observed_field = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
+    elif matrix_dimension == "probability":
+        expected_field = ClassificationSnapshot.user_p
+        observed_field = ClassificationSnapshot.tricia_p
     else:
         expected_field = ClassificationSnapshot.user_d
         observed_field = ClassificationSnapshot.tricia_d

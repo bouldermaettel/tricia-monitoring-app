@@ -14,8 +14,11 @@ type CaseItem = {
   tricia_s?: number;
   tricia_p?: number;
   user_s?: number;
+  user_p?: number;
   tricia_d?: number;
   user_d?: number;
+  tri_risk?: number;
+  wimi_risk?: number;
   category_code?: string;
   risk_level?: string;
   is_excluded?: boolean;
@@ -32,8 +35,11 @@ type ColumnId =
   | 'tricia_p'
   | 'tricia_s'
   | 'user_s'
+  | 'user_p'
   | 'tricia_d'
   | 'user_d'
+  | 'tri_risk'
+  | 'wimi_risk'
   | 'category_code'
   | 'comment'
   | 'is_excluded'
@@ -48,6 +54,7 @@ type EditValues = {
   tricia_p: number;
   tricia_d: number;
   user_s: number;
+  user_p: number;
   user_d: number;
 };
 
@@ -72,6 +79,9 @@ export type CaseTableServerFilters = {
   tricia_p?: number;
   tricia_s?: number;
   user_s?: number;
+  user_p?: number;
+  tri_risk?: number;
+  wimi_risk?: number;
   tricia_d?: number;
   user_d?: number;
   category_code?: string;
@@ -113,11 +123,14 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   wimi_shortcut: 'WIMI',
   date_reported: 'Date Reported',
   device_name: 'Device',
-  tricia_p: 'TRI-P',
   tricia_s: 'TRI-S',
   user_s: 'WIMI-S',
+  tricia_p: 'TRI-P',
+  user_p: 'WIMI-P',
   tricia_d: 'TRI-D',
   user_d: 'WIMI-D',
+  tri_risk: 'TRI-RISK',
+  wimi_risk: 'WIMI-RISK',
   category_code: 'Category',
   comment: 'Comment',
   is_excluded: 'Excl.',
@@ -130,11 +143,14 @@ const COLUMN_DB_NAMES: Record<ColumnId, string> = {
   wimi_shortcut: 'wimi_shortcut',
   date_reported: 'date_reported',
   device_name: 'device_name',
-  tricia_p: 'tricia_p',
   tricia_s: 'tricia_s',
   user_s: 'user_s',
+  tricia_p: 'tricia_p',
+  user_p: 'user_p',
   tricia_d: 'tricia_d',
   user_d: 'user_d',
+  tri_risk: 'tri_risk',
+  wimi_risk: 'wimi_risk',
   category_code: 'category_code',
   comment: 'comment_text',
   is_excluded: 'is_excluded',
@@ -147,7 +163,10 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   tricia_p: 'TRI-P',
   tricia_d: 'TRI-D',
   user_s: 'WIMI-S',
+  user_p: 'WIMI-P',
   user_d: 'WIMI-D',
+  tri_risk: 'TRI-RISK',
+  wimi_risk: 'WIMI-RISK',
   category_code: 'Category',
   is_excluded: 'Excluded',
   is_reviewed: 'Reviewed',
@@ -180,7 +199,7 @@ function rowColor(item: CaseItem, categories: RiskCategory[], acceptanceThreshol
     return 'bg-stone-50';
   }
 
-  const expectedClass = resolveRiskCategoryIndex(item.user_s * item.user_d * item.tricia_p, categories);
+  const expectedClass = resolveRiskCategoryIndex(item.user_s * (item.user_p ?? item.tricia_p ?? 1) * item.user_d, categories);
   const observedClass = resolveRiskCategoryIndex(item.tricia_s * item.tricia_d * item.tricia_p, categories);
   if (expectedClass === null || observedClass === null) {
     return 'bg-stone-50';
@@ -252,7 +271,7 @@ export function CaseTable({
 }: Props) {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<EditValues>({ device_name: '', tricia_s: 1, tricia_p: 1, tricia_d: 1, user_s: 1, user_d: 1 });
+  const [editValues, setEditValues] = useState<EditValues>({ device_name: '', tricia_s: 1, tricia_p: 1, tricia_d: 1, user_s: 1, user_p: 1, user_d: 1 });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [changedCaseIds, setChangedCaseIds] = useState<Record<string, boolean>>({});
@@ -261,11 +280,14 @@ export function CaseTable({
     wimi_shortcut: true,
     date_reported: true,
     device_name: true,
-    tricia_p: true,
     tricia_s: true,
     user_s: true,
+    tricia_p: true,
+    user_p: true,
     tricia_d: true,
     user_d: true,
+    tri_risk: true,
+    wimi_risk: true,
     category_code: true,
     comment: true,
     is_excluded: true,
@@ -280,8 +302,11 @@ export function CaseTable({
     tricia_p: '',
     tricia_s: '',
     user_s: '',
+    user_p: '',
     tricia_d: '',
     user_d: '',
+    tri_risk: '',
+    wimi_risk: '',
     category_code: '',
     comment: '',
     is_excluded: '',
@@ -305,8 +330,11 @@ export function CaseTable({
     tricia_p: '',
     tricia_s: '',
     user_s: '',
+    user_p: '',
     tricia_d: '',
     user_d: '',
+    tri_risk: '',
+    wimi_risk: '',
     category_code: '',
     comment: '',
     is_excluded: '',
@@ -323,6 +351,7 @@ export function CaseTable({
       tricia_p: item.tricia_p ?? 1,
       tricia_d: item.tricia_d ?? 1,
       user_s: item.user_s ?? 1,
+      user_p: item.user_p ?? item.tricia_p ?? 1,
       user_d: item.user_d ?? 1,
     });
   }
@@ -451,8 +480,11 @@ export function CaseTable({
       if (!matchesNumeric(item.tricia_s, normalized.tricia_s)) return false;
       if (!matchesNumeric(item.tricia_p, normalized.tricia_p)) return false;
       if (!matchesNumeric(item.user_s, normalized.user_s)) return false;
+      if (!matchesNumeric(item.user_p, normalized.user_p)) return false;
       if (!matchesNumeric(item.tricia_d, normalized.tricia_d)) return false;
       if (!matchesNumeric(item.user_d, normalized.user_d)) return false;
+      if (!matchesNumeric(item.tri_risk, normalized.tri_risk)) return false;
+      if (!matchesNumeric(item.wimi_risk, normalized.wimi_risk)) return false;
       if (normalized.category_code && (item.category_code ?? '').toLowerCase() !== normalized.category_code) return false;
       if (normalized.comment && !getCommentCellValue(item, commentInputs[item.id]).toLowerCase().includes(normalized.comment)) return false;
       if (normalized.is_excluded) {
@@ -494,10 +526,16 @@ export function CaseTable({
           return item.tricia_s ?? -Infinity;
         case 'user_s':
           return item.user_s ?? -Infinity;
+        case 'user_p':
+          return item.user_p ?? -Infinity;
         case 'tricia_d':
           return item.tricia_d ?? -Infinity;
         case 'user_d':
           return item.user_d ?? -Infinity;
+        case 'tri_risk':
+          return item.tri_risk ?? -Infinity;
+        case 'wimi_risk':
+          return item.wimi_risk ?? -Infinity;
         case 'category_code':
           return (item.category_code ?? '').toLowerCase();
         case 'comment':
@@ -568,6 +606,9 @@ export function CaseTable({
       tricia_p: parseNumber(filters.tricia_p),
       tricia_s: parseNumber(filters.tricia_s),
       user_s: parseNumber(filters.user_s),
+      user_p: parseNumber(filters.user_p),
+      tri_risk: parseNumber(filters.tri_risk),
+      wimi_risk: parseNumber(filters.wimi_risk),
       tricia_d: parseNumber(filters.tricia_d),
       user_d: parseNumber(filters.user_d),
       category_code: filters.category_code.trim() || undefined,
@@ -739,8 +780,11 @@ export function CaseTable({
                     columnId === 'tricia_s' ||
                     columnId === 'tricia_p' ||
                     columnId === 'user_s' ||
+                    columnId === 'user_p' ||
                     columnId === 'tricia_d' ||
                     columnId === 'user_d' ||
+                    columnId === 'tri_risk' ||
+                    columnId === 'wimi_risk' ||
                     columnId === 'is_excluded' ||
                     columnId === 'is_reviewed'
                       ? 'text-center'
@@ -894,11 +938,20 @@ export function CaseTable({
                   if (columnId === 'user_s') {
                     return <td key={columnId} className="px-3 py-2.5 text-center font-mono font-semibold">{item.user_s ?? '—'}</td>;
                   }
+                  if (columnId === 'user_p') {
+                    return <td key={columnId} className="px-3 py-2.5 text-center font-mono font-semibold">{item.user_p ?? '—'}</td>;
+                  }
                   if (columnId === 'tricia_d') {
                     return <td key={columnId} className="px-3 py-2.5 text-center font-mono">{item.tricia_d ?? '—'}</td>;
                   }
                   if (columnId === 'user_d') {
                     return <td key={columnId} className="px-3 py-2.5 text-center font-mono font-semibold">{item.user_d ?? '—'}</td>;
+                  }
+                  if (columnId === 'tri_risk') {
+                    return <td key={columnId} className="px-3 py-2.5 text-center font-mono">{item.tri_risk ?? '—'}</td>;
+                  }
+                  if (columnId === 'wimi_risk') {
+                    return <td key={columnId} className="px-3 py-2.5 text-center font-mono font-semibold">{item.wimi_risk ?? '—'}</td>;
                   }
                   if (columnId === 'category_code') {
                     return (
@@ -1095,6 +1148,16 @@ export function CaseTable({
                     <select
                       value={editValues.tricia_d}
                       onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_d: Number(e.target.value) }))}
+                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                    >
+                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs text-stone-600">
+                    WIMI-P
+                    <select
+                      value={editValues.user_p}
+                      onChange={(e) => setEditValues((previous) => ({ ...previous, user_p: Number(e.target.value) }))}
                       className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
                     >
                       {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}

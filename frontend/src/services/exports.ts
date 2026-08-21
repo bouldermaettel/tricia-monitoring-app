@@ -7,6 +7,7 @@ export const IMPORT_TEMPLATE_COLUMNS = [
     'TRI-P',
     'TRI-D',
     'WIMI-S',
+    'WIMI-P',
     'WIMI-D',
 ];
 
@@ -17,7 +18,10 @@ const SHARED_EXPORT_COLUMN_NAMES: Record<string, string> = {
     tricia_p: 'TRI-P',
     tricia_d: 'TRI-D',
     user_s: 'WIMI-S',
+    user_p: 'WIMI-P',
     user_d: 'WIMI-D',
+    tri_risk: 'TRI-RISK',
+    wimi_risk: 'WIMI-RISK',
 };
 
 export function getExportColumnName(column: string) {
@@ -44,11 +48,8 @@ export async function exportVisibleTableCsv(columns: string[], rows: Array<Recor
 }
 
 export async function exportVisibleTableXlsx(columns: string[], rows: Array<Record<string, unknown>>, filters?: Record<string, unknown>) {
-    const { data } = await apiClient.post(
-        '/exports/table.xlsx',
-        { columns, rows: filters ? [] : rows, filters },
-        { responseType: 'blob' }
-    );
+    const payload = filters ? { columns, rows: [], filters } : { columns, rows };
+    const { data } = await apiClient.post('/exports/table.xlsx', payload, { responseType: 'blob' });
     return data as Blob;
 }
 

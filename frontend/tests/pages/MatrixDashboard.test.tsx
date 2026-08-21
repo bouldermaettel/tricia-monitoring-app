@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MatrixDashboard } from '../../src/pages/MatrixDashboard';
@@ -7,6 +7,7 @@ import { useFilters } from '../../src/state/filters';
 import { useImportOverride } from '../../src/state/importOverride';
 
 const useAuthMock = vi.fn();
+const matrixRequests = vi.hoisted(() => [] as Array<Record<string, unknown>>);
 type MockCase = {
   id: string;
   vk_number: string;
@@ -145,24 +146,25 @@ vi.mock('../../src/hooks/useMatrix', () => ({
     const enabled = options?.enabled ?? true;
     if (!enabled) return { data: undefined };
 
-    const isRiskClassFiltered = Boolean(params?.product_cells);
+    matrixRequests.push(params ?? {});
+    const isCrossDimensionFiltered = Boolean(params?.risk_cells || params?.severity_cells || params?.detectability_cells);
     return {
       data: {
-        cells: isRiskClassFiltered
+        cells: isCrossDimensionFiltered
           ? [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }]
           : [
               { expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true },
               { expected_value: 5, observed_value: 5, case_count: 1, within_threshold: true },
             ],
         matrices: {
-          severity: isRiskClassFiltered
+          severity: isCrossDimensionFiltered
             ? [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }]
             : [
                 { expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true },
                 { expected_value: 3, observed_value: 3, case_count: 1, within_threshold: true },
               ],
-          detectability: isRiskClassFiltered
-            ? [{ expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true }]
+          detectability: isCrossDimensionFiltered
+            ? [{ expected_value: 1, observed_value: 1, case_count: 1, within_threshold: true }]
             : [
                 { expected_value: 2, observed_value: 2, case_count: 1, within_threshold: true },
                 { expected_value: 5, observed_value: 5, case_count: 1, within_threshold: true },
@@ -171,6 +173,12 @@ vi.mock('../../src/hooks/useMatrix', () => ({
             { expected_value: 400, observed_value: 25, case_count: 1, within_threshold: false },
             { expected_value: 9, observed_value: 9, case_count: 1, within_threshold: true },
           ],
+          probability: isCrossDimensionFiltered
+            ? [{ expected_value: 1, observed_value: 5, case_count: 1, within_threshold: false }]
+            : [
+                { expected_value: 1, observed_value: 5, case_count: 1, within_threshold: false },
+                { expected_value: 10, observed_value: 10, case_count: 1, within_threshold: true },
+              ],
         },
       },
     };
@@ -232,7 +240,11 @@ function getMatrixDataButton(title: string) {
   const header = screen.getByRole('heading', { name: title });
   const matrixCard = header.closest('div');
   if (!matrixCard) throw new Error(`Matrix card not found for ${title}`);
-  return within(matrixCard).getByRole('button', { name: '1' });
+  const button = within(matrixCard)
+    .getAllByRole('button')
+    .find((candidate) => !candidate.hasAttribute('disabled'));
+  if (!button) throw new Error(`Enabled matrix cell not found for ${title}`);
+  return button;
 }
 
 function expectSelectionSummary(expected: string) {
@@ -277,6 +289,7 @@ function getColumnFilterInput(columnLabel: string) {
 describe('MatrixDashboard', () => {
   beforeEach(() => {
     currentCases = [...baseMockCases];
+    matrixRequests.length = 0;
     lastUseCasesParams = undefined;
     updateThresholdsMock.mockReset();
     useImportOverride.getState().clearPreviewData();
@@ -687,6 +700,28 @@ describe('MatrixDashboard', () => {
     expect(screen.queryByRole('button', { name: '5' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '1' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '2' }).length).toBeGreaterThan(0);
+  });
+
+  it('requests a cross-filtered probability matrix without using probability as its own filter', async () => {
+    renderMatrixDashboard();
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    await waitFor(() => {
+      expect(matrixRequests).toEqual(expect.arrayContaining([
+        expect.objectContaining({ severity_cells: expect.any(String) }),
+      ]));
+    });
+    expect(matrixRequests.some((params) => Boolean(params.severity_cells) && !params.probability_cells)).toBe(true);
+
+    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
+    await waitFor(() => {
+      expect(matrixRequests.some((params) => Boolean(params.detectability_cells) && !params.probability_cells)).toBe(true);
+    });
+
+    fireEvent.click(getMatrixDataButton('RISK Matrix'));
+    await waitFor(() => {
+      expect(matrixRequests.some((params) => Boolean(params.risk_cells) && !params.probability_cells)).toBe(true);
+    });
   });
 
   it('shows the total case count and paginates beyond the first 50 rows', () => {

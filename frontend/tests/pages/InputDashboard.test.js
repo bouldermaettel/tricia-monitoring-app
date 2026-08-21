@@ -32,6 +32,7 @@ describe('InputDashboard', () => {
             tricia_p: 1,
             tricia_d: 1,
             user_s: 1,
+            user_p: 1,
             user_d: 1,
             validation_status: 'saved',
         });
@@ -57,7 +58,8 @@ describe('InputDashboard', () => {
             tricia_p: 5,
             tricia_d: 10,
             user_s: 10,
-            user_d: 5,
+            user_p: 5,
+            user_d: 10,
             validation_status: 'saved',
         });
     });

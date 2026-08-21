@@ -16,7 +16,10 @@ _FIELD_LABELS: dict[str, str] = {
     "tricia_p": "TRI-P",
     "tricia_d": "TRI-D",
     "user_s": "WIMI-S",
+    "user_p": "WIMI-P",
     "user_d": "WIMI-D",
+    "tri_risk": "TRI-RISK",
+    "wimi_risk": "WIMI-RISK",
     "category_code": "Category",
     "is_excluded": "Excluded",
     "is_reviewed": "Reviewed",
@@ -27,6 +30,21 @@ _FIELD_LABELS: dict[str, str] = {
     "comment_text": "Comment",
     "vk_number": "VK Number",
 }
+
+DEFAULT_CASE_EXPORT_COLUMNS = [
+    "vk_number",
+    "device_name",
+    "analysis_date",
+    "validation_status",
+    "TRI-S",
+    "WIMI-S",
+    "TRI-P",
+    "WIMI-P",
+    "TRI-D",
+    "WIMI-D",
+    "TRI-RISK",
+    "WIMI-RISK",
+]
 
 
 class ExportService:
@@ -47,10 +65,13 @@ class ExportService:
                     "analysis_date": c.analysis_date.isoformat(),
                     "validation_status": c.validation_status,
                     "TRI-S": snap.tricia_s if snap else None,
-                    "TRI-P": snap.tricia_p if snap else None,
-                    "TRI-D": snap.tricia_d if snap else None,
                     "WIMI-S": snap.user_s if snap else None,
+                    "TRI-P": snap.tricia_p if snap else None,
+                    "WIMI-P": snap.user_p if snap else None,
+                    "TRI-D": snap.tricia_d if snap else None,
                     "WIMI-D": snap.user_d if snap else None,
+                    "TRI-RISK": snap.tri_risk if snap else None,
+                    "WIMI-RISK": snap.wimi_risk if snap else None,
                 }
                 for c, snap in rows
             ]
@@ -90,11 +111,11 @@ class ExportService:
 
     def filtered_table_to_csv(self, columns: list[str], filters: dict) -> bytes:
         rows = self._get_rows_from_filters(filters)
-        return self.table_to_csv(columns, rows)
+        return self.table_to_csv(columns or DEFAULT_CASE_EXPORT_COLUMNS, rows)
 
     def filtered_table_to_xlsx(self, columns: list[str], filters: dict) -> bytes:
         rows = self._get_rows_from_filters(filters)
-        return self.table_to_xlsx(columns, rows)
+        return self.table_to_xlsx(columns or DEFAULT_CASE_EXPORT_COLUMNS, rows)
 
     def _get_rows_from_filters(self, filters: dict) -> list[dict]:
         # Filter out keys that CaseService doesn't expect or which are None.
@@ -105,10 +126,10 @@ class ExportService:
                 "expected_value", "observed_value", "matrix_dimension",
                 "problematic_only", "include_excluded", "risk_level",
                 "risk_direction", "wimi_shortcut", "device_name",
-                "tricia_p", "tricia_s", "user_s", "tricia_d", "user_d",
+                "tricia_p", "tricia_s", "user_s", "user_p", "tricia_d", "user_d", "tri_risk", "wimi_risk",
                 "category_code", "is_excluded", "is_reviewed", "comment_text",
                 "has_edits", "date_reported_from", "date_reported_to", "all",
-                "product_cells", "severity_cells", "detectability_cells"
+                "product_cells", "severity_cells", "detectability_cells", "probability_cells", "risk_cells"
             }
         }
         
@@ -119,7 +140,7 @@ class ExportService:
                 valid_params[dkey] = date.fromisoformat(valid_params[dkey])
 
         # Handle matrix cell filtering if they were passed as strings
-        for ckey in ["product_cells", "severity_cells", "detectability_cells"]:
+        for ckey in ["product_cells", "severity_cells", "detectability_cells", "probability_cells", "risk_cells"]:
             val = valid_params.get(ckey)
             if isinstance(val, str):
                 cells = []
@@ -178,6 +199,9 @@ class ExportService:
                 continue
             for field, delta in changes.items():
                 label = _FIELD_LABELS.get(field, field)
+                if not isinstance(delta, dict):
+                    lines.append(f"{ts} | {label}: {delta}")
+                    continue
                 old_val = delta.get("from", "—")
                 new_val = delta.get("to", "—")
                 lines.append(f"{ts} | {label}: {old_val} -> {new_val}")

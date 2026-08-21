@@ -7,6 +7,7 @@ export type CasePayload = {
     tricia_p: number;
     tricia_d: number;
     user_s: number;
+    user_p?: number;
     user_d?: number;
     validation_status?: string;
 };
@@ -19,6 +20,7 @@ export type CaseUpdatePayload = {
     tricia_p?: number;
     tricia_d?: number;
     user_s?: number;
+    user_p?: number;
     user_d?: number;
 };
 

@@ -1,6 +1,6 @@
 # DEPRECATED
 # This file is a legacy reference template and is not used by the current deployment flow.
-# Use infra/main.bicep via deploy.sh as the source of truth.
+# Use infra/archive/main.bicep via deploy.sh as the source of truth.
 
 type: Microsoft.App/containerApps@2023-05-01
 name: tricia-monitoring-backend

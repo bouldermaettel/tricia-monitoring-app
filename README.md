@@ -120,7 +120,7 @@ Example:
 
 ### Security note
 
-Do not commit real secrets in `infra/parameters.json`. Prefer shell environment variables, CI secrets, or Key Vault-backed injection.
+Do not commit real secrets in `infra/archive/parameters.json`. Prefer shell environment variables, CI secrets, or Key Vault-backed injection.
 
 
 ###

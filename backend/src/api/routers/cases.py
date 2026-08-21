@@ -54,6 +54,9 @@ def list_cases(
     tricia_p: int | None = Query(default=None),
     tricia_s: int | None = Query(default=None),
     user_s: int | None = Query(default=None),
+    user_p: int | None = Query(default=None),
+    tri_risk: int | None = Query(default=None),
+    wimi_risk: int | None = Query(default=None),
     tricia_d: int | None = Query(default=None),
     user_d: int | None = Query(default=None),
     category_code: str | None = Query(default=None),
@@ -66,6 +69,8 @@ def list_cases(
     product_cells: str | None = Query(default=None),
     severity_cells: str | None = Query(default=None),
     detectability_cells: str | None = Query(default=None),
+    probability_cells: str | None = Query(default=None),
+    risk_cells: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     all_results: bool = Query(default=False, alias="all"),
@@ -113,6 +118,9 @@ def list_cases(
         tricia_p=tricia_p,
         tricia_s=tricia_s,
         user_s=user_s,
+        user_p=user_p,
+        tri_risk=tri_risk,
+        wimi_risk=wimi_risk,
         tricia_d=tricia_d,
         user_d=user_d,
         category_code=category_code,
@@ -125,6 +133,8 @@ def list_cases(
         product_cells=_parse_cells(product_cells),
         severity_cells=_parse_cells(severity_cells),
         detectability_cells=_parse_cells(detectability_cells),
+        probability_cells=_parse_cells(probability_cells),
+        risk_cells=_parse_cells(risk_cells),
     )
 
 

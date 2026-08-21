@@ -81,7 +81,7 @@ The legacy namespace deployment is defined in `infra/archive/main.bicep` and orc
 ### Deployment flow
 
 1. Build backend and frontend container images and push them to ACR.
-2. Deploy legacy infrastructure using `infra/archive/main.bicep` and the parameter file `infra/parameters.json`.
+2. Deploy legacy infrastructure using `infra/archive/main.bicep` and the parameter file `infra/archive/parameters.json`.
 3. Azure Container Apps pull the images from ACR and start the backend and frontend services.
 4. The backend service connects to the PostgreSQL Flexible Server using the injected `DATABASE_URL` secret.
 5. Logs are forwarded to Azure Log Analytics via the Container Apps environment.
@@ -108,6 +108,6 @@ The legacy namespace deployment is defined in `infra/archive/main.bicep` and orc
 - `frontend/package.json` — frontend dependencies and scripts
 - `frontend/Dockerfile` — frontend container image build
 - `infra/archive/main.bicep` — legacy infrastructure definition
-- `infra/parameters.json` — legacy deployment parameters example
+- `infra/archive/parameters.json` — local legacy deployment parameters (keep secrets out of version control)
 - `docs/deployment.md` — deployment and verification guide
 - `README.md` — development and deployment overview

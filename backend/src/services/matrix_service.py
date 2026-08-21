@@ -29,6 +29,8 @@ class MatrixService:
         product_cells: list[tuple[int, int]] | None,
         severity_cells: list[tuple[int, int]] | None = None,
         detectability_cells: list[tuple[int, int]] | None = None,
+        probability_cells: list[tuple[int, int]] | None = None,
+        risk_cells: list[tuple[int, int]] | None = None,
     ):
         base_query = (
             select(ClassificationSnapshot.case_id)
@@ -48,7 +50,7 @@ class MatrixService:
             risk_direction=risk_direction,
         )
         if product_cells:
-            expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p
+            expected_product = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
             observed_product = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p
             filtered_query = filtered_query.where(tuple_(expected_product, observed_product).in_(product_cells))
         if severity_cells:
@@ -59,6 +61,14 @@ class MatrixService:
             filtered_query = filtered_query.where(
                 tuple_(ClassificationSnapshot.user_d, ClassificationSnapshot.tricia_d).in_(detectability_cells)
             )
+        if probability_cells:
+            filtered_query = filtered_query.where(
+                tuple_(ClassificationSnapshot.user_p, ClassificationSnapshot.tricia_p).in_(probability_cells)
+            )
+        if risk_cells:
+            expected_risk = ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d
+            observed_risk = ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_p * ClassificationSnapshot.tricia_d
+            filtered_query = filtered_query.where(tuple_(expected_risk, observed_risk).in_(risk_cells))
         return filtered_query.subquery()
 
     def _get_cells_for_dimension(
@@ -114,6 +124,8 @@ class MatrixService:
         product_cells: list[tuple[int, int]] | None = None,
         severity_cells: list[tuple[int, int]] | None = None,
         detectability_cells: list[tuple[int, int]] | None = None,
+        probability_cells: list[tuple[int, int]] | None = None,
+        risk_cells: list[tuple[int, int]] | None = None,
     ) -> ConfusionMatrixResponse:
         threshold = self.db.scalar(select(ThresholdConfig).where(ThresholdConfig.config_key == threshold_key))
         acceptance = threshold.acceptance_threshold if threshold else 1
@@ -130,6 +142,8 @@ class MatrixService:
             product_cells=product_cells,
             severity_cells=severity_cells,
             detectability_cells=detectability_cells,
+            probability_cells=probability_cells,
+            risk_cells=risk_cells,
         )
 
         severity_cells = self._get_cells_for_dimension(
@@ -148,9 +162,16 @@ class MatrixService:
             risk_categories,
             filtered_case_ids,
         )
-        # WIMI-P is treated as TRI-P, so both expected and observed products use tricia_p.
-        product_cells = self._get_cells_for_dimension(
-            ClassificationSnapshot.user_s * ClassificationSnapshot.user_d * ClassificationSnapshot.tricia_p,
+        probability_matrix = self._get_cells_for_dimension(
+            ClassificationSnapshot.user_p,
+            ClassificationSnapshot.tricia_p,
+            include_excluded,
+            acceptance,
+            risk_categories,
+            filtered_case_ids,
+        )
+        risk_matrix = self._get_cells_for_dimension(
+            ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d,
             ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_d * ClassificationSnapshot.tricia_p,
             include_excluded,
             acceptance,
@@ -164,7 +185,9 @@ class MatrixService:
             cells=detectability_cells,
             matrices=MatrixDimensionSet(
                 severity=severity_cells,
+                probability=probability_matrix,
                 detectability=detectability_cells,
-                product=product_cells,
+                risk=risk_matrix,
+                product=risk_matrix,
             ),
         )

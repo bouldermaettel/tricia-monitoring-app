@@ -25,8 +25,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-if [ -z "$PARAMETERS_FILE" ] && [ -f "$PROJECT_ROOT/infra/parameters.json" ]; then
-  PARAMETERS_FILE="$PROJECT_ROOT/infra/parameters.json"
+if [ -z "$PARAMETERS_FILE" ] && [ -f "$PROJECT_ROOT/infra/archive/parameters.json" ]; then
+  PARAMETERS_FILE="$PROJECT_ROOT/infra/archive/parameters.json"
 fi
 
 if [ -n "$PARAMETERS_FILE" ] && [ ! -f "$PARAMETERS_FILE" ]; then

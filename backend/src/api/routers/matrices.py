@@ -17,6 +17,8 @@ def get_confusion(
     risk_level: str | None = Query(default=None),
     risk_direction: str | None = Query(default=None),
     product_cells: str | None = Query(default=None),
+    probability_cells: str | None = Query(default=None),
+    risk_cells: str | None = Query(default=None),
     severity_cells: str | None = Query(default=None),
     detectability_cells: str | None = Query(default=None),
     threshold_key: str = Query(default="default"),
@@ -52,6 +54,8 @@ def get_confusion(
         risk_level=risk_level,
         risk_direction=risk_direction,
         product_cells=_parse_cells(product_cells, "product_cells"),
+        probability_cells=_parse_cells(probability_cells, "probability_cells"),
+        risk_cells=_parse_cells(risk_cells, "risk_cells"),
         severity_cells=_parse_cells(severity_cells, "severity_cells"),
         detectability_cells=_parse_cells(detectability_cells, "detectability_cells"),
     )

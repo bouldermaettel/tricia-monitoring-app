@@ -49,6 +49,10 @@ describe('CaseTable export state', () => {
       expect.arrayContaining(['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-D']),
     );
     expect(lastPayload.columns).not.toEqual(expect.arrayContaining(['tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d']));
+    const scoreColumns = lastPayload.columns.filter((column: string) => [
+      'TRI-S', 'WIMI-S', 'TRI-P', 'WIMI-P', 'TRI-D', 'WIMI-D', 'TRI-RISK', 'WIMI-RISK',
+    ].includes(column));
+    expect(scoreColumns).toEqual(['TRI-S', 'WIMI-S', 'TRI-P', 'WIMI-P', 'TRI-D', 'WIMI-D', 'TRI-RISK', 'WIMI-RISK']);
 
     expect(lastPayload.rows[0]).toMatchObject({
       vk_number: 'VK-1',

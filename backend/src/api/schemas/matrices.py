@@ -14,8 +14,11 @@ class MatrixCell(BaseModel):
 
 class MatrixDimensionSet(BaseModel):
     severity: list[MatrixCell]
+    probability: list[MatrixCell]
     detectability: list[MatrixCell]
-    product: list[MatrixCell]
+    risk: list[MatrixCell]
+    # Backward-compatible name for clients that called the risk matrix product.
+    product: list[MatrixCell] = []
 
 
 class ConfusionMatrixResponse(BaseModel):

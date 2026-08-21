@@ -33,6 +33,47 @@ def _ensure_schema() -> None:
     Base.metadata.create_all(bind=engine)
 
 
+def _ensure_risk_schema() -> None:
+    """Keep the risk columns available when a legacy backfill predates Alembic."""
+    settings = get_settings()
+    if not make_url(settings.database_url).drivername.startswith("postgresql"):
+        return
+
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "classification_snapshots" not in inspector.get_table_names():
+            return
+        columns = {column["name"] for column in inspector.get_columns("classification_snapshots")}
+        if "user_p" not in columns and "wimi_p" in columns:
+            connection.execute(text("ALTER TABLE classification_snapshots RENAME COLUMN wimi_p TO user_p"))
+            columns.remove("wimi_p")
+            columns.add("user_p")
+        if "user_p" not in columns:
+            connection.execute(text("ALTER TABLE classification_snapshots ADD COLUMN user_p INTEGER"))
+        if "tri_risk" not in columns:
+            connection.execute(text("ALTER TABLE classification_snapshots ADD COLUMN tri_risk INTEGER"))
+        if "wimi_risk" not in columns:
+            connection.execute(text("ALTER TABLE classification_snapshots ADD COLUMN wimi_risk INTEGER"))
+        connection.execute(
+            text(
+                "UPDATE classification_snapshots SET user_p = tricia_p "
+                "WHERE user_p IS NULL AND tricia_p IS NOT NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE classification_snapshots SET tri_risk = tricia_s * tricia_p * tricia_d "
+                "WHERE tricia_s IS NOT NULL AND tricia_p IS NOT NULL AND tricia_d IS NOT NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE classification_snapshots SET wimi_risk = user_s * user_p * user_d "
+                "WHERE user_s IS NOT NULL AND user_p IS NOT NULL AND user_d IS NOT NULL"
+            )
+        )
+
+
 def _initialize_database() -> None:
     """Initialize DB objects with retries to tolerate transient Postgres cold starts."""
     settings = get_settings()
@@ -42,6 +83,7 @@ def _initialize_database() -> None:
     for attempt in range(1, max_attempts + 1):
         try:
             _ensure_schema()
+            _ensure_risk_schema()
             _ensure_threshold_config_schema()
             _ensure_user_policy_schema()
             _ensure_postgres_sequences()

@@ -23,7 +23,7 @@ The root directory contains a `deploy.sh` script that automates:
 - **namespace**: A unique name for your deployment (e.g., `prod`, `staging`, `monitoring`). This is used to prefix resources.
 - **resource-group**: (Optional) The target Azure Resource Group. Defaults to `monitoring-sandbox-rg`.
 - **location**: (Optional) Azure region. Defaults to `switzerlandnorth`.
-- **parameters-file**: (Optional) Path to a Bicep parameters JSON file. Defaults to `infra/parameters.json` when present.
+- **parameters-file**: (Optional) Path to a Bicep parameters JSON file. Defaults to `infra/archive/parameters.json` when present.
 
 ### Environment Variables
 
@@ -58,7 +58,7 @@ az acr build --registry <acr-name> --image tricia-monitoring-frontend:<tag> --fi
 az deployment group create \
   --resource-group <resource-group> \
   --template-file infra/archive/main.bicep \
-  --parameters @infra/parameters.json \
+  --parameters @infra/archive/parameters.json \
   --parameters namespace=<namespace> \
   frontendImage=<acr-registry>/tricia-monitoring-frontend:<tag> \
   backendImage=<acr-registry>/tricia-monitoring-backend:<tag>

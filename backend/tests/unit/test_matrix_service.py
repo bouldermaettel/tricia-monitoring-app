@@ -100,3 +100,43 @@ def test_matrix_service_filters_dimensions_by_selected_product_cells(db_session)
     assert len(matrix.matrices.detectability) == 1
     assert matrix.matrices.detectability[0].expected_value == 10
     assert matrix.matrices.detectability[0].observed_value == 5
+
+
+def test_matrix_service_filters_probability_by_other_dimensions(db_session):
+    CaseService(db_session).create_case(
+        CaseCreateRequest(
+            vk_number='VK-20260423-025',
+            device_name='dev',
+            tricia_s=1,
+            tricia_p=5,
+            tricia_d=5,
+            user_s=1,
+            user_p=1,
+            user_d=10,
+            validation_status='saved',
+        ),
+        actor_id='tester',
+    )
+    CaseService(db_session).create_case(
+        CaseCreateRequest(
+            vk_number='VK-20260423-026',
+            device_name='dev',
+            tricia_s=10,
+            tricia_p=10,
+            tricia_d=10,
+            user_s=10,
+            user_p=10,
+            user_d=10,
+            validation_status='saved',
+        ),
+        actor_id='tester',
+    )
+
+    severity_filtered = MatrixService(db_session).get_confusion_matrix(severity_cells=[(1, 1)])
+    assert [(cell.expected_value, cell.observed_value) for cell in severity_filtered.matrices.probability] == [(1, 5)]
+
+    detectability_filtered = MatrixService(db_session).get_confusion_matrix(detectability_cells=[(10, 10)])
+    assert {(cell.expected_value, cell.observed_value) for cell in detectability_filtered.matrices.probability} == {(10, 10)}
+
+    risk_filtered = MatrixService(db_session).get_confusion_matrix(risk_cells=[(10, 25)])
+    assert [(cell.expected_value, cell.observed_value) for cell in risk_filtered.matrices.probability] == [(1, 5)]
