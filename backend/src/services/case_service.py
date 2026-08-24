@@ -418,9 +418,10 @@ class CaseService:
 
         changes: dict = {}
         if payload.category_code is not None:
-            if payload.category_code != review.category_code:
-                changes['category_code'] = {'from': review.category_code, 'to': payload.category_code}
-            review.category_code = payload.category_code
+            category_code = None if payload.category_code == '' else payload.category_code
+            if category_code != review.category_code:
+                changes['category_code'] = {'from': review.category_code, 'to': category_code}
+            review.category_code = category_code
         if payload.is_excluded is not None:
             if payload.is_excluded != review.is_excluded:
                 changes['is_excluded'] = {'from': review.is_excluded, 'to': payload.is_excluded}

@@ -4,6 +4,7 @@ from src.api.schemas.cases import CaseReviewUpdateRequest
 from src.api.schemas.config import ThresholdConfigUpdateRequest
 from src.db.seeds.case_categories import seed_case_categories
 from src.models.case import Case
+from src.models.case import CaseAuditEvent
 from src.services.case_service import CaseService
 from src.services.threshold_service import ThresholdService
 
@@ -28,6 +29,17 @@ def test_update_review_accepts_seeded_category_codes(db_session):
 
     assert review.category_code == 'no_issue'
     assert review.updated_by_user_id == 'bootstrap-admin'
+
+    cleared_review = CaseService(db_session).update_review(
+        case.id,
+        CaseReviewUpdateRequest(category_code=''),
+        'bootstrap-admin',
+    )
+
+    assert cleared_review.category_code is None
+    audit_event = db_session.query(CaseAuditEvent).order_by(CaseAuditEvent.id.desc()).first()
+    assert audit_event is not None
+    assert audit_event.changes['category_code'] == {'from': 'no_issue', 'to': None}
 
 
 def test_threshold_update_allows_unresolved_actor_without_fk_violation(db_session):
