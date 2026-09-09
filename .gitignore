@@ -29,3 +29,4 @@ Thumbs.db
 .history/
 test-data/  
 data/
+migration-backups/

@@ -35,36 +35,52 @@ The dev PostgreSQL server uses public access with the standard Azure-services fi
 
 Temporary operator firewall rules were used only during migration and were removed afterward. The public PostgreSQL tunnel containers from production were not cloned and are not part of the dev runtime.
 
-## Sanitized data-copy strategy
+## Exact data-copy strategy
 
-The productive database was treated as read-only. Data was copied into the empty dev schema after the dev backend ran its migrations.
+The productive database is treated as read-only. The repeatable
+`scripts/clone_prod_to_dev.py` command copies the complete application dataset,
+including `users`, into dev after both databases have the same Alembic revision.
+The preferred execution path is the dedicated Azure Container Instance
+launcher `scripts/launch_prod_to_dev_clone.sh`, because local PostgreSQL access
+may be blocked. The clone is dry-run by default and requires `--apply` before it
+can replace dev data.
 
-The copy preserved realistic relationships and operational behavior while removing production identities and free text:
+The copy preserves:
 
-- Preserved cases, classifications, reviews, thresholds, categories, import jobs, and record timestamps/statuses.
-- User records were not copied. Foreign-key user references were set to `NULL` where applicable.
-- Created a separate development administrator through the dev bootstrap configuration.
-- Replaced `vk_number` values with `DEV-VK-*` identifiers.
-- Replaced device names with `DEV-DEVICE-*` identifiers.
-- Replaced WIMI shortcuts with `DEV-WIMI-*` identifiers.
-- Replaced import filenames with synthetic sanitized filenames.
-- Replaced external user keys and display names with synthetic development identities.
-- Replaced case comments and import-error messages with generic sanitized text.
-- Replaced audit-event JSON changes with `{ "sanitized": true }`.
-- Did not copy password hashes, secrets, tokens, or production credentials.
+- cases, classifications, reviews, thresholds, categories, import jobs, audit
+  events, comments, filenames, record timestamps, statuses, and relationships;
+- original VK numbers, WIMI shortcuts, device names, comments, and categories;
+- the complete `users` table, including IDs, acronyms, names, roles, active
+  status, and password hashes.
 
-The copy used normal `TRUNCATE ... CASCADE` and foreign-key dependency ordering. PostgreSQL administrative trigger settings were not changed.
+Before modifying dev, the command creates a custom-format `pg_dump` backup in
+the dedicated migration container. The launcher retains the stopped container
+by default so the backup remains available for recovery. Deleting the
+container deletes the backup.
+The copy uses transactional `TRUNCATE ... RESTART IDENTITY CASCADE`, derives a
+foreign-key-safe insertion order, resets sequences, and validates table counts
+and row contents. PostgreSQL administrative trigger settings are not changed.
+If the source is on an older additive schema, shared columns are copied and
+known derived columns (`user_p`, `tri_risk`, and `wimi_risk`) are backfilled.
+Unknown schema differences still abort before dev is modified.
 
 ## Migration workflow
 
 1. Provision the new resource group, Log Analytics workspace, Container Apps environment, and PostgreSQL server.
 2. Create the dev database and deploy the pinned backend image.
 3. Allow backend migrations to create the dev schema.
-4. Run the sanitization copy from the dev container, which has the required Azure network path.
-5. Recreate the dev bootstrap administrator and require a password change on first login.
-6. Deploy the pinned frontend image with the dev backend origin.
-7. Configure dev CORS for the dev frontend hostname.
-8. Remove temporary migration firewall rules.
+4. Build and run the dedicated Azure migration container with
+   `scripts/launch_prod_to_dev_clone.sh`.
+5. Keep the stopped migration container until parity and application checks pass.
+6. Deploy/restart the dev backend with a separate dev-only bootstrap account so
+   startup configuration does not overwrite copied production users.
+7. Verify the dev frontend and API.
+
+Example:
+
+```bash
+bash scripts/launch_prod_to_dev_clone.sh
+```
 
 ## Verification checklist
 
@@ -73,9 +89,12 @@ The copy used normal `TRUNCATE ... CASCADE` and foreign-key dependency ordering.
 - Frontend returns HTTP `200`.
 - Backend `/docs` returns HTTP `200`.
 - Frontend-to-backend CORS preflight returns HTTP `200` with the dev origin.
-- Dev administrator login succeeds and reports `must_change_password=true`.
+- User login works with the copied production user records and password hashes.
 - Authenticated case access returns HTTP `200`.
-- Sanitized data counts and relationships are present in dev.
+- A recoverable backup of the previous dev database exists inside the retained
+  migration container.
+- Every copied table, including `users`, has matching counts and row contents.
+- Dev API case totals and visible totals match prod with identical filters.
 - Production backend remains healthy with 100% traffic.
 - Production database and application resources are not changed by the clone process.
 
