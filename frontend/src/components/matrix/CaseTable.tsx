@@ -1104,7 +1104,7 @@ export function CaseTable({
             </div>
             <div className="grid gap-0 md:grid-cols-2">
               <section className="p-5 border-b md:border-b-0 md:border-r border-stone-200 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <label className="text-xs text-stone-600 sm:col-span-2">
                     Device
                     <input
@@ -1113,66 +1113,70 @@ export function CaseTable({
                       className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
                     />
                   </label>
-                  <label className="text-xs text-stone-600">
-                    TRI-S
-                    <select
-                      value={editValues.tricia_s}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_s: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {S_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs text-stone-600">
-                    WIMI-S
-                    <select
-                      value={editValues.user_s}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, user_s: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {S_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs text-stone-600">
-                    TRI-P
-                    <select
-                      value={editValues.tricia_p}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_p: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs text-stone-600">
-                    TRI-D
-                    <select
-                      value={editValues.tricia_d}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_d: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs text-stone-600">
-                    WIMI-P
-                    <select
-                      value={editValues.user_p}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, user_p: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs text-stone-600">
-                    WIMI-D
-                    <select
-                      value={editValues.user_d}
-                      onChange={(e) => setEditValues((previous) => ({ ...previous, user_d: Number(e.target.value) }))}
-                      className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
-                    >
-                      {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
+                  <div className="space-y-3">
+                    <label className="block text-xs text-stone-600">
+                      TRI-S
+                      <select
+                        value={editValues.tricia_s}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_s: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {S_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-xs text-stone-600">
+                      TRI-P
+                      <select
+                        value={editValues.tricia_p}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_p: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-xs text-stone-600">
+                      TRI-D
+                      <select
+                        value={editValues.tricia_d}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, tricia_d: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-xs text-stone-600">
+                      WIMI-S
+                      <select
+                        value={editValues.user_s}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, user_s: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {S_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-xs text-stone-600">
+                      WIMI-P
+                      <select
+                        value={editValues.user_p}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, user_p: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-xs text-stone-600">
+                      WIMI-D
+                      <select
+                        value={editValues.user_d}
+                        onChange={(e) => setEditValues((previous) => ({ ...previous, user_d: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm font-mono"
+                      >
+                        {D_OPTS.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                  </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2">
                   {editError && (
