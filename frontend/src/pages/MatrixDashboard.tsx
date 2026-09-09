@@ -59,6 +59,7 @@ function getEligibleTriggeredWindows(dateWindow: string, dateFrom?: string, date
 
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
 const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
+const PROBABILITY_AXIS_VALUES = [1, 5, 10];
 const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
 const DEFAULT_CASES_PAGE_SIZE = 50;
 
@@ -454,9 +455,10 @@ export function MatrixDashboard() {
     : undefined;
 
   const overrideMatrices = useMemo(() => {
-    if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
+    if (!isOverrideActive) return { severity: [], probability: [], detectability: [], product: [] };
     return {
       severity: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_s, observed: item.tricia_s })), acceptanceThreshold),
+      probability: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_p ?? 1, observed: item.tricia_p })), acceptanceThreshold),
       detectability: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_d, observed: item.tricia_d })), acceptanceThreshold),
       product: buildLocalMatrixCells(
         filteredOverrideCases.map((item) => ({
@@ -468,6 +470,9 @@ export function MatrixDashboard() {
     };
   }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive]);
   const productCells = isOverrideActive ? overrideMatrices.product : (matrix.data?.matrices?.product ?? []);
+  const probabilityCells = isOverrideActive
+    ? overrideMatrices.probability
+    : (matrix.data?.matrices?.probability ?? []);
   const riskClassMatrix = useMemo(
     () => buildRiskClassMatrix(productCells, riskCategories, acceptanceThreshold),
     [acceptanceThreshold, productCells, riskCategories]
@@ -891,6 +896,12 @@ export function MatrixDashboard() {
                 cells: severityCells,
               },
               {
+                title: 'Probability Matrix',
+                rowAxisLabel: 'WIMI-P',
+                columnAxisLabel: 'TRI-P',
+                cells: probabilityCells,
+              },
+              {
                 title: 'Detectability Matrix',
                 rowAxisLabel: 'WIMI-D',
                 columnAxisLabel: 'TRI-D',
@@ -932,41 +943,54 @@ export function MatrixDashboard() {
           </button>
           {!collapsedProduct && (
             <div className="p-2">
-              <div className="grid gap-4 xl:grid-cols-3">
-                <ConfusionMatrixGrid
-                  title="Risk Class Matrix"
-                  cells={riskClassMatrix.cells}
-                  onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
-                  selectedCells={selectedCellsByDimension.product}
-                  rowAxisLabel="WIMI Risk Class"
-                  columnAxisLabel="TRI Risk Class"
-                  axisValueFormatter={(value) => riskCategoryLabelMap.get(value) ?? `Class ${value}`}
-                />
-                <ConfusionMatrixGrid
-                  title="Severity Matrix"
-                  cells={severityCells}
-                  fixedAxisValues={SEVERITY_AXIS_VALUES}
-                  onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
-                  selectedCells={selectedCellsByDimension.severity}
-                  rowAxisLabel="WIMI-S"
-                  columnAxisLabel="TRI-S"
-                />
-                <ConfusionMatrixGrid
-                  title="Detectability Matrix"
-                  cells={detectabilityCells}
-                  fixedAxisValues={DETECTABILITY_AXIS_VALUES}
-                  onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
-                  selectedCells={selectedCellsByDimension.detectability}
-                  rowAxisLabel="WIMI-D"
-                  columnAxisLabel="TRI-D"
-                />
-              </div>
-              <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
-                {riskCategories.map((category, index) => (
-                  <span key={`${category.label}-${index}`}>
-                    {getRiskCategoryDisplayLabel(category, index)} ({category.min_value}-{category.max_value})
-                  </span>
-                ))}
+              <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                <div data-testid="risk-class-matrix-panel">
+                  <ConfusionMatrixGrid
+                    title="Risk Class Matrix"
+                    cells={riskClassMatrix.cells}
+                    onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
+                    selectedCells={selectedCellsByDimension.product}
+                    rowAxisLabel="WIMI Risk Class"
+                    columnAxisLabel="TRI Risk Class"
+                    axisValueFormatter={(value) => riskCategoryLabelMap.get(value) ?? `Class ${value}`}
+                    emphasis
+                  />
+                  <div className="px-4 pt-2 text-xs text-stone-500 flex flex-wrap gap-x-3 gap-y-1">
+                    {riskCategories.map((category, index) => (
+                      <span key={`${category.label}-${index}`}>
+                        {getRiskCategoryDisplayLabel(category, index)} ({category.min_value}-{category.max_value})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <ConfusionMatrixGrid
+                    title="Severity Matrix"
+                    cells={severityCells}
+                    fixedAxisValues={SEVERITY_AXIS_VALUES}
+                    onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
+                    selectedCells={selectedCellsByDimension.severity}
+                    rowAxisLabel="WIMI-S"
+                    columnAxisLabel="TRI-S"
+                  />
+                  <ConfusionMatrixGrid
+                    title="Probability Matrix"
+                    cells={probabilityCells}
+                    fixedAxisValues={PROBABILITY_AXIS_VALUES}
+                    onCellToggle={() => undefined}
+                    rowAxisLabel="WIMI-P"
+                    columnAxisLabel="TRI-P"
+                  />
+                  <ConfusionMatrixGrid
+                    title="Detectability Matrix"
+                    cells={detectabilityCells}
+                    fixedAxisValues={DETECTABILITY_AXIS_VALUES}
+                    onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
+                    selectedCells={selectedCellsByDimension.detectability}
+                    rowAxisLabel="WIMI-D"
+                    columnAxisLabel="TRI-D"
+                  />
+                </div>
               </div>
 
               {hasSelection && (

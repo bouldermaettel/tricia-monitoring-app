@@ -337,9 +337,12 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
     expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
     expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
+    expect(screen.getByText('Probability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
-    expect(screen.getByText('Very Low')).toBeInTheDocument();
+    const riskPanel = screen.getByTestId('risk-class-matrix-panel');
+    expect(within(riskPanel).getByText('Very Low (0-10)')).toBeInTheDocument();
+    expect(screen.getAllByText('Very Low (0-10)')).toHaveLength(1);
   });
 
   it('shows settings only to admins', () => {
@@ -367,7 +370,7 @@ describe('MatrixDashboard', () => {
     fireEvent.blur(nameInput);
 
     expect(screen.getByDisplayValue('Field Review')).toBeInTheDocument();
-    expect(screen.getByText('Field Review (0-10)')).toBeInTheDocument();
+    expect(within(screen.getByTestId('risk-class-matrix-panel')).getByText('Field Review (0-10)')).toBeInTheDocument();
     expect(screen.getAllByText('Field Review').length).toBeGreaterThan(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
