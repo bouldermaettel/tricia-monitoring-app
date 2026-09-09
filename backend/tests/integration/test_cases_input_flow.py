@@ -25,6 +25,37 @@ def test_validate_then_save_then_list(client):
     assert listing.json()['total'] >= 1
 
 
+def test_list_cases_accepts_matrix_table_filters(client):
+    create = client.post(
+        '/api/v1/cases',
+        json={
+            'vk_number': 'VK-TABLE-FILTER-001',
+            'device_name': 'table-filter-device',
+            'tricia_s': 1,
+            'tricia_p': 5,
+            'tricia_d': 5,
+            'user_s': 3,
+            'user_p': 5,
+            'user_d': 10,
+            'validation_status': 'saved',
+        },
+    )
+    assert create.status_code == 201
+
+    listing = client.get(
+        '/api/v1/cases',
+        params={
+            'vk_number_contains': 'TABLE-FILTER',
+            'user_p': 5,
+            'tri_risk': 25,
+            'wimi_risk': 150,
+        },
+    )
+
+    assert listing.status_code == 200
+    assert listing.json()['total'] == 1
+
+
 def test_list_cases_all_results_ignores_page_size(client):
     for index in range(3):
         create = client.post(

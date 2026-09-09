@@ -13,6 +13,7 @@ from src.services.validation_service import ValidationService
 
 
 class CaseService:
+    # Keep the list endpoint signature aligned with all filters exposed by the API router.
     def __init__(self, db: Session):
         self.db = db
 
@@ -220,8 +221,11 @@ class CaseService:
         tricia_p: int | None = None,
         tricia_s: int | None = None,
         user_s: int | None = None,
+        user_p: int | None = None,
         tricia_d: int | None = None,
         user_d: int | None = None,
+        tri_risk: int | None = None,
+        wimi_risk: int | None = None,
         category_code: str | None = None,
         comment_text: str | None = None,
         is_excluded: bool | None = None,
@@ -232,6 +236,8 @@ class CaseService:
         product_cells=None,
         severity_cells=None,
         detectability_cells=None,
+        probability_cells=None,
+        risk_cells=None,
     ) -> CaseListResponse:
         acceptance_threshold, risk_categories = self._get_threshold_context()
         latest_snapshot_subquery = (
@@ -265,6 +271,8 @@ class CaseService:
             product_cells=product_cells,
             severity_cells=severity_cells,
             detectability_cells=detectability_cells,
+            probability_cells=probability_cells,
+            risk_cells=risk_cells,
         )
         if vk_number:
             query = query.where(Case.vk_number == vk_number)
@@ -285,10 +293,16 @@ class CaseService:
             query = query.where(ClassificationSnapshot.tricia_s == tricia_s)
         if user_s is not None:
             query = query.where(ClassificationSnapshot.user_s == user_s)
+        if user_p is not None:
+            query = query.where(ClassificationSnapshot.user_p == user_p)
         if tricia_d is not None:
             query = query.where(ClassificationSnapshot.tricia_d == tricia_d)
         if user_d is not None:
             query = query.where(ClassificationSnapshot.user_d == user_d)
+        if tri_risk is not None:
+            query = query.where(ClassificationSnapshot.tri_risk == tri_risk)
+        if wimi_risk is not None:
+            query = query.where(ClassificationSnapshot.wimi_risk == wimi_risk)
 
         if category_code:
             query = query.where(CaseReview.category_code == category_code)

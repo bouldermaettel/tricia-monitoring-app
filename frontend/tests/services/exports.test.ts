@@ -9,13 +9,26 @@ vi.mock('../../src/services/api', () => ({
 }));
 
 describe('exportImportTemplateXlsx', () => {
-  it('requests the reduced canonical import template columns', async () => {
+  it('requests the full user-facing import template columns', async () => {
     await exportImportTemplateXlsx();
 
     expect(apiClient.post).toHaveBeenCalledWith(
       '/exports/table.xlsx',
       {
-        columns: ['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-P', 'WIMI-D'],
+        columns: [
+          'vk_number',
+          'device_name',
+          'analysis_date',
+          'validation_status',
+          'TRI-S',
+          'TRI-P',
+          'TRI-D',
+          'WIMI-S',
+          'WIMI-P',
+          'WIMI-D',
+          'TRI-RISK',
+          'WIMI-RISK',
+        ],
         rows: [],
       },
       { responseType: 'blob' },

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type DateWindow = '3M' | '6M' | '12M' | 'ALL' | 'CUSTOM';
 export type RiskFilter = 'all' | 'false_low' | 'false_high';
-export type MatrixDimension = 'severity' | 'probability' | 'detectability' | 'risk';
+export type MatrixDimension = 'severity' | 'probability' | 'detectability' | 'risk' | 'product';
 
 type FiltersState = {
     includeExcluded: boolean;

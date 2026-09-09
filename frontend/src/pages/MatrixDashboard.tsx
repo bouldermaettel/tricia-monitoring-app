@@ -263,7 +263,9 @@ export function MatrixDashboard() {
     Record<MatrixDimension, Array<{ expected: number; observed: number }>>
   >({
     severity: [],
+    probability: [],
     detectability: [],
+    risk: [],
     product: [],
   });
 
@@ -502,7 +504,9 @@ export function MatrixDashboard() {
       }
       return {
         severity: [],
+        probability: [],
         detectability: [],
+        risk: [],
         product: target,
       };
     });
@@ -775,7 +779,9 @@ export function MatrixDashboard() {
       if (dimension === 'product' && previous.product.length === 0 && nextDimensionSelection.length > 0) {
         return {
           severity: [],
+          probability: [],
           detectability: [],
+          risk: [],
           product: nextDimensionSelection,
         };
       }
@@ -790,7 +796,9 @@ export function MatrixDashboard() {
   function clearAllSelection() {
     setSelectedCellsByDimension({
       severity: [],
+      probability: [],
       detectability: [],
+      risk: [],
       product: [],
     });
     if (riskFilter !== 'all') {

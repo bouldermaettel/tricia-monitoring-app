@@ -7,6 +7,7 @@ from src.api.schemas.config import ProblematicCaseThresholds, ThresholdConfigUpd
 from src.models.case import Case, CaseAuditEvent, CaseComment, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.user import User
+from src.services.export_service import ExportService
 from src.services.import_service import DuplicateVkConflictError, ImportService
 from src.services.threshold_service import ThresholdService
 
@@ -117,7 +118,7 @@ def test_import_service_leaves_unknown_actor_shortcut_empty(db_session):
 
 
 def test_import_service_rejects_wrong_columns(db_session):
-    csv_payload = b'vk_number,device_name,analysis_date,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVK-1,dev-1,2024-05-23,1,1,5,1,5\n'
+    csv_payload = b'vk_number,device_name,analysis_date,unexpected,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVK-1,dev-1,2024-05-23,ignored,1,1,5,1,5\n'
     service = ImportService(db_session)
 
     with pytest.raises(ValueError, match='Invalid import file format'):
@@ -141,6 +142,46 @@ def test_import_service_rejects_invalid_severity_score(db_session):
 
     with pytest.raises(ValueError, match=r"column 'TRI-S' must be one of \[1, 3, 5, 8, 10\]"):
         service.preview_file('sample.csv', csv_payload, 'bootstrap-admin')
+
+
+def test_import_service_round_trips_full_xlsx_export_and_ignores_id(db_session):
+    csv_payload = b'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-D\nVk_20240523_001,Device-1,1,1,5,3,5\n'
+    service = ImportService(db_session)
+    service.process_file('initial.csv', csv_payload, 'bootstrap-admin')
+
+    exported = ExportService(db_session).to_xlsx()
+    result = service.process_file('export.xlsx', exported, 'bootstrap-admin', duplicate_action='replace')
+
+    assert result.imported_rows == 1
+    assert result.replaced_rows == 1
+    case = db_session.query(Case).one()
+    assert case.vk_number == 'Vk_20240523_001'
+    assert case.analysis_date == date(2024, 5, 23)
+    assert case.validation_status == 'saved'
+
+
+def test_import_service_validates_exported_metadata(db_session):
+    mismatched_date = (
+        b'vk_number,device_name,analysis_date,validation_status,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-P,WIMI-D,TRI-RISK,WIMI-RISK\n'
+        b'Vk_20240523_001,Device-1,2024-05-24,invalid,1,1,5,3,1,5,5,15\n'
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ImportService(db_session).preview_file('sample.csv', mismatched_date, 'bootstrap-admin')
+
+    message = str(exc_info.value)
+    assert "column 'analysis_date' must equal 2024-05-23" in message
+    assert "column 'validation_status' must be one of [draft, validated, saved]" in message
+
+
+def test_import_service_validates_supplied_risk_columns(db_session):
+    csv_payload = (
+        b'vk_number,device_name,analysis_date,validation_status,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-P,WIMI-D,TRI-RISK,WIMI-RISK\n'
+        b'Vk_20240523_001,Device-1,2024-05-23,saved,1,1,5,3,1,5,999,15\n'
+    )
+
+    with pytest.raises(ValueError, match="column 'TRI-RISK' must equal 5"):
+        ImportService(db_session).preview_file('sample.csv', csv_payload, 'bootstrap-admin')
 
 
 def test_import_service_aggregates_all_row_validation_errors(db_session):

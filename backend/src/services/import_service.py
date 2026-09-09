@@ -26,6 +26,9 @@ CANONICAL_IMPORT_COLUMNS: tuple[str, ...] = (
 )
 LEGACY_IMPORT_COLUMNS: tuple[str, ...] = tuple(column for column in CANONICAL_IMPORT_COLUMNS if column != "WIMI-P")
 DERIVED_IMPORT_COLUMNS = ("TRI-RISK", "WIMI-RISK")
+IMPORT_METADATA_COLUMNS = ("analysis_date", "validation_status")
+IGNORED_IMPORT_COLUMNS = ("id",)
+VALIDATION_STATUS_VALUES: tuple[str, ...] = ("draft", "validated", "saved")
 
 SEVERITY_SCORE_VALUES: tuple[int, ...] = (1, 3, 5, 8, 10)
 PROBABILITY_DETECTABILITY_VALUES: tuple[int, ...] = (1, 5, 10)
@@ -153,10 +156,16 @@ class ImportService:
         legacy_columns = [cls._normalize_column_name(column) for column in LEGACY_IMPORT_COLUMNS]
         derived_columns = [cls._normalize_column_name(column) for column in DERIVED_IMPORT_COLUMNS]
         actual_set = set(actual_columns)
-        is_legacy = set(legacy_columns).issubset(actual_set) and len(actual_columns) == len(legacy_columns)
+        is_legacy = set(legacy_columns).issubset(actual_set) and "wimi-p" not in actual_set
         required_columns = legacy_columns if is_legacy else new_columns
         missing_columns = [column for column in required_columns if column not in actual_set]
-        extra_columns = [column for column in actual_columns if column not in set(new_columns + derived_columns)]
+        accepted_columns = set(
+            new_columns
+            + derived_columns
+            + [cls._normalize_column_name(column) for column in IMPORT_METADATA_COLUMNS]
+            + [cls._normalize_column_name(column) for column in IGNORED_IMPORT_COLUMNS]
+        )
+        extra_columns = [column for column in actual_columns if column not in accepted_columns]
 
         if missing_columns or extra_columns:
             details: list[str] = []
@@ -245,6 +254,28 @@ class ImportService:
         )
         user_d = cls._parse_required_score(row, row_number, "WIMI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
 
+        derived_analysis_date = ValidationService.derive_analysis_date(vk_number) if vk_number else date.today()
+        raw_analysis_date = cls._first_value(row, ["analysis_date"], None)
+        analysis_date = derived_analysis_date
+        if raw_analysis_date is not None:
+            try:
+                parsed_analysis_date = pd.to_datetime(raw_analysis_date, errors="raise").date()
+                if parsed_analysis_date != derived_analysis_date:
+                    errors.append(
+                        f"Row {row_number}: column 'analysis_date' must equal {derived_analysis_date.isoformat()} for VK-NR '{vk_number}'."
+                    )
+                else:
+                    analysis_date = parsed_analysis_date
+            except (TypeError, ValueError, OverflowError):
+                errors.append(f"Row {row_number}: column 'analysis_date' must be a valid date.")
+
+        raw_validation_status = cls._first_value(row, ["validation_status"], None)
+        validation_status = "saved" if raw_validation_status is None else str(raw_validation_status).strip().lower()
+        if validation_status not in VALIDATION_STATUS_VALUES:
+            errors.append(
+                f"Row {row_number}: column 'validation_status' must be one of [{cls._format_allowed_values(VALIDATION_STATUS_VALUES)}]."
+            )
+
         if errors:
             return None, errors
 
@@ -276,6 +307,8 @@ class ImportService:
             "user_s": int(user_s),
             "user_p": int(user_p),
             "user_d": int(user_d),
+            "analysis_date": analysis_date,
+            "validation_status": validation_status,
         }, []
 
     @staticmethod
@@ -297,17 +330,17 @@ class ImportService:
         user_p = int(validated_row["user_p"])
         user_d = int(validated_row["user_d"])
 
-        analysis_date = ValidationService.derive_analysis_date(vk_number)
+        analysis_date = str(validated_row["analysis_date"])
         input_timestamp = datetime.utcnow().isoformat()
         wimi_shortcut = actor_shortcut
 
         return {
             "vk_number": vk_number,
             "device_name": device_name,
-            "analysis_date": analysis_date.isoformat(),
+            "analysis_date": analysis_date,
             "input_timestamp": input_timestamp,
             "wimi_shortcut": wimi_shortcut,
-            "validation_status": "saved",
+            "validation_status": str(validated_row["validation_status"]),
             "tricia_s": tricia_s,
             "tricia_p": tricia_p,
             "tricia_d": tricia_d,

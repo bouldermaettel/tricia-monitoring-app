@@ -3,12 +3,16 @@ import { apiClient } from './api';
 export const IMPORT_TEMPLATE_COLUMNS = [
     'vk_number',
     'device_name',
+    'analysis_date',
+    'validation_status',
     'TRI-S',
     'TRI-P',
     'TRI-D',
     'WIMI-S',
     'WIMI-P',
     'WIMI-D',
+    'TRI-RISK',
+    'WIMI-RISK',
 ];
 
 const SHARED_EXPORT_COLUMN_NAMES: Record<string, string> = {
