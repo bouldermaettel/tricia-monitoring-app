@@ -147,7 +147,9 @@ vi.mock('../../src/hooks/useMatrix', () => ({
     if (!enabled) return { data: undefined };
 
     matrixRequests.push(params ?? {});
-    const isCrossDimensionFiltered = Boolean(params?.risk_cells || params?.severity_cells || params?.detectability_cells);
+    const isCrossDimensionFiltered = Boolean(
+      params?.product_cells || params?.risk_cells || params?.severity_cells || params?.detectability_cells
+    );
     return {
       data: {
         cells: isCrossDimensionFiltered
@@ -245,6 +247,13 @@ function getMatrixDataButton(title: string) {
     .find((candidate) => !candidate.hasAttribute('disabled'));
   if (!button) throw new Error(`Enabled matrix cell not found for ${title}`);
   return button;
+}
+
+function getEnabledMatrixDataButtons(title: string) {
+  const header = screen.getByRole('heading', { name: title });
+  const matrixCard = header.closest('div');
+  if (!matrixCard) throw new Error(`Matrix card not found for ${title}`);
+  return within(matrixCard).getAllByRole('button').filter((candidate) => !candidate.hasAttribute('disabled'));
 }
 
 function expectSelectionSummary(expected: string) {
@@ -708,6 +717,9 @@ describe('MatrixDashboard', () => {
   it('requests a cross-filtered probability matrix without using probability as its own filter', async () => {
     renderMatrixDashboard();
 
+    const initialProbabilityCellCount = getEnabledMatrixDataButtons('Probability Matrix').length;
+    expect(initialProbabilityCellCount).toBeGreaterThan(1);
+
     fireEvent.click(getMatrixDataButton('Severity Matrix'));
     await waitFor(() => {
       expect(matrixRequests).toEqual(expect.arrayContaining([
@@ -715,15 +727,49 @@ describe('MatrixDashboard', () => {
       ]));
     });
     expect(matrixRequests.some((params) => Boolean(params.severity_cells) && !params.probability_cells)).toBe(true);
+    await waitFor(() => {
+      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
+    });
 
     fireEvent.click(getMatrixDataButton('Detectability Matrix'));
     await waitFor(() => {
-      expect(matrixRequests.some((params) => Boolean(params.detectability_cells) && !params.probability_cells)).toBe(true);
+      expect(
+        matrixRequests.some(
+          (params) => Boolean(params.severity_cells) && Boolean(params.detectability_cells) && !params.probability_cells
+        )
+      ).toBe(true);
     });
 
-    fireEvent.click(getMatrixDataButton('RISK Matrix'));
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
     await waitFor(() => {
-      expect(matrixRequests.some((params) => Boolean(params.risk_cells) && !params.probability_cells)).toBe(true);
+      expect(matrixRequests.some((params) => Boolean(params.product_cells) && !params.probability_cells)).toBe(true);
+    });
+  });
+
+  it('keeps probability cross-filtering correct with multi-cell matrix selection', async () => {
+    renderMatrixDashboard();
+
+    const severityButtons = getEnabledMatrixDataButtons('Severity Matrix');
+    expect(severityButtons.length).toBeGreaterThan(1);
+
+    fireEvent.click(severityButtons[0]);
+    fireEvent.click(severityButtons[1]);
+    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
+
+    await waitFor(() => {
+      expect(
+        matrixRequests.some(
+          (params) =>
+            typeof params.severity_cells === 'string'
+            && params.severity_cells.includes(',')
+            && Boolean(params.detectability_cells)
+            && !params.probability_cells
+        )
+      ).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
     });
   });
 
