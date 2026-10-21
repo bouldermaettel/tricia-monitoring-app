@@ -531,6 +531,8 @@ class CaseService:
                 user_s=user_s,
                 user_p=user_p,
                 user_d=user_d,
+                tri_risk=tricia_s * tricia_p * tricia_d,
+                wimi_risk=user_s * user_p * user_d,
                 deviation_s=abs(user_s - tricia_s),
                 deviation_d=abs(user_d - tricia_d),
                 problem_flag=False,
@@ -545,6 +547,9 @@ class CaseService:
                     changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
                     setattr(snapshot, field, new_val)
             if any(score_updates[field] is not None for field in score_fields):
+                effective_user_p = snapshot.user_p if snapshot.user_p is not None else snapshot.tricia_p
+                snapshot.tri_risk = snapshot.tricia_s * snapshot.tricia_p * snapshot.tricia_d
+                snapshot.wimi_risk = snapshot.user_s * effective_user_p * snapshot.user_d
                 snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                 snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
                 snapshot.problem_flag = self._is_problematic_case(
@@ -552,7 +557,7 @@ class CaseService:
                     tricia_p=snapshot.tricia_p,
                     tricia_d=snapshot.tricia_d,
                     user_s=snapshot.user_s,
-                    user_p=snapshot.user_p if snapshot.user_p is not None else snapshot.tricia_p,
+                    user_p=effective_user_p,
                     user_d=snapshot.user_d,
                     acceptance_threshold=acceptance_threshold,
                     risk_categories=risk_categories,

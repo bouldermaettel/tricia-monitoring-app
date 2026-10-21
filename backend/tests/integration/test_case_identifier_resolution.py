@@ -41,6 +41,39 @@ def test_case_scores_can_be_updated_via_vk_number_path(client):
     assert rows[0]['tricia_s'] == 8
     assert rows[0]['user_s'] == 10
     assert rows[0]['user_d'] == 10
+    assert rows[0]['tri_risk'] == 40
+    assert rows[0]['wimi_risk'] == 100
+
+
+def test_case_probability_update_recomputes_wimi_risk(client):
+    payload = {
+        'vk_number': 'Vk_20261021_900',
+        'device_name': 'dev-update-user-p',
+        'tricia_s': 5,
+        'tricia_p': 5,
+        'tricia_d': 5,
+        'user_s': 5,
+        'user_p': 10,
+        'user_d': 1,
+        'validation_status': 'saved',
+    }
+
+    create = client.post('/api/v1/cases', json=payload)
+    assert create.status_code == 201
+
+    update = client.put(
+        f"/api/v1/cases/{payload['vk_number']}",
+        json={'user_p': 1},
+    )
+    assert update.status_code == 200
+
+    listed = client.get('/api/v1/cases', params={'vk_number': payload['vk_number']})
+    assert listed.status_code == 200
+    rows = listed.json()['items']
+    assert len(rows) == 1
+    assert rows[0]['user_p'] == 1
+    assert rows[0]['tri_risk'] == 125
+    assert rows[0]['wimi_risk'] == 5
 
 
 def test_case_scores_can_be_created_when_snapshot_is_missing(client, db_session):
