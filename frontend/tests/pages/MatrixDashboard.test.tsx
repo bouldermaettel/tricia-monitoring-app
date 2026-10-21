@@ -17,6 +17,7 @@ type MockCase = {
   tricia_s: number;
   tricia_p: number;
   user_s: number;
+  user_p?: number;
   tricia_d: number;
   user_d: number;
   category_code?: string;
@@ -57,6 +58,7 @@ const baseMockCases: MockCase[] = [
     tricia_s: 1,
     tricia_p: 5,
     user_s: 8,
+    user_p: 10,
     tricia_d: 5,
     user_d: 10,
     category_code: 'problem',
@@ -134,6 +136,17 @@ function filterMockCases(params?: Record<string, unknown>) {
     items = items.filter((item) => item.user_d === expected && item.tricia_d === observed);
   }
 
+  if (typeof params?.probability_cells === 'string' && params.probability_cells) {
+    const selected = new Set(params.probability_cells.split(',').map((cell) => cell.trim()));
+    items = items.filter((item) => selected.has(`${item.user_p ?? 1}:${item.tricia_p}`));
+  }
+
+  if (params?.matrix_dimension === 'probability') {
+    const expected = Number(params?.expected_value);
+    const observed = Number(params?.observed_value);
+    items = items.filter((item) => (item.user_p ?? 1) === expected && item.tricia_p === observed);
+  }
+
   return items;
 }
 
@@ -148,7 +161,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
 
     matrixRequests.push(params ?? {});
     const isCrossDimensionFiltered = Boolean(
-      params?.product_cells || params?.risk_cells || params?.severity_cells || params?.detectability_cells
+      params?.product_cells || params?.risk_cells || params?.severity_cells || params?.probability_cells || params?.detectability_cells
     );
     return {
       data: {
@@ -179,7 +192,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
             ? [{ expected_value: 1, observed_value: 5, case_count: 1, within_threshold: false }]
             : [
                 { expected_value: 1, observed_value: 5, case_count: 1, within_threshold: false },
-                { expected_value: 10, observed_value: 10, case_count: 1, within_threshold: true },
+                { expected_value: 10, observed_value: 5, case_count: 1, within_threshold: false },
               ],
         },
       },
@@ -770,6 +783,31 @@ describe('MatrixDashboard', () => {
 
     await waitFor(() => {
       expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
+    });
+  });
+
+  it('filters other matrices and cases when probability cells are selected', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
+    renderMatrixDashboard();
+
+    const probabilityButtons = getEnabledMatrixDataButtons('Probability Matrix');
+    expect(probabilityButtons.length).toBeGreaterThan(1);
+
+    fireEvent.click(probabilityButtons[0]);
+
+    await waitFor(() => {
+      const probabilityFilteredRequests = matrixRequests.filter((params) => Boolean(params.probability_cells));
+      expect(probabilityFilteredRequests.length).toBeGreaterThanOrEqual(3);
+      expect(probabilityFilteredRequests.every((params) => params.probability_cells === '1:5')).toBe(true);
+    });
+
+    expect(screen.getByText('VK-1')).toBeInTheDocument();
+    expect(screen.queryByText('VK-2')).not.toBeInTheDocument();
+
+    fireEvent.click(probabilityButtons[1]);
+    await waitFor(() => {
+      expect(screen.getByText('VK-1')).toBeInTheDocument();
+      expect(screen.getByText('VK-2')).toBeInTheDocument();
     });
   });
 
