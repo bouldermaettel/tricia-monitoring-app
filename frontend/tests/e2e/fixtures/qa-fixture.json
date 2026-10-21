@@ -1,0 +1,46 @@
+{
+  "matrixPeriods": [
+    { "label": "3 Months", "risk": "All" },
+    { "label": "6 Months", "risk": "False Low" },
+    { "label": "12 Months", "risk": "False High" },
+    { "label": "All Time", "risk": "All" }
+  ],
+  "riskFilters": [
+    "All",
+    "False Low",
+    "False High"
+  ],
+  "pageSizes": [25, 50, 100],
+  "reportFormats": [
+    "Report HTML",
+    "Report PDF"
+  ],
+  "adminUsers": [
+    {
+      "username": "qa_e2e_user_01",
+      "displayName": "QA E2E User 01",
+      "acronym": "qeu1",
+      "password": "Str0ngPass!23"
+    },
+    {
+      "username": "qa_e2e_user_02",
+      "displayName": "QA E2E User 02",
+      "acronym": "qeu2",
+      "password": "Str0ngPass!24"
+    }
+  ],
+  "caseSeeds": [
+    {
+      "id": "Vk_20250102_001",
+      "device": "QA seeded device 01"
+    },
+    {
+      "id": "Vk_20250102_002",
+      "device": "QA seeded device 02"
+    },
+    {
+      "id": "Vk_20250102_003",
+      "device": "QA seeded device 03"
+    }
+  ]
+}
