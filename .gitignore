@@ -11,6 +11,9 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+playwright-report/
+test-results/
+coverage/
 
 # Env and logs
 .env*

@@ -1,6 +1,6 @@
 # End-to-end regression battery for Tricia Monitoring
 
-This document explains how to run and interpret the browser-based regression suite for the Tricia Monitoring app.
+This document explains how to run and interpret the browser-based regression suite for the Tricia Monitoring app. It complements the operational overview by focusing on the application’s highest-risk end-user workflows: review navigation, matrix filtering, case creation, admin management, and export integrity.
 
 ## Scope
 

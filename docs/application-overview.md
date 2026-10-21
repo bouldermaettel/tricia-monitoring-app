@@ -6,6 +6,8 @@ The Tricia Monitoring App is a case-review and monitoring workflow for safety an
 
 The application is split into a FastAPI backend and a React + TypeScript frontend. The backend stores case records and review state in PostgreSQL, while the frontend is the browser-based operational interface used by reviewers and administrators.
 
+It is intended as an operational control surface for regulated monitoring work: the app not only captures records, but also enforces review structure, auditability, and repeatable QA checks across the most important end-user actions.
+
 ## Core business workflow
 
 1. A case is created or imported from an external file.
@@ -149,6 +151,8 @@ The report export path is especially important because it must use the full filt
 ## Deployment model
 
 The project uses Azure Container Apps for deployed environments. The live environment model is defined under `infra/live/main.bicep` and is orchestrated by `deploy-live.sh`.
+
+The project also includes a browser-based quality gate for the deployed application: a Playwright suite validates the critical path, matrix filter scenarios, report exports, and admin/data-entry flows so the live environment remains aligned with the product’s intended operational behavior.
 
 The deployment includes:
 - backend and frontend Container Apps
