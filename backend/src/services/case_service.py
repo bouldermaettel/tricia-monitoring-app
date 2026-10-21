@@ -458,23 +458,30 @@ class CaseService:
             review = CaseReview(case_id=case.id)
             self.db.add(review)
 
+        review_updates = payload.model_dump(exclude_unset=True)
         changes: dict = {}
-        if payload.category_code is not None:
-            if payload.category_code != review.category_code:
-                changes['category_code'] = {'from': review.category_code, 'to': payload.category_code}
-            review.category_code = payload.category_code
-        if payload.is_excluded is not None:
-            if payload.is_excluded != review.is_excluded:
-                changes['is_excluded'] = {'from': review.is_excluded, 'to': payload.is_excluded}
-            review.is_excluded = payload.is_excluded
-        if payload.is_reviewed is not None:
-            if payload.is_reviewed != review.is_reviewed:
-                changes['is_reviewed'] = {'from': review.is_reviewed, 'to': payload.is_reviewed}
-            review.is_reviewed = payload.is_reviewed
-        if payload.risk_level is not None:
-            if payload.risk_level != review.risk_level:
-                changes['risk_level'] = {'from': review.risk_level, 'to': payload.risk_level}
-            review.risk_level = payload.risk_level
+        if 'category_code' in review_updates:
+            next_category_code = review_updates['category_code']
+            if isinstance(next_category_code, str):
+                next_category_code = next_category_code.strip() or None
+            if next_category_code != review.category_code:
+                changes['category_code'] = {'from': review.category_code, 'to': next_category_code}
+            review.category_code = next_category_code
+        if 'is_excluded' in review_updates:
+            next_is_excluded = review_updates['is_excluded']
+            if next_is_excluded != review.is_excluded:
+                changes['is_excluded'] = {'from': review.is_excluded, 'to': next_is_excluded}
+            review.is_excluded = next_is_excluded
+        if 'is_reviewed' in review_updates:
+            next_is_reviewed = review_updates['is_reviewed']
+            if next_is_reviewed != review.is_reviewed:
+                changes['is_reviewed'] = {'from': review.is_reviewed, 'to': next_is_reviewed}
+            review.is_reviewed = next_is_reviewed
+        if 'risk_level' in review_updates:
+            next_risk_level = review_updates['risk_level']
+            if next_risk_level != review.risk_level:
+                changes['risk_level'] = {'from': review.risk_level, 'to': next_risk_level}
+            review.risk_level = next_risk_level
         review.updated_by_user_id = self._resolve_actor_user_id(actor_id)
         review.updated_at = datetime.utcnow()
 
