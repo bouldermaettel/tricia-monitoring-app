@@ -19,7 +19,7 @@ class CaseService:
 
     @staticmethod
     def _score_fields() -> tuple[str, ...]:
-        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')
+        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_p', 'user_d')
 
     def _resolve_case(self, case_ref: str) -> Case | None:
         normalized_ref = case_ref.strip()
@@ -69,6 +69,7 @@ class CaseService:
             tricia_p=derived_scores.get('tricia_p', 1),
             tricia_d=derived_scores.get('tricia_d', 1),
             user_s=derived_scores.get('user_s', 1),
+            user_p=derived_scores.get('user_p', derived_scores.get('tricia_p', 1)),
             user_d=derived_scores.get('user_d', 1),
             deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
             deviation_d=abs(derived_scores.get('user_d', 1) - derived_scores.get('tricia_d', 1)),
@@ -91,11 +92,12 @@ class CaseService:
         tricia_p: int,
         tricia_d: int,
         user_s: int,
+        user_p: int,
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
     ) -> bool:
-        expected_class = self._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        expected_class = self._resolve_risk_class(user_s * user_p * user_d, risk_categories)
         observed_class = self._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
@@ -134,13 +136,17 @@ class CaseService:
         ClassificationSnapshot.sync_pk_sequence(self.db)
         acceptance_threshold, risk_categories = self._get_threshold_context()
         user_d = payload.user_d if payload.user_d is not None else payload.tricia_d
+        user_p = payload.user_p if payload.user_p is not None else payload.tricia_p
         snapshot = ClassificationSnapshot(
             case_id=case.id,
             tricia_s=payload.tricia_s,
             tricia_p=payload.tricia_p,
             tricia_d=payload.tricia_d,
             user_s=payload.user_s,
+            user_p=user_p,
             user_d=user_d,
+            tri_risk=payload.tricia_s * payload.tricia_p * payload.tricia_d,
+            wimi_risk=payload.user_s * user_p * user_d,
             deviation_s=abs(payload.user_s - payload.tricia_s),
             deviation_d=abs(user_d - payload.tricia_d),
             problem_flag=self._is_problematic_case(
@@ -148,6 +154,7 @@ class CaseService:
                 tricia_p=payload.tricia_p,
                 tricia_d=payload.tricia_d,
                 user_s=payload.user_s,
+                user_p=user_p,
                 user_d=user_d,
                 acceptance_threshold=acceptance_threshold,
                 risk_categories=risk_categories,
@@ -388,6 +395,7 @@ class CaseService:
                         tricia_p=derived_scores.get('tricia_p', 1),
                         tricia_d=derived_scores.get('tricia_d', 1),
                         user_s=derived_scores.get('user_s', 1),
+                        user_p=derived_scores.get('user_p', derived_scores.get('tricia_p', 1)),
                         user_d=derived_scores.get('user_d', 1),
                         deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
                         deviation_d=abs(derived_scores.get('user_d', 1) - derived_scores.get('tricia_d', 1)),
@@ -421,7 +429,14 @@ class CaseService:
                     tricia_p=snapshot.tricia_p if snapshot else None,
                     tricia_d=snapshot.tricia_d if snapshot else None,
                     user_s=snapshot.user_s if snapshot else None,
+                    user_p=(
+                        snapshot.user_p
+                        if snapshot and snapshot.user_p is not None
+                        else (snapshot.tricia_p if snapshot else None)
+                    ),
                     user_d=snapshot.user_d if snapshot else None,
+                    tri_risk=snapshot.tri_risk if snapshot else None,
+                    wimi_risk=snapshot.wimi_risk if snapshot else None,
                     risk_level=review.risk_level if review else None,
                     category_code=review.category_code if review else None,
                     is_excluded=review.is_excluded if review else False,
@@ -505,6 +520,7 @@ class CaseService:
             tricia_p = 1
             tricia_d = 1
             user_s = 1
+            user_p = tricia_p
             user_d = 1
             ClassificationSnapshot.sync_pk_sequence(self.db)
             snapshot = ClassificationSnapshot(
@@ -513,6 +529,7 @@ class CaseService:
                 tricia_p=tricia_p,
                 tricia_d=tricia_d,
                 user_s=user_s,
+                user_p=user_p,
                 user_d=user_d,
                 deviation_s=abs(user_s - tricia_s),
                 deviation_d=abs(user_d - tricia_d),
@@ -535,6 +552,7 @@ class CaseService:
                     tricia_p=snapshot.tricia_p,
                     tricia_d=snapshot.tricia_d,
                     user_s=snapshot.user_s,
+                    user_p=snapshot.user_p if snapshot.user_p is not None else snapshot.tricia_p,
                     user_d=snapshot.user_d,
                     acceptance_threshold=acceptance_threshold,
                     risk_categories=risk_categories,

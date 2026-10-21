@@ -210,3 +210,30 @@ def test_list_cases_supports_server_side_sorting_with_pagination(client):
     assert descending.status_code == 200
     descending_payload = descending.json()
     assert descending_payload['items'][0]['vk_number'] == 'VK-SORT-003'
+
+
+def test_list_cases_returns_user_p_fallback_from_tricia_p(client):
+    create = client.post(
+        '/api/v1/cases',
+        json={
+            'vk_number': 'VK-USERP-20261021-001',
+            'device_name': 'user-p-fallback-device',
+            'tricia_s': 1,
+            'tricia_p': 5,
+            'tricia_d': 5,
+            'user_s': 3,
+            'user_d': 10,
+            'validation_status': 'saved',
+        },
+    )
+    assert create.status_code == 201
+
+    listing = client.get(
+        '/api/v1/cases',
+        params={'vk_number': 'VK-USERP-20261021-001'},
+    )
+    assert listing.status_code == 200
+    payload = listing.json()
+    assert payload['total'] == 1
+    assert payload['items'][0]['tricia_p'] == 5
+    assert payload['items'][0]['user_p'] == 5

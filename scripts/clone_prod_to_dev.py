@@ -294,13 +294,13 @@ def backfill_derived_compatibility_columns(
     connection: Connection,
     source_columns_by_table: dict[str, list[str]],
 ) -> None:
-    """Populate columns introduced after the source schema, when present."""
+    """Populate derived compatibility columns where target rows are incomplete."""
     for table, columns in DERIVED_COMPATIBILITY_COLUMNS.items():
         if table not in source_columns_by_table:
             continue
         available = set(table_columns(connection, table))
         for column, expression in columns.items():
-            if column in source_columns_by_table[table] or column not in available:
+            if column not in available:
                 continue
             connection.execute(
                 text(
@@ -320,7 +320,7 @@ def validate_derived_compatibility_columns(
             continue
         available = set(table_columns(connection, table))
         for column in columns:
-            if column in source_columns_by_table[table] or column not in available:
+            if column not in available:
                 continue
             nulls = connection.execute(
                 text(
