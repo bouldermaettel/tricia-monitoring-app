@@ -91,6 +91,8 @@ export type CaseTableServerFilters = {
   has_edits?: boolean;
   date_reported_from?: string;
   date_reported_to?: string;
+  sort_by?: string;
+  sort_dir?: SortDirection;
 };
 
 type Props = {
@@ -156,6 +158,24 @@ const COLUMN_DB_NAMES: Record<ColumnId, string> = {
   is_excluded: 'is_excluded',
   is_reviewed: 'is_reviewed',
   actions: 'has_edits',
+};
+
+const SERVER_SORTABLE_COLUMN_NAMES: Partial<Record<ColumnId, string>> = {
+  vk_number: 'vk_number',
+  wimi_shortcut: 'wimi_shortcut',
+  date_reported: 'date_reported',
+  device_name: 'device_name',
+  tricia_s: 'tricia_s',
+  tricia_p: 'tricia_p',
+  user_s: 'user_s',
+  user_p: 'user_p',
+  tricia_d: 'tricia_d',
+  user_d: 'user_d',
+  tri_risk: 'tri_risk',
+  wimi_risk: 'wimi_risk',
+  category_code: 'category_code',
+  is_excluded: 'is_excluded',
+  is_reviewed: 'is_reviewed',
 };
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
@@ -599,6 +619,8 @@ export function CaseTable({
       return trimmed === 'yes' ? true : trimmed === 'no' ? false : undefined;
     };
 
+    const serverSortBy = sortBy ? SERVER_SORTABLE_COLUMN_NAMES[sortBy.column] : undefined;
+
     return {
       vk_number_contains: filters.vk_number.trim() || undefined,
       wimi_shortcut: filters.wimi_shortcut.trim() || undefined,
@@ -623,8 +645,10 @@ export function CaseTable({
             : undefined,
       date_reported_from: dateFilterFrom || undefined,
       date_reported_to: dateFilterTo || undefined,
+      sort_by: serverSortBy,
+      sort_dir: serverSortBy ? sortBy?.direction : undefined,
     };
-  }, [dateFilterFrom, dateFilterTo, filters]);
+  }, [dateFilterFrom, dateFilterTo, filters, sortBy]);
 
   useEffect(() => {
     if (!onServerFilterChange) return;

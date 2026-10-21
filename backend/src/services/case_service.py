@@ -204,6 +204,8 @@ class CaseService:
         self,
         page: int = 1,
         page_size: int = 50,
+        sort_by: str | None = None,
+        sort_dir: str | None = None,
         all_results: bool = False,
         start_date=None,
         end_date=None,
@@ -330,6 +332,41 @@ class CaseService:
                 query = query.where(Case.id.in_(edited_case_ids))
             else:
                 query = query.where(Case.id.not_in(edited_case_ids))
+
+        sort_mapping = {
+            'vk_number': Case.vk_number,
+            'wimi_shortcut': Case.wimi_shortcut,
+            'date_reported': Case.analysis_date,
+            'device_name': Case.device_name,
+            'tricia_s': ClassificationSnapshot.tricia_s,
+            'tricia_p': ClassificationSnapshot.tricia_p,
+            'tricia_d': ClassificationSnapshot.tricia_d,
+            'user_s': ClassificationSnapshot.user_s,
+            'user_p': ClassificationSnapshot.user_p,
+            'user_d': ClassificationSnapshot.user_d,
+            'tri_risk': ClassificationSnapshot.tri_risk,
+            'wimi_risk': ClassificationSnapshot.wimi_risk,
+            'category_code': CaseReview.category_code,
+            'is_excluded': CaseReview.is_excluded,
+            'is_reviewed': CaseReview.is_reviewed,
+            'id': Case.id,
+        }
+        normalized_sort_by = (sort_by or '').strip().lower()
+        normalized_sort_dir = (sort_dir or 'asc').strip().lower()
+        sort_column = sort_mapping.get(normalized_sort_by)
+
+        if sort_column is None:
+            query = query.order_by(Case.id.asc())
+        elif normalized_sort_dir == 'desc':
+            if sort_column == Case.id:
+                query = query.order_by(Case.id.desc())
+            else:
+                query = query.order_by(sort_column.desc(), Case.id.asc())
+        else:
+            if sort_column == Case.id:
+                query = query.order_by(Case.id.asc())
+            else:
+                query = query.order_by(sort_column.asc(), Case.id.asc())
 
         total = self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
         if all_results:

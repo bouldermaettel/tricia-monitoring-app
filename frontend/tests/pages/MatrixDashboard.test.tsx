@@ -8,6 +8,8 @@ import { useImportOverride } from '../../src/state/importOverride';
 
 const useAuthMock = vi.fn();
 const matrixRequests = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+const useCasesParamsHistory = vi.hoisted(() => [] as Array<Record<string, unknown> | undefined>);
+const listCasesParamsHistory = vi.hoisted(() => [] as Array<Record<string, unknown> | undefined>);
 type MockCase = {
   id: string;
   vk_number: string;
@@ -202,6 +204,7 @@ vi.mock('../../src/hooks/useMatrix', () => ({
 vi.mock('../../src/hooks/useCases', () => ({
   useCases: (params?: Record<string, unknown>) => {
     lastUseCasesParams = params;
+    useCasesParamsHistory.push(params);
     const items = filterMockCases(params);
 
     const total = items.length;
@@ -241,6 +244,7 @@ vi.mock('../../src/components/common/ExportButton', () => ({
 }));
 vi.mock('../../src/services/cases', () => ({
   listCases: vi.fn(async (params?: Record<string, unknown>) => {
+    listCasesParamsHistory.push(params);
     const items = filterMockCases(params);
 
     const total = items.length;
@@ -300,18 +304,46 @@ function renderMatrixDashboard() {
 }
 
 function getColumnFilterInput(columnLabel: string) {
-  const headerLabel = screen.getByText(columnLabel);
-  const th = headerLabel.closest('th');
+  const sortButton = screen
+    .getAllByTitle('Sort')
+    .find((candidate) => candidate.textContent?.trim().startsWith(columnLabel));
+  if (!sortButton) {
+    throw new Error(`Column sort button not found for ${columnLabel}`);
+  }
+  const table = sortButton.closest('table');
+  const headerRows = table?.querySelectorAll('thead tr');
+  if (!table || !headerRows || headerRows.length < 2) {
+    throw new Error(`Table header rows not found for ${columnLabel}`);
+  }
+  const sortHeaderCells = Array.from(headerRows[0].querySelectorAll('th'));
+  const filterHeaderCells = Array.from(headerRows[1].querySelectorAll('th'));
+  const th = sortButton.closest('th');
   if (!th) {
     throw new Error(`Column header cell not found for ${columnLabel}`);
   }
-  return within(th).getByPlaceholderText('Filter...');
+  const index = sortHeaderCells.indexOf(th);
+  if (index < 0 || !filterHeaderCells[index]) {
+    throw new Error(`Matching filter header cell not found for ${columnLabel}`);
+  }
+  return within(filterHeaderCells[index] as HTMLElement).getByPlaceholderText('Filter...');
+}
+
+function getColumnSortButton(columnLabel: string) {
+  const button = screen
+    .getAllByTitle('Sort')
+    .find((candidate) => candidate.textContent?.trim().startsWith(columnLabel));
+  if (!button) {
+    throw new Error(`Sort button not found for column ${columnLabel}`);
+  }
+  return button;
 }
 
 describe('MatrixDashboard', () => {
   beforeEach(() => {
     currentCases = [...baseMockCases];
     matrixRequests.length = 0;
+    useCasesParamsHistory.length = 0;
+    listCasesParamsHistory.length = 0;
     lastUseCasesParams = undefined;
     updateThresholdsMock.mockReset();
     useImportOverride.getState().clearPreviewData();
@@ -811,7 +843,8 @@ describe('MatrixDashboard', () => {
     });
   });
 
-  it('shows the total case count and paginates beyond the first 50 rows', () => {
+  it('shows the total case count and paginates beyond the first 50 rows', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
     currentCases = Array.from({ length: 51 }, (_, index) => ({
       ...baseMockCases[0],
       id: `case-${index + 1}`,
@@ -823,10 +856,12 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('VK-50')).toBeInTheDocument();
-    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+      expect(screen.getByText('VK-50')).toBeInTheDocument();
+      expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
@@ -835,7 +870,8 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('VK-51')).toBeInTheDocument();
   });
 
-  it('lets matrix-filtered results change page size and switch to All', () => {
+  it('lets matrix-filtered results change page size and switch to All', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
     currentCases = Array.from({ length: 51 }, (_, index) => ({
       ...baseMockCases[0],
       id: `case-${index + 1}`,
@@ -854,10 +890,12 @@ describe('MatrixDashboard', () => {
 
     fireEvent.click(getMatrixDataButton('Severity Matrix'));
 
-    expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
-    expect(screen.getByText('VK-50')).toBeInTheDocument();
-    expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Showing 50 of 50 loaded cases (51 total)')).toBeInTheDocument();
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+      expect(screen.getByText('VK-50')).toBeInTheDocument();
+      expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '25' }));
 
@@ -870,19 +908,28 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('VK-26')).toBeInTheDocument();
     expect(screen.queryByText('VK-51')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    const pageSize25Button = screen.getByRole('button', { name: '25' });
+    const pageSizeControl = pageSize25Button.parentElement;
+    if (!pageSizeControl) {
+      throw new Error('Page size control container not found');
+    }
+    fireEvent.click(within(pageSizeControl).getByRole('button', { name: 'All' }));
 
     expect(screen.queryByText(/Page \d+ of \d+/)).not.toBeInTheDocument();
     expect(screen.getByText('VK-51')).toBeInTheDocument();
-    expect(lastUseCasesParams).toMatchObject({
-      all: true,
-      matrix_dimension: 'severity',
-      expected_value: 1,
-      observed_value: 1,
-    });
+    expect(
+      listCasesParamsHistory.some(
+        (params) =>
+          params?.all === true
+          && params?.matrix_dimension === 'severity'
+          && params?.expected_value === 1
+          && params?.observed_value === 1
+      )
+    ).toBe(true);
   });
 
-  it('applies WIMI filter across all pages, not only loaded rows', () => {
+  it('applies WIMI filter across all pages, not only loaded rows', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
     currentCases = Array.from({ length: 51 }, (_, index) => ({
       ...baseMockCases[0],
       id: `case-${index + 1}`,
@@ -899,10 +946,71 @@ describe('MatrixDashboard', () => {
 
     fireEvent.change(getColumnFilterInput('WIMI'), { target: { value: 'mam' } });
 
-    expect(lastUseCasesParams).toMatchObject({
-      wimi_shortcut: 'mam',
-      page: 1,
-      page_size: 50,
+    await waitFor(() => {
+      expect(
+        useCasesParamsHistory.some(
+          (params) =>
+            params?.wimi_shortcut === 'mam'
+            && params?.page === 1
+            && params?.page_size === 50
+        )
+      ).toBe(true);
+    });
+  });
+
+  it('requests server-side sorting for paginated cases', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
+    currentCases = Array.from({ length: 80 }, (_, index) => ({
+      ...baseMockCases[0],
+      id: `case-${index + 1}`,
+      vk_number: `VK-${String(index + 1).padStart(3, '0')}`,
+      device_name: `Device ${index + 1}`,
+      date_reported: '2026-05-01',
+      analysis_date: '2026-05-01',
+    }));
+
+    renderMatrixDashboard();
+
+    fireEvent.click(getColumnSortButton('VK'));
+
+    await waitFor(() => {
+      expect(
+        useCasesParamsHistory.some(
+          (params) =>
+            params?.sort_by === 'vk_number'
+            && params?.sort_dir === 'asc'
+            && params?.page === 1
+            && params?.page_size === 50
+        )
+      ).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await waitFor(() => {
+      expect(
+        useCasesParamsHistory.some(
+          (params) =>
+            params?.sort_by === 'vk_number'
+            && params?.sort_dir === 'asc'
+            && params?.page === 2
+            && params?.page_size === 50
+        )
+      ).toBe(true);
+    });
+
+    fireEvent.click(getColumnSortButton('VK'));
+
+    await waitFor(() => {
+      expect(
+        useCasesParamsHistory.some(
+          (params) =>
+            params?.sort_by === 'vk_number'
+            && params?.sort_dir === 'desc'
+            && params?.page === 1
+            && params?.page_size === 50
+        )
+      ).toBe(true);
     });
   });
 });

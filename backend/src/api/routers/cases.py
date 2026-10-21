@@ -71,6 +71,8 @@ def list_cases(
     detectability_cells: str | None = Query(default=None),
     probability_cells: str | None = Query(default=None),
     risk_cells: str | None = Query(default=None),
+    sort_by: str | None = Query(default=None),
+    sort_dir: str = Query(default='asc'),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     all_results: bool = Query(default=False, alias="all"),
@@ -135,6 +137,8 @@ def list_cases(
         detectability_cells=_parse_cells(detectability_cells),
         probability_cells=_parse_cells(probability_cells),
         risk_cells=_parse_cells(risk_cells),
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
 

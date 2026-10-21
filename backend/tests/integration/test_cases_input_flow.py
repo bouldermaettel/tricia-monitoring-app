@@ -150,3 +150,63 @@ def test_list_cases_counts_latest_snapshot_once(client, db_session):
     problematic_body = problematic.json()
     assert problematic_body['total'] == 0
     assert problematic_body['items'] == []
+
+
+def test_list_cases_supports_server_side_sorting_with_pagination(client):
+    for vk_number in ['VK-SORT-003', 'VK-SORT-001', 'VK-SORT-002']:
+        create = client.post(
+            '/api/v1/cases',
+            json={
+                'vk_number': vk_number,
+                'device_name': f'device-{vk_number}',
+                'tricia_s': 1,
+                'tricia_p': 5,
+                'tricia_d': 5,
+                'user_s': 1,
+                'user_d': 5,
+                'validation_status': 'saved',
+            },
+        )
+        assert create.status_code == 201
+
+    first_page = client.get(
+        '/api/v1/cases',
+        params={
+            'vk_number_contains': 'VK-SORT-',
+            'sort_by': 'vk_number',
+            'sort_dir': 'asc',
+            'page': 1,
+            'page_size': 1,
+        },
+    )
+    assert first_page.status_code == 200
+    first_payload = first_page.json()
+    assert first_payload['items'][0]['vk_number'] == 'VK-SORT-001'
+
+    second_page = client.get(
+        '/api/v1/cases',
+        params={
+            'vk_number_contains': 'VK-SORT-',
+            'sort_by': 'vk_number',
+            'sort_dir': 'asc',
+            'page': 2,
+            'page_size': 1,
+        },
+    )
+    assert second_page.status_code == 200
+    second_payload = second_page.json()
+    assert second_payload['items'][0]['vk_number'] == 'VK-SORT-002'
+
+    descending = client.get(
+        '/api/v1/cases',
+        params={
+            'vk_number_contains': 'VK-SORT-',
+            'sort_by': 'vk_number',
+            'sort_dir': 'desc',
+            'page': 1,
+            'page_size': 1,
+        },
+    )
+    assert descending.status_code == 200
+    descending_payload = descending.json()
+    assert descending_payload['items'][0]['vk_number'] == 'VK-SORT-003'
