@@ -1,13 +1,12 @@
 from datetime import date, datetime
-from dataclasses import dataclass
 from io import BytesIO
 
 import pandas as pd
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.services.validation_service import ValidationService
-from src.models.case import Case, CaseAuditEvent, CaseReview
+from src.models.case import Case, CaseReview
 from src.models.classification_snapshot import ClassificationSnapshot
 from src.models.import_job import ImportJob
 from src.models.user import User
@@ -21,33 +20,11 @@ CANONICAL_IMPORT_COLUMNS: tuple[str, ...] = (
     "TRI-P",
     "TRI-D",
     "WIMI-S",
-    "WIMI-P",
     "WIMI-D",
 )
-LEGACY_IMPORT_COLUMNS: tuple[str, ...] = tuple(column for column in CANONICAL_IMPORT_COLUMNS if column != "WIMI-P")
-DERIVED_IMPORT_COLUMNS = ("TRI-RISK", "WIMI-RISK")
-IMPORT_METADATA_COLUMNS = ("analysis_date", "validation_status")
-IGNORED_IMPORT_COLUMNS = ("id",)
-VALIDATION_STATUS_VALUES: tuple[str, ...] = ("draft", "validated", "saved")
 
 SEVERITY_SCORE_VALUES: tuple[int, ...] = (1, 3, 5, 8, 10)
 PROBABILITY_DETECTABILITY_VALUES: tuple[int, ...] = (1, 5, 10)
-
-
-class DuplicateVkConflictError(ValueError):
-    def __init__(self, duplicates: list[str]):
-        self.duplicates = duplicates
-        super().__init__("Duplicate VK-NR values found in import file.")
-
-
-@dataclass
-class ImportProcessResult:
-    job: ImportJob
-    replaced_rows: int = 0
-    skipped_rows: int = 0
-
-    def __getattr__(self, name: str):
-        return getattr(self.job, name)
 
 
 class ImportService:
@@ -72,72 +49,25 @@ class ImportService:
         tricia_p: int,
         tricia_d: int,
         user_s: int,
-        user_p: int,
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
     ) -> bool:
-        expected_class = cls._resolve_risk_class(user_s * user_p * user_d, risk_categories)
+        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
         observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
         return abs(expected_class - observed_class) > acceptance_threshold
 
-    @classmethod
-    def _classify_case(
-        cls,
-        tricia_s: int,
-        tricia_p: int,
-        tricia_d: int,
-        user_s: int,
-        user_p: int,
-        user_d: int,
-        acceptance_threshold: int,
-        risk_categories: list[dict[str, int | str]],
-    ) -> dict[str, int | bool | None]:
-        expected_class = cls._resolve_risk_class(user_s * user_p * user_d, risk_categories)
-        observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
-        problem_flag = False
-        if expected_class is not None and observed_class is not None:
-            problem_flag = abs(expected_class - observed_class) > acceptance_threshold
-        return {
-            "expected_class": expected_class,
-            "observed_class": observed_class,
-            "problem_flag": problem_flag,
-        }
-
     def _resolve_actor_user_id(self, actor_id: str) -> str | None:
-        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
-        return actor.id if actor is not None else None
+        actor = self.db.scalar(select(User.id).where(User.id == actor_id))
+        return actor if actor is not None else None
 
-    def _resolve_case_snapshot(self, case_id: str) -> ClassificationSnapshot:
-        snapshot = self.db.scalar(select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case_id))
-        if snapshot is None:
-            snapshot = ClassificationSnapshot(
-                case_id=case_id,
-                tricia_s=1,
-                tricia_p=1,
-                tricia_d=1,
-                user_s=1,
-                user_p=1,
-                user_d=1,
-                deviation_s=0,
-                deviation_d=0,
-                problem_flag=False,
-            )
-            self.db.add(snapshot)
-        return snapshot
-
-    @staticmethod
-    def _audit_change(changes: dict[str, dict[str, object]], key: str, before: object, after: object) -> None:
-        if before != after:
-            changes[key] = {"from": before, "to": after}
-
-    def _resolve_actor_shortcut(self, actor_id: str) -> str | None:
-        actor = self.db.scalar(select(User).where(or_(User.id == actor_id, User.external_key == actor_id)))
+    def _resolve_actor_shortcut(self, actor_id: str) -> str:
+        actor = self.db.scalar(select(User).where(User.id == actor_id))
         if actor and actor.shortcut:
             return actor.shortcut
-        return None
+        return actor_id
 
     @staticmethod
     def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -152,20 +82,10 @@ class ImportService:
     @classmethod
     def _validate_columns(cls, frame: pd.DataFrame) -> None:
         actual_columns = [cls._normalize_column_name(column) for column in frame.columns]
-        new_columns = [cls._normalize_column_name(column) for column in CANONICAL_IMPORT_COLUMNS]
-        legacy_columns = [cls._normalize_column_name(column) for column in LEGACY_IMPORT_COLUMNS]
-        derived_columns = [cls._normalize_column_name(column) for column in DERIVED_IMPORT_COLUMNS]
-        actual_set = set(actual_columns)
-        is_legacy = set(legacy_columns).issubset(actual_set) and "wimi-p" not in actual_set
-        required_columns = legacy_columns if is_legacy else new_columns
-        missing_columns = [column for column in required_columns if column not in actual_set]
-        accepted_columns = set(
-            new_columns
-            + derived_columns
-            + [cls._normalize_column_name(column) for column in IMPORT_METADATA_COLUMNS]
-            + [cls._normalize_column_name(column) for column in IGNORED_IMPORT_COLUMNS]
-        )
-        extra_columns = [column for column in actual_columns if column not in accepted_columns]
+        expected_columns = [cls._normalize_column_name(column) for column in CANONICAL_IMPORT_COLUMNS]
+
+        missing_columns = [column for column in expected_columns if column not in actual_columns]
+        extra_columns = [column for column in actual_columns if column not in expected_columns]
 
         if missing_columns or extra_columns:
             details: list[str] = []
@@ -175,7 +95,7 @@ class ImportService:
                 details.append(f"unexpected columns: {', '.join(extra_columns)}")
             raise ValueError("Invalid import file format (" + "; ".join(details) + ")")
 
-        if len(actual_columns) != len(set(actual_columns)):
+        if len(actual_columns) != len(expected_columns):
             raise ValueError("Invalid import file format (duplicate or reordered columns detected)")
 
     def _read_frame(self, file_name: str, content: bytes) -> tuple[pd.DataFrame, str]:
@@ -246,54 +166,7 @@ class ImportService:
         tricia_p = cls._parse_required_score(row, row_number, "TRI-P", PROBABILITY_DETECTABILITY_VALUES, errors)
         tricia_d = cls._parse_required_score(row, row_number, "TRI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
         user_s = cls._parse_required_score(row, row_number, "WIMI-S", SEVERITY_SCORE_VALUES, errors)
-        raw_user_p = cls._first_value(row, ["WIMI-P"], None)
-        user_p = (
-            cls._parse_required_score(row, row_number, "WIMI-P", PROBABILITY_DETECTABILITY_VALUES, errors)
-            if raw_user_p is not None
-            else tricia_p
-        )
         user_d = cls._parse_required_score(row, row_number, "WIMI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
-
-        derived_analysis_date = ValidationService.derive_analysis_date(vk_number) if vk_number else date.today()
-        raw_analysis_date = cls._first_value(row, ["analysis_date"], None)
-        analysis_date = derived_analysis_date
-        if raw_analysis_date is not None:
-            try:
-                parsed_analysis_date = pd.to_datetime(raw_analysis_date, errors="raise").date()
-                if parsed_analysis_date != derived_analysis_date:
-                    errors.append(
-                        f"Row {row_number}: column 'analysis_date' must equal {derived_analysis_date.isoformat()} for VK-NR '{vk_number}'."
-                    )
-                else:
-                    analysis_date = parsed_analysis_date
-            except (TypeError, ValueError, OverflowError):
-                errors.append(f"Row {row_number}: column 'analysis_date' must be a valid date.")
-
-        raw_validation_status = cls._first_value(row, ["validation_status"], None)
-        validation_status = "saved" if raw_validation_status is None else str(raw_validation_status).strip().lower()
-        if validation_status not in VALIDATION_STATUS_VALUES:
-            errors.append(
-                f"Row {row_number}: column 'validation_status' must be one of [{cls._format_allowed_values(VALIDATION_STATUS_VALUES)}]."
-            )
-
-        if errors:
-            return None, errors
-
-        supplied_tri_risk = cls._first_value(row, ["TRI-RISK"], None)
-        supplied_wimi_risk = cls._first_value(row, ["WIMI-RISK"], None)
-        expected_tri_risk = int(tricia_s) * int(tricia_p) * int(tricia_d)
-        expected_wimi_risk = int(user_s) * int(user_p) * int(user_d)
-        for label, supplied, expected in (
-            ("TRI-RISK", supplied_tri_risk, expected_tri_risk),
-            ("WIMI-RISK", supplied_wimi_risk, expected_wimi_risk),
-        ):
-            if supplied is None:
-                continue
-            try:
-                if int(supplied) != expected:
-                    errors.append(f"Row {row_number}: column '{label}' must equal {expected}.")
-            except (TypeError, ValueError):
-                errors.append(f"Row {row_number}: column '{label}' must equal {expected}.")
 
         if errors:
             return None, errors
@@ -305,10 +178,7 @@ class ImportService:
             "tricia_p": int(tricia_p),
             "tricia_d": int(tricia_d),
             "user_s": int(user_s),
-            "user_p": int(user_p),
             "user_d": int(user_d),
-            "analysis_date": analysis_date,
-            "validation_status": validation_status,
         }, []
 
     @staticmethod
@@ -320,42 +190,38 @@ class ImportService:
         return bool(value)
 
     @classmethod
-    def _row_to_case_record(cls, validated_row: dict[str, int | str], actor_shortcut: str | None) -> dict[str, object]:
+    def _row_to_case_record(cls, validated_row: dict[str, int | str], actor_shortcut: str) -> dict[str, object]:
         vk_number = str(validated_row["vk_number"])
         device_name = str(validated_row["device_name"])
         tricia_s = int(validated_row["tricia_s"])
         tricia_p = int(validated_row["tricia_p"])
         tricia_d = int(validated_row["tricia_d"])
         user_s = int(validated_row["user_s"])
-        user_p = int(validated_row["user_p"])
         user_d = int(validated_row["user_d"])
 
-        analysis_date = str(validated_row["analysis_date"])
+        analysis_date = ValidationService.derive_analysis_date(vk_number)
         input_timestamp = datetime.utcnow().isoformat()
         wimi_shortcut = actor_shortcut
 
         return {
             "vk_number": vk_number,
             "device_name": device_name,
-            "analysis_date": analysis_date,
+            "analysis_date": analysis_date.isoformat(),
             "input_timestamp": input_timestamp,
             "wimi_shortcut": wimi_shortcut,
-            "validation_status": str(validated_row["validation_status"]),
+            "validation_status": "saved",
             "tricia_s": tricia_s,
             "tricia_p": tricia_p,
             "tricia_d": tricia_d,
             "user_s": user_s,
-            "user_p": user_p,
             "user_d": user_d,
-            "tri_risk": tricia_s * tricia_p * tricia_d,
-            "wimi_risk": user_s * user_p * user_d,
             "category_code": None,
             "risk_level": None,
             "is_excluded": False,
             "is_reviewed": False,
         }
 
-    def _build_case_records(self, frame: pd.DataFrame, actor_shortcut: str | None) -> list[dict[str, object]]:
+    def _build_case_records(self, frame: pd.DataFrame, actor_shortcut: str) -> list[dict[str, object]]:
         errors: list[str] = []
         records: list[dict[str, object]] = []
 
@@ -388,22 +254,9 @@ class ImportService:
     def preview_file(self, file_name: str, content: bytes, actor_id: str = "system") -> dict[str, object]:
         frame, _ = self._read_frame(file_name, content)
         actor_shortcut = self._resolve_actor_shortcut(actor_id)
-        acceptance_threshold, risk_categories = self._get_threshold_context()
         case_items = self._build_case_records(frame, actor_shortcut)
-        preview_cases: list[dict[str, object]] = []
         control_items: list[dict[str, object]] = []
         for parsed in case_items:
-            classification = self._classify_case(
-                tricia_s=int(parsed["tricia_s"]),
-                tricia_p=int(parsed["tricia_p"]),
-                tricia_d=int(parsed["tricia_d"]),
-                user_s=int(parsed["user_s"]),
-                user_p=int(parsed["user_p"]),
-                user_d=int(parsed["user_d"]),
-                acceptance_threshold=acceptance_threshold,
-                risk_categories=risk_categories,
-            )
-            preview_cases.append({**parsed, **classification})
             control_items.append(
                 {
                     "vk_number": parsed["vk_number"],
@@ -417,163 +270,94 @@ class ImportService:
             )
 
         return {
-            "total_rows": len(preview_cases),
-            "cases": preview_cases,
+            "total_rows": len(case_items),
+            "cases": case_items,
             "control_items": control_items,
         }
 
-    def process_file(
-        self,
-        file_name: str,
-        content: bytes,
-        actor_id: str,
-        duplicate_action: str = "error",
-    ) -> ImportProcessResult:
+    def process_file(self, file_name: str, content: bytes, actor_id: str) -> ImportJob:
         frame, fmt = self._read_frame(file_name, content)
         actor_shortcut = self._resolve_actor_shortcut(actor_id)
         parsed_rows = self._build_case_records(frame, actor_shortcut)
-        ClassificationSnapshot.sync_pk_sequence(self.db)
         uploaded_vk_numbers = [str(parsed["vk_number"]) for parsed in parsed_rows]
         existing_vk_numbers = set(
             self.db.scalars(select(Case.vk_number).where(Case.vk_number.in_(uploaded_vk_numbers))).all()
         )
-        if duplicate_action not in {"error", "replace", "skip"}:
-            raise ValueError("Invalid duplicate action. Use one of: error, replace, skip.")
-
-        existing_cases = {
-            case.vk_number: case
-            for case in self.db.scalars(select(Case).where(Case.vk_number.in_(uploaded_vk_numbers))).all()
-        }
-        existing_vk_numbers = set(existing_cases.keys())
-        if existing_vk_numbers and duplicate_action == "error":
-            raise DuplicateVkConflictError(sorted(existing_vk_numbers))
+        if existing_vk_numbers:
+            duplicate_errors = [
+                f"VK-NR '{vk_number}' is already in the database."
+                for vk_number in sorted(existing_vk_numbers)
+            ]
+            raise ValueError("\n".join(duplicate_errors))
 
         acceptance_threshold, risk_categories = self._get_threshold_context()
         total_rows = len(frame.index)
         imported_rows = 0
         error_rows = 0
-        replaced_rows = 0
-        skipped_rows = 0
-        actor_user_id = self._resolve_actor_user_id(actor_id)
-        actor_audit_id = actor_shortcut or actor_id
 
         for parsed in parsed_rows:
-            vk_number = str(parsed["vk_number"])
-            existing_case = existing_cases.get(vk_number)
-
-            if existing_case is not None and duplicate_action == "skip":
-                skipped_rows += 1
-                continue
-
-            if existing_case is None:
-                case = Case(
-                    vk_number=parsed["vk_number"],
-                    device_name=parsed["device_name"],
-                    analysis_date=date.fromisoformat(str(parsed["analysis_date"])),
-                    source_type="import",
-                    created_by_user_id=actor_user_id,
-                    wimi_shortcut=parsed["wimi_shortcut"],
-                    validation_status=parsed["validation_status"],
-                )
-                self.db.add(case)
-                self.db.flush()
-            else:
-                case = existing_case
-                changed_fields: dict[str, dict[str, object]] = {}
-                next_device_name = str(parsed["device_name"])
-                next_analysis_date = date.fromisoformat(str(parsed["analysis_date"]))
-                next_wimi_shortcut = parsed["wimi_shortcut"]
-                next_validation_status = str(parsed["validation_status"])
-                next_source_type = "import"
-                next_timestamp = datetime.utcnow()
-
-                self._audit_change(changed_fields, "device_name", case.device_name, next_device_name)
-                self._audit_change(changed_fields, "analysis_date", str(case.analysis_date), str(next_analysis_date))
-                self._audit_change(changed_fields, "wimi_shortcut", case.wimi_shortcut, next_wimi_shortcut)
-                self._audit_change(changed_fields, "validation_status", case.validation_status, next_validation_status)
-                self._audit_change(changed_fields, "source_type", case.source_type, next_source_type)
-
-                case.device_name = next_device_name
-                case.analysis_date = next_analysis_date
-                case.wimi_shortcut = next_wimi_shortcut
-                case.validation_status = next_validation_status
-                case.source_type = next_source_type
-                case.input_timestamp = next_timestamp
-
-                if changed_fields:
-                    self.db.add(
-                        CaseAuditEvent(
-                            case_id=case.id,
-                            action="import_replaced",
-                            actor_id=actor_audit_id,
-                            changes=changed_fields,
-                        )
-                    )
-                replaced_rows += 1
-
-            snapshot = self._resolve_case_snapshot(case.id)
-
-            snapshot_changes: dict[str, dict[str, object]] = {}
-            next_tricia_s = int(parsed["tricia_s"])
-            next_tricia_p = int(parsed["tricia_p"])
-            next_tricia_d = int(parsed["tricia_d"])
-            next_user_s = int(parsed["user_s"])
-            next_user_p = int(parsed["user_p"])
-            next_user_d = int(parsed["user_d"])
-            next_deviation_s = abs(next_user_s - next_tricia_s)
-            next_deviation_d = abs(next_user_d - next_tricia_d)
-            classification = self._classify_case(
-                tricia_s=next_tricia_s,
-                tricia_p=next_tricia_p,
-                tricia_d=next_tricia_d,
-                user_s=next_user_s,
-                user_p=next_user_p,
-                user_d=next_user_d,
-                acceptance_threshold=acceptance_threshold,
-                risk_categories=risk_categories,
+            case = Case(
+                vk_number=parsed["vk_number"],
+                device_name=parsed["device_name"],
+                analysis_date=date.fromisoformat(str(parsed["analysis_date"])),
+                source_type="import",
+                created_by_user_id=self._resolve_actor_user_id(actor_id),
+                wimi_shortcut=parsed["wimi_shortcut"],
+                validation_status=parsed["validation_status"],
             )
-            next_problem_flag = bool(classification["problem_flag"])
+            self.db.add(case)
+            self.db.flush()
 
-            self._audit_change(snapshot_changes, "tricia_s", snapshot.tricia_s, next_tricia_s)
-            self._audit_change(snapshot_changes, "tricia_p", snapshot.tricia_p, next_tricia_p)
-            self._audit_change(snapshot_changes, "tricia_d", snapshot.tricia_d, next_tricia_d)
-            self._audit_change(snapshot_changes, "user_s", snapshot.user_s, next_user_s)
-            self._audit_change(snapshot_changes, "user_p", snapshot.user_p, next_user_p)
-            self._audit_change(snapshot_changes, "user_d", snapshot.user_d, next_user_d)
-
-            snapshot.tricia_s = next_tricia_s
-            snapshot.tricia_p = next_tricia_p
-            snapshot.tricia_d = next_tricia_d
-            snapshot.user_s = next_user_s
-            snapshot.user_p = next_user_p
-            snapshot.user_d = next_user_d
-            snapshot.tri_risk = next_tricia_s * next_tricia_p * next_tricia_d
-            snapshot.wimi_risk = next_user_s * next_user_p * next_user_d
-            snapshot.deviation_s = next_deviation_s
-            snapshot.deviation_d = next_deviation_d
-            snapshot.problem_flag = next_problem_flag
-
-            if existing_case is not None and snapshot_changes:
-                self.db.add(
-                    CaseAuditEvent(
-                        case_id=case.id,
-                        action="import_replaced",
-                        actor_id=actor_audit_id,
-                        changes=snapshot_changes,
-                    )
+            snapshot = self.db.scalar(select(ClassificationSnapshot).where(ClassificationSnapshot.case_id == case.id))
+            if snapshot is None:
+                snapshot = ClassificationSnapshot(
+                    case_id=case.id,
+                    tricia_s=int(parsed["tricia_s"]),
+                    tricia_p=int(parsed["tricia_p"]),
+                    tricia_d=int(parsed["tricia_d"]),
+                    user_s=int(parsed["user_s"]),
+                    user_d=int(parsed["user_d"]),
+                    deviation_s=abs(int(parsed["user_s"]) - int(parsed["tricia_s"])),
+                    deviation_d=abs(int(parsed["user_d"]) - int(parsed["tricia_d"])),
+                    problem_flag=self._is_problematic_case(
+                        tricia_s=int(parsed["tricia_s"]),
+                        tricia_p=int(parsed["tricia_p"]),
+                        tricia_d=int(parsed["tricia_d"]),
+                        user_s=int(parsed["user_s"]),
+                        user_d=int(parsed["user_d"]),
+                        acceptance_threshold=acceptance_threshold,
+                        risk_categories=risk_categories,
+                    ),
+                )
+                self.db.add(snapshot)
+            else:
+                snapshot.tricia_s = int(parsed["tricia_s"])
+                snapshot.tricia_p = int(parsed["tricia_p"])
+                snapshot.tricia_d = int(parsed["tricia_d"])
+                snapshot.user_s = int(parsed["user_s"])
+                snapshot.user_d = int(parsed["user_d"])
+                snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
+                snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
+                snapshot.problem_flag = self._is_problematic_case(
+                    tricia_s=snapshot.tricia_s,
+                    tricia_p=snapshot.tricia_p,
+                    tricia_d=snapshot.tricia_d,
+                    user_s=snapshot.user_s,
+                    user_d=snapshot.user_d,
+                    acceptance_threshold=acceptance_threshold,
+                    risk_categories=risk_categories,
                 )
 
-            if existing_case is None:
-                review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
-                if review is None:
-                    review = CaseReview(case_id=case.id)
-                    self.db.add(review)
-                review.category_code = parsed["category_code"]
-                review.is_excluded = bool(parsed["is_excluded"])
-                review.is_reviewed = bool(parsed["is_reviewed"])
-                review.risk_level = str(parsed["risk_level"] or "none")
-                review.updated_by_user_id = actor_user_id
-                review.updated_at = datetime.utcnow()
+            review = self.db.scalar(select(CaseReview).where(CaseReview.case_id == case.id))
+            if review is None:
+                review = CaseReview(case_id=case.id)
+                self.db.add(review)
+            review.category_code = parsed["category_code"]
+            review.is_excluded = bool(parsed["is_excluded"])
+            review.is_reviewed = bool(parsed["is_reviewed"])
+            review.risk_level = str(parsed["risk_level"] or "none")
+            review.updated_by_user_id = self._resolve_actor_user_id(actor_id)
+            review.updated_at = datetime.utcnow()
 
             imported_rows += 1
 
@@ -584,9 +368,9 @@ class ImportService:
             total_rows=total_rows,
             imported_rows=imported_rows,
             error_rows=error_rows,
-            created_by_user_id=actor_user_id,
+            created_by_user_id=self._resolve_actor_user_id(actor_id),
         )
         self.db.add(job)
         self.db.commit()
         self.db.refresh(job)
-        return ImportProcessResult(job=job, replaced_rows=replaced_rows, skipped_rows=skipped_rows)
+        return job

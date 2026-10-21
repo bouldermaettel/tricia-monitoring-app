@@ -59,7 +59,6 @@ function getEligibleTriggeredWindows(dateWindow: string, dateFrom?: string, date
 
 const PERIOD_WINDOWS: Array<'3M' | '6M' | '12M'> = ['3M', '6M', '12M'];
 const SEVERITY_AXIS_VALUES = [1, 3, 5, 8, 10];
-const PROBABILITY_AXIS_VALUES = [1, 5, 10];
 const DETECTABILITY_AXIS_VALUES = [1, 5, 10];
 const DEFAULT_CASES_PAGE_SIZE = 50;
 
@@ -87,46 +86,6 @@ type ProblematicCountsByPeriod = {
   '6M': number;
   '12M': number;
 };
-
-type CaseExportSourceRow = {
-  id?: string;
-  [key: string]: unknown;
-};
-
-const EXPORT_COLUMN_TO_CASE_FIELD: Record<string, string> = {
-  vk_number: 'vk_number',
-  wimi_shortcut: 'wimi_shortcut',
-  date_reported: 'date_reported',
-  device_name: 'device_name',
-  'TRI-S': 'tricia_s',
-  'TRI-P': 'tricia_p',
-  'TRI-D': 'tricia_d',
-  'WIMI-S': 'user_s',
-  'WIMI-P': 'user_p',
-  'WIMI-D': 'user_d',
-  'TRI-RISK': 'tri_risk',
-  'WIMI-RISK': 'wimi_risk',
-  category_code: 'category_code',
-  comment_text: 'comment_text',
-  is_excluded: 'is_excluded',
-  is_reviewed: 'is_reviewed',
-  has_edits: 'has_edits',
-};
-
-function buildExportRowsFromCases(
-  columns: string[],
-  cases: Array<CaseExportSourceRow>,
-): Array<Record<string, unknown>> {
-  return cases.map((item) => {
-    const row: Record<string, unknown> = {};
-    columns.forEach((column) => {
-      const sourceField = EXPORT_COLUMN_TO_CASE_FIELD[column] ?? column;
-      row[column] = item[sourceField] ?? '';
-    });
-    row._case_id = item.id ?? '';
-    return row;
-  });
-}
 
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
   { label: 'Class 1', min_value: 0, max_value: 10 },
@@ -303,9 +262,7 @@ export function MatrixDashboard() {
     Record<MatrixDimension, Array<{ expected: number; observed: number }>>
   >({
     severity: [],
-    probability: [],
     detectability: [],
-    risk: [],
     product: [],
   });
 
@@ -497,10 +454,9 @@ export function MatrixDashboard() {
     : undefined;
 
   const overrideMatrices = useMemo(() => {
-    if (!isOverrideActive) return { severity: [], probability: [], detectability: [], product: [] };
+    if (!isOverrideActive) return { severity: [], detectability: [], product: [] };
     return {
       severity: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_s, observed: item.tricia_s })), acceptanceThreshold),
-      probability: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_p ?? 1, observed: item.tricia_p })), acceptanceThreshold),
       detectability: buildLocalMatrixCells(filteredOverrideCases.map((item) => ({ expected: item.user_d, observed: item.tricia_d })), acceptanceThreshold),
       product: buildLocalMatrixCells(
         filteredOverrideCases.map((item) => ({
@@ -541,9 +497,7 @@ export function MatrixDashboard() {
       }
       return {
         severity: [],
-        probability: [],
         detectability: [],
-        risk: [],
         product: target,
       };
     });
@@ -569,10 +523,6 @@ export function MatrixDashboard() {
     () => selectedCellsByDimension.detectability.map((c) => `${c.expected}:${c.observed}`).join(','),
     [selectedCellsByDimension.detectability]
   );
-  const probabilityCellsParam = useMemo(
-    () => selectedCellsByDimension.probability.map((c) => `${c.expected}:${c.observed}`).join(','),
-    [selectedCellsByDimension.probability]
-  );
 
   // Severity matrix display: filtered by product + detectability (everything except severity itself).
   const filteredSeverityMatrix = useMatrix(
@@ -583,14 +533,9 @@ export function MatrixDashboard() {
       ...(selectedProductRawCells.length > 0
         ? { product_cells: selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') }
         : {}),
-      ...(probabilityCellsParam ? { probability_cells: probabilityCellsParam } : {}),
       ...(detectabilityCellsParam ? { detectability_cells: detectabilityCellsParam } : {}),
     },
-    {
-      enabled:
-        !isOverrideActive
-        && (selectedProductRawCells.length > 0 || probabilityCellsParam.length > 0 || detectabilityCellsParam.length > 0),
-    }
+    { enabled: !isOverrideActive && (selectedProductRawCells.length > 0 || detectabilityCellsParam.length > 0) }
   );
 
   // Detectability matrix display: filtered by product + severity (everything except detectability itself).
@@ -602,51 +547,9 @@ export function MatrixDashboard() {
       ...(selectedProductRawCells.length > 0
         ? { product_cells: selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') }
         : {}),
-      ...(probabilityCellsParam ? { probability_cells: probabilityCellsParam } : {}),
       ...(severityCellsParam ? { severity_cells: severityCellsParam } : {}),
     },
-    {
-      enabled:
-        !isOverrideActive
-        && (selectedProductRawCells.length > 0 || probabilityCellsParam.length > 0 || severityCellsParam.length > 0),
-    }
-  );
-
-  // Probability matrix display: filtered by product + severity + detectability (everything except probability itself).
-  const filteredProbabilityMatrix = useMatrix(
-    {
-      include_excluded: includeExcluded,
-      problematic_only: problematicOnly,
-      ...dateParams,
-      ...(selectedProductRawCells.length > 0
-        ? { product_cells: selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') }
-        : {}),
-      ...(severityCellsParam ? { severity_cells: severityCellsParam } : {}),
-      ...(detectabilityCellsParam ? { detectability_cells: detectabilityCellsParam } : {}),
-    },
-    {
-      enabled:
-        !isOverrideActive
-        && (selectedProductRawCells.length > 0 || severityCellsParam.length > 0 || detectabilityCellsParam.length > 0),
-    }
-  );
-
-  // Risk class matrix display: filtered by probability + severity + detectability.
-  // Product selection is intentionally omitted because it is the risk matrix's own dimension.
-  const filteredProductMatrix = useMatrix(
-    {
-      include_excluded: includeExcluded,
-      problematic_only: problematicOnly,
-      ...dateParams,
-      ...(probabilityCellsParam ? { probability_cells: probabilityCellsParam } : {}),
-      ...(severityCellsParam ? { severity_cells: severityCellsParam } : {}),
-      ...(detectabilityCellsParam ? { detectability_cells: detectabilityCellsParam } : {}),
-    },
-    {
-      enabled:
-        !isOverrideActive
-        && (probabilityCellsParam.length > 0 || severityCellsParam.length > 0 || detectabilityCellsParam.length > 0),
-    }
+    { enabled: !isOverrideActive && (selectedProductRawCells.length > 0 || severityCellsParam.length > 0) }
   );
 
   // Override mode: build per-display filtered matrices using the same intersection logic.
@@ -661,37 +564,18 @@ export function MatrixDashboard() {
     const detectabilitySet = selectedCellsByDimension.detectability.length > 0
       ? new Set(selectedCellsByDimension.detectability.map((c) => `${c.expected}-${c.observed}`))
       : null;
-    const probabilitySet = selectedCellsByDimension.probability.length > 0
-      ? new Set(selectedCellsByDimension.probability.map((c) => `${c.expected}-${c.observed}`))
-      : null;
-    if (!productSet && !severitySet && !detectabilitySet && !probabilitySet) return null;
+    if (!productSet && !severitySet && !detectabilitySet) return null;
 
     // For S matrix: filter by product + detectability (not severity itself).
     const casesForSeverityDisplay = filteredOverrideCases.filter((item) => {
       if (productSet && !productSet.has(`${item.user_s * item.user_d * item.tricia_p}-${item.tricia_s * item.tricia_d * item.tricia_p}`)) return false;
-      if (probabilitySet && !probabilitySet.has(`${item.user_p ?? 1}-${item.tricia_p}`)) return false;
       if (detectabilitySet && !detectabilitySet.has(`${item.user_d}-${item.tricia_d}`)) return false;
       return true;
     });
     // For D matrix: filter by product + severity (not detectability itself).
     const casesForDetectabilityDisplay = filteredOverrideCases.filter((item) => {
       if (productSet && !productSet.has(`${item.user_s * item.user_d * item.tricia_p}-${item.tricia_s * item.tricia_d * item.tricia_p}`)) return false;
-      if (probabilitySet && !probabilitySet.has(`${item.user_p ?? 1}-${item.tricia_p}`)) return false;
       if (severitySet && !severitySet.has(`${item.user_s}-${item.tricia_s}`)) return false;
-      return true;
-    });
-    // For P matrix: filter by product + severity + detectability (not probability itself).
-    const casesForProbabilityDisplay = filteredOverrideCases.filter((item) => {
-      if (productSet && !productSet.has(`${item.user_s * item.user_d * item.tricia_p}-${item.tricia_s * item.tricia_d * item.tricia_p}`)) return false;
-      if (severitySet && !severitySet.has(`${item.user_s}-${item.tricia_s}`)) return false;
-      if (detectabilitySet && !detectabilitySet.has(`${item.user_d}-${item.tricia_d}`)) return false;
-      return true;
-    });
-
-    const casesForProductDisplay = filteredOverrideCases.filter((item) => {
-      if (probabilitySet && !probabilitySet.has(`${item.user_p ?? 1}-${item.tricia_p}`)) return false;
-      if (severitySet && !severitySet.has(`${item.user_s}-${item.tricia_s}`)) return false;
-      if (detectabilitySet && !detectabilitySet.has(`${item.user_d}-${item.tricia_d}`)) return false;
       return true;
     });
 
@@ -700,32 +584,12 @@ export function MatrixDashboard() {
         casesForSeverityDisplay.map((item) => ({ expected: item.user_s, observed: item.tricia_s })),
         acceptanceThreshold
       ),
-      probability: buildLocalMatrixCells(
-        casesForProbabilityDisplay.map((item) => ({ expected: item.user_p ?? 1, observed: item.tricia_p })),
-        acceptanceThreshold
-      ),
-      product: buildLocalMatrixCells(
-        casesForProductDisplay.map((item) => ({
-          expected: item.user_s * item.user_d * item.tricia_p,
-          observed: item.tricia_s * item.tricia_d * item.tricia_p,
-        })),
-        acceptanceThreshold
-      ),
       detectability: buildLocalMatrixCells(
         casesForDetectabilityDisplay.map((item) => ({ expected: item.user_d, observed: item.tricia_d })),
         acceptanceThreshold
       ),
     };
-  }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive, selectedCellsByDimension.detectability, selectedCellsByDimension.probability, selectedCellsByDimension.severity, selectedProductRawCells]);
-
-  const displayedRiskClassMatrix = useMemo(() => {
-    const filteredProductCells = probabilityCellsParam.length > 0
-      ? (isOverrideActive
-        ? (filteredOverrideMatrices?.product ?? productCells)
-        : (filteredProductMatrix.data?.matrices?.product ?? filteredProductMatrix.data?.cells ?? productCells))
-      : productCells;
-    return buildRiskClassMatrix(filteredProductCells, riskCategories, acceptanceThreshold);
-  }, [acceptanceThreshold, filteredOverrideMatrices, filteredProductMatrix.data, isOverrideActive, probabilityCellsParam, productCells, riskCategories]);
+  }, [acceptanceThreshold, filteredOverrideCases, isOverrideActive, selectedCellsByDimension.detectability, selectedCellsByDimension.severity, selectedProductRawCells]);
 
   const patchReview = usePatchCaseReview();
   const addComment = useAddCaseComment();
@@ -738,12 +602,11 @@ export function MatrixDashboard() {
 
       return [
         ...selectedCellsByDimension.severity.map((cell) => ({ dimension: 'severity' as const, ...cell })),
-        ...selectedCellsByDimension.probability.map((cell) => ({ dimension: 'probability' as const, ...cell })),
         ...selectedCellsByDimension.detectability.map((cell) => ({ dimension: 'detectability' as const, ...cell })),
         ...uniqueProductRawCells.map((cell) => ({ dimension: 'product' as const, ...cell })),
       ];
     },
-    [selectedCellsByDimension.detectability, selectedCellsByDimension.probability, selectedCellsByDimension.severity, selectedProductRawCells]
+    [selectedCellsByDimension.detectability, selectedCellsByDimension.severity, selectedProductRawCells]
   );
 
   const selectedCaseQueries = useQueries({
@@ -772,9 +635,6 @@ export function MatrixDashboard() {
           return cellsForDim.some((request) => {
             if (request.dimension === 'severity') {
               return item.user_s === request.expected && item.tricia_s === request.observed;
-            }
-            if (request.dimension === 'probability') {
-              return (item.user_p ?? 1) === request.expected && item.tricia_p === request.observed;
             }
             if (request.dimension === 'product') {
               return (
@@ -849,12 +709,8 @@ export function MatrixDashboard() {
         ?? matrix.data?.matrices?.detectability
         ?? matrix.data?.cells
         ?? []);
-  const probabilityCells = isOverrideActive
-    ? (filteredOverrideMatrices?.probability ?? overrideMatrices.probability)
-    : (filteredProbabilityMatrix.data?.matrices?.probability ?? matrix.data?.matrices?.probability ?? []);
   const hasSelection =
     selectedCellsByDimension.severity.length > 0 ||
-    selectedCellsByDimension.probability.length > 0 ||
     selectedCellsByDimension.detectability.length > 0 ||
     selectedCellsByDimension.product.length > 0;
 
@@ -914,9 +770,7 @@ export function MatrixDashboard() {
       if (dimension === 'product' && previous.product.length === 0 && nextDimensionSelection.length > 0) {
         return {
           severity: [],
-          probability: [],
           detectability: [],
-          risk: [],
           product: nextDimensionSelection,
         };
       }
@@ -931,9 +785,7 @@ export function MatrixDashboard() {
   function clearAllSelection() {
     setSelectedCellsByDimension({
       severity: [],
-      probability: [],
       detectability: [],
-      risk: [],
       product: [],
     });
     if (riskFilter !== 'all') {
@@ -1002,44 +854,10 @@ export function MatrixDashboard() {
     problematic_only: problematicOnly,
     product_cells: selectedProductRawCells.length > 0 ? selectedProductRawCells.map((c) => `${c.expected}:${c.observed}`).join(',') : undefined,
     severity_cells: selectedCellsByDimension.severity.length > 0 ? selectedCellsByDimension.severity.map(c => `${c.expected}:${c.observed}`).join(',') : undefined,
-    probability_cells: selectedCellsByDimension.probability.length > 0 ? selectedCellsByDimension.probability.map(c => `${c.expected}:${c.observed}`).join(',') : undefined,
     detectability_cells: selectedCellsByDimension.detectability.length > 0 ? selectedCellsByDimension.detectability.map(c => `${c.expected}:${c.observed}`).join(',') : undefined,
     ...dateParams,
     ...exportState.filters,
   }), [dateParams, exportState.filters, includeExcluded, problematicOnly, requestedVkNumber, riskDirectionParam, selectedCellsByDimension, selectedProductRawCells]);
-
-  const resolveAllReportRows = useCallback(
-    async (columns: string[], currentRows: Array<Record<string, unknown>>) => {
-      if (columns.length === 0) {
-        return { columns, rows: [] as Array<Record<string, unknown>> };
-      }
-
-      if (isOverrideActive || selectedRequests.length > 0) {
-        return {
-          columns,
-          rows: buildExportRowsFromCases(columns, selectedCases as Array<CaseExportSourceRow>),
-        };
-      }
-
-      const allRowsResponse = await listCases({
-        ...caseParams,
-        ...tableServerFilters,
-        all: true,
-      });
-
-      const reportRows = buildExportRowsFromCases(
-        columns,
-        (allRowsResponse?.items ?? []) as Array<CaseExportSourceRow>,
-      );
-
-      if (reportRows.length === 0 && currentRows.length > 0) {
-        return { columns, rows: currentRows };
-      }
-
-      return { columns, rows: reportRows };
-    },
-    [caseParams, isOverrideActive, selectedCases, selectedRequests.length, tableServerFilters],
-  );
 
   return (
     <AppShell>
@@ -1073,12 +891,6 @@ export function MatrixDashboard() {
                 cells: severityCells,
               },
               {
-                title: 'Probability Matrix',
-                rowAxisLabel: 'WIMI-P',
-                columnAxisLabel: 'TRI-P',
-                cells: probabilityCells,
-              },
-              {
                 title: 'Detectability Matrix',
                 rowAxisLabel: 'WIMI-D',
                 columnAxisLabel: 'TRI-D',
@@ -1093,7 +905,6 @@ export function MatrixDashboard() {
             ]}
             tableColumns={exportState.columns}
             tableRows={exportState.rows}
-            onBeforeExport={resolveAllReportRows}
           />
         </div>
       </div>
@@ -1121,55 +932,41 @@ export function MatrixDashboard() {
           </button>
           {!collapsedProduct && (
             <div className="p-2">
-              <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                <div data-testid="risk-class-matrix-panel">
-                  <ConfusionMatrixGrid
-                    title="Risk Class Matrix"
-                    cells={probabilityCellsParam ? displayedRiskClassMatrix.cells : riskClassMatrix.cells}
-                    onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
-                    selectedCells={selectedCellsByDimension.product}
-                    rowAxisLabel="WIMI Risk Class"
-                    columnAxisLabel="TRI Risk Class"
-                    axisValueFormatter={(value) => riskCategoryLabelMap.get(value) ?? `Class ${value}`}
-                    emphasis
-                  />
-                  <div className="px-4 pt-2 text-xs text-stone-500 flex flex-wrap gap-x-3 gap-y-1">
-                    {riskCategories.map((category, index) => (
-                      <span key={`${category.label}-${index}`}>
-                        {getRiskCategoryDisplayLabel(category, index)} ({category.min_value}-{category.max_value})
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <ConfusionMatrixGrid
-                    title="Severity Matrix"
-                    cells={severityCells}
-                    fixedAxisValues={SEVERITY_AXIS_VALUES}
-                    onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
-                    selectedCells={selectedCellsByDimension.severity}
-                    rowAxisLabel="WIMI-S"
-                    columnAxisLabel="TRI-S"
-                  />
-                  <ConfusionMatrixGrid
-                    title="Probability Matrix"
-                    cells={probabilityCells}
-                    fixedAxisValues={PROBABILITY_AXIS_VALUES}
-                    onCellToggle={(expected, observed) => toggleMatrixCell('probability', expected, observed)}
-                    selectedCells={selectedCellsByDimension.probability}
-                    rowAxisLabel="WIMI-P"
-                    columnAxisLabel="TRI-P"
-                  />
-                  <ConfusionMatrixGrid
-                    title="Detectability Matrix"
-                    cells={detectabilityCells}
-                    fixedAxisValues={DETECTABILITY_AXIS_VALUES}
-                    onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
-                    selectedCells={selectedCellsByDimension.detectability}
-                    rowAxisLabel="WIMI-D"
-                    columnAxisLabel="TRI-D"
-                  />
-                </div>
+              <div className="grid gap-4 xl:grid-cols-3">
+                <ConfusionMatrixGrid
+                  title="Risk Class Matrix"
+                  cells={riskClassMatrix.cells}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('product', expected, observed)}
+                  selectedCells={selectedCellsByDimension.product}
+                  rowAxisLabel="WIMI Risk Class"
+                  columnAxisLabel="TRI Risk Class"
+                  axisValueFormatter={(value) => riskCategoryLabelMap.get(value) ?? `Class ${value}`}
+                />
+                <ConfusionMatrixGrid
+                  title="Severity Matrix"
+                  cells={severityCells}
+                  fixedAxisValues={SEVERITY_AXIS_VALUES}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('severity', expected, observed)}
+                  selectedCells={selectedCellsByDimension.severity}
+                  rowAxisLabel="WIMI-S"
+                  columnAxisLabel="TRI-S"
+                />
+                <ConfusionMatrixGrid
+                  title="Detectability Matrix"
+                  cells={detectabilityCells}
+                  fixedAxisValues={DETECTABILITY_AXIS_VALUES}
+                  onCellToggle={(expected, observed) => toggleMatrixCell('detectability', expected, observed)}
+                  selectedCells={selectedCellsByDimension.detectability}
+                  rowAxisLabel="WIMI-D"
+                  columnAxisLabel="TRI-D"
+                />
+              </div>
+              <div className="px-4 pb-2 pt-1 text-xs text-stone-500 flex flex-wrap gap-3">
+                {riskCategories.map((category, index) => (
+                  <span key={`${category.label}-${index}`}>
+                    {getRiskCategoryDisplayLabel(category, index)} ({category.min_value}-{category.max_value})
+                  </span>
+                ))}
               </div>
 
               {hasSelection && (
