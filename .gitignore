@@ -30,3 +30,5 @@ Thumbs.db
 test-data/  
 data/
 migration-backups/
+graphify-out/
+
