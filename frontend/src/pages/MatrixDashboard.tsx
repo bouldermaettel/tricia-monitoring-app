@@ -88,6 +88,46 @@ type ProblematicCountsByPeriod = {
   '12M': number;
 };
 
+type CaseExportSourceRow = {
+  id?: string;
+  [key: string]: unknown;
+};
+
+const EXPORT_COLUMN_TO_CASE_FIELD: Record<string, string> = {
+  vk_number: 'vk_number',
+  wimi_shortcut: 'wimi_shortcut',
+  date_reported: 'date_reported',
+  device_name: 'device_name',
+  'TRI-S': 'tricia_s',
+  'TRI-P': 'tricia_p',
+  'TRI-D': 'tricia_d',
+  'WIMI-S': 'user_s',
+  'WIMI-P': 'user_p',
+  'WIMI-D': 'user_d',
+  'TRI-RISK': 'tri_risk',
+  'WIMI-RISK': 'wimi_risk',
+  category_code: 'category_code',
+  comment_text: 'comment_text',
+  is_excluded: 'is_excluded',
+  is_reviewed: 'is_reviewed',
+  has_edits: 'has_edits',
+};
+
+function buildExportRowsFromCases(
+  columns: string[],
+  cases: Array<CaseExportSourceRow>,
+): Array<Record<string, unknown>> {
+  return cases.map((item) => {
+    const row: Record<string, unknown> = {};
+    columns.forEach((column) => {
+      const sourceField = EXPORT_COLUMN_TO_CASE_FIELD[column] ?? column;
+      row[column] = item[sourceField] ?? '';
+    });
+    row._case_id = item.id ?? '';
+    return row;
+  });
+}
+
 const DEFAULT_RISK_CATEGORIES: RiskCategory[] = [
   { label: 'Class 1', min_value: 0, max_value: 10 },
   { label: 'Class 2', min_value: 11, max_value: 250 },
@@ -968,6 +1008,39 @@ export function MatrixDashboard() {
     ...exportState.filters,
   }), [dateParams, exportState.filters, includeExcluded, problematicOnly, requestedVkNumber, riskDirectionParam, selectedCellsByDimension, selectedProductRawCells]);
 
+  const resolveAllReportRows = useCallback(
+    async (columns: string[], currentRows: Array<Record<string, unknown>>) => {
+      if (columns.length === 0) {
+        return { columns, rows: [] as Array<Record<string, unknown>> };
+      }
+
+      if (isOverrideActive || selectedRequests.length > 0) {
+        return {
+          columns,
+          rows: buildExportRowsFromCases(columns, selectedCases as Array<CaseExportSourceRow>),
+        };
+      }
+
+      const allRowsResponse = await listCases({
+        ...caseParams,
+        ...tableServerFilters,
+        all: true,
+      });
+
+      const reportRows = buildExportRowsFromCases(
+        columns,
+        (allRowsResponse?.items ?? []) as Array<CaseExportSourceRow>,
+      );
+
+      if (reportRows.length === 0 && currentRows.length > 0) {
+        return { columns, rows: currentRows };
+      }
+
+      return { columns, rows: reportRows };
+    },
+    [caseParams, isOverrideActive, selectedCases, selectedRequests.length, tableServerFilters],
+  );
+
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
@@ -1020,6 +1093,7 @@ export function MatrixDashboard() {
             ]}
             tableColumns={exportState.columns}
             tableRows={exportState.rows}
+            onBeforeExport={resolveAllReportRows}
           />
         </div>
       </div>

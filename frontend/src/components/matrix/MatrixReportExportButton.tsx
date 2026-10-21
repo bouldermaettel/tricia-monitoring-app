@@ -21,6 +21,10 @@ type Props = {
   matrixSections: MatrixSection[];
   tableColumns: string[];
   tableRows: Array<Record<string, unknown>>;
+  onBeforeExport?: (
+    columns: string[],
+    rows: Array<Record<string, unknown>>
+  ) => Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }>;
 };
 
 type ReportHtmlParams = Omit<Props, 'fileNamePrefix'> & { matrixImageData: (string | null)[] };
@@ -361,18 +365,27 @@ export function MatrixReportExportButton({
   matrixSections,
   tableColumns,
   tableRows,
+  onBeforeExport,
 }: Props) {
-  const disabled = tableColumns.length === 0;
+  const disabled = tableColumns.length === 0 || (!onBeforeExport && tableRows.length === 0);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  async function resolveData() {
+    if (onBeforeExport) {
+      return onBeforeExport(tableColumns, tableRows);
+    }
+    return { columns: tableColumns, rows: tableRows };
+  }
+
   async function getHtml() {
+    const data = await resolveData();
     const matrixImageData = matrixSections.map((section) => matrixToImageDataUrl(section));
     return buildReportHtml({
       generatedAt,
       filters,
       matrixSections,
-      tableColumns,
-      tableRows,
+      tableColumns: data.columns,
+      tableRows: data.rows,
       matrixImageData,
     });
   }
