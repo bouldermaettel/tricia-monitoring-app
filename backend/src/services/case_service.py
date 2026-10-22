@@ -18,7 +18,7 @@ class CaseService:
 
     @staticmethod
     def _score_fields() -> tuple[str, ...]:
-        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')
+        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_p', 'user_d')
 
     def _resolve_case(self, case_ref: str) -> Case | None:
         normalized_ref = case_ref.strip()
@@ -67,6 +67,7 @@ class CaseService:
             tricia_s=derived_scores.get('tricia_s', 1),
             tricia_p=derived_scores.get('tricia_p', 1),
             tricia_d=derived_scores.get('tricia_d', 1),
+            user_p=derived_scores.get('user_p', derived_scores.get('tricia_p', 1)),
             user_s=derived_scores.get('user_s', 1),
             user_d=derived_scores.get('user_d', 1),
             deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
@@ -93,8 +94,9 @@ class CaseService:
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
+        user_p: int = 1,
     ) -> bool:
-        expected_class = self._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
+        expected_class = self._resolve_risk_class(user_s * user_d * user_p, risk_categories)
         observed_class = self._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
@@ -138,6 +140,9 @@ class CaseService:
             tricia_s=payload.tricia_s,
             tricia_p=payload.tricia_p,
             tricia_d=payload.tricia_d,
+            user_p=payload.user_p if payload.user_p is not None else payload.tricia_p,
+            tri_risk=payload.tricia_s * payload.tricia_p * payload.tricia_d,
+            wimi_risk=payload.user_s * (payload.user_p if payload.user_p is not None else payload.tricia_p) * user_d,
             user_s=payload.user_s,
             user_d=user_d,
             deviation_s=abs(payload.user_s - payload.tricia_s),
@@ -146,6 +151,7 @@ class CaseService:
                 tricia_s=payload.tricia_s,
                 tricia_p=payload.tricia_p,
                 tricia_d=payload.tricia_d,
+                user_p=payload.user_p if payload.user_p is not None else payload.tricia_p,
                 user_s=payload.user_s,
                 user_d=user_d,
                 acceptance_threshold=acceptance_threshold,
@@ -220,6 +226,9 @@ class CaseService:
         tricia_p: int | None = None,
         tricia_s: int | None = None,
         user_s: int | None = None,
+        user_p: int | None = None,
+        tri_risk: int | None = None,
+        wimi_risk: int | None = None,
         tricia_d: int | None = None,
         user_d: int | None = None,
         category_code: str | None = None,
@@ -232,6 +241,10 @@ class CaseService:
         product_cells=None,
         severity_cells=None,
         detectability_cells=None,
+        probability_cells=None,
+        risk_cells=None,
+        sort_by: str | None = None,
+        sort_dir: str = "asc",
     ) -> CaseListResponse:
         acceptance_threshold, risk_categories = self._get_threshold_context()
         latest_snapshot_subquery = (
@@ -265,6 +278,8 @@ class CaseService:
             product_cells=product_cells,
             severity_cells=severity_cells,
             detectability_cells=detectability_cells,
+            probability_cells=probability_cells,
+            risk_cells=risk_cells,
         )
         if vk_number:
             query = query.where(Case.vk_number == vk_number)
@@ -285,6 +300,12 @@ class CaseService:
             query = query.where(ClassificationSnapshot.tricia_s == tricia_s)
         if user_s is not None:
             query = query.where(ClassificationSnapshot.user_s == user_s)
+        if user_p is not None:
+            query = query.where(ClassificationSnapshot.user_p == user_p)
+        if tri_risk is not None:
+            query = query.where(ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_p * ClassificationSnapshot.tricia_d == tri_risk)
+        if wimi_risk is not None:
+            query = query.where(ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d == wimi_risk)
         if tricia_d is not None:
             query = query.where(ClassificationSnapshot.tricia_d == tricia_d)
         if user_d is not None:
@@ -318,6 +339,15 @@ class CaseService:
                 query = query.where(Case.id.not_in(edited_case_ids))
 
         total = self.db.scalar(select(func.count()).select_from(query.subquery())) or 0
+        sort_fields = {
+            **{name: getattr(Case, name) for name in ('vk_number', 'device_name', 'analysis_date', 'validation_status', 'wimi_shortcut')},
+            **{name: getattr(ClassificationSnapshot, name) for name in self._score_fields()},
+            'tri_risk': ClassificationSnapshot.tricia_s * ClassificationSnapshot.tricia_p * ClassificationSnapshot.tricia_d,
+            'wimi_risk': ClassificationSnapshot.user_s * ClassificationSnapshot.user_p * ClassificationSnapshot.user_d,
+        }
+        if sort_by in sort_fields:
+            field = sort_fields[sort_by]
+            query = query.order_by(field.desc() if sort_dir == 'desc' else field.asc(), Case.id)
         if all_results:
             rows = self.db.execute(query).all()
             effective_page_size = total
@@ -336,6 +366,7 @@ class CaseService:
                         tricia_s=derived_scores.get('tricia_s', 1),
                         tricia_p=derived_scores.get('tricia_p', 1),
                         tricia_d=derived_scores.get('tricia_d', 1),
+                        user_p=derived_scores.get('user_p', derived_scores.get('tricia_p', 1)),
                         user_s=derived_scores.get('user_s', 1),
                         user_d=derived_scores.get('user_d', 1),
                         deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
@@ -369,6 +400,9 @@ class CaseService:
                     tricia_s=snapshot.tricia_s if snapshot else None,
                     tricia_p=snapshot.tricia_p if snapshot else None,
                     tricia_d=snapshot.tricia_d if snapshot else None,
+                    user_p=(snapshot.user_p or snapshot.tricia_p) if snapshot else None,
+                    tri_risk=snapshot.tricia_s * snapshot.tricia_p * snapshot.tricia_d if snapshot else None,
+                    wimi_risk=snapshot.user_s * (snapshot.user_p or snapshot.tricia_p) * snapshot.user_d if snapshot else None,
                     user_s=snapshot.user_s if snapshot else None,
                     user_d=snapshot.user_d if snapshot else None,
                     risk_level=review.risk_level if review else None,
@@ -477,12 +511,15 @@ class CaseService:
                     changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
                     setattr(snapshot, field, new_val)
             if any(score_updates[field] is not None for field in score_fields):
+                snapshot.tri_risk = snapshot.tricia_s * snapshot.tricia_p * snapshot.tricia_d
+                snapshot.wimi_risk = snapshot.user_s * (snapshot.user_p or snapshot.tricia_p) * snapshot.user_d
                 snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                 snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
                 snapshot.problem_flag = self._is_problematic_case(
                     tricia_s=snapshot.tricia_s,
                     tricia_p=snapshot.tricia_p,
                     tricia_d=snapshot.tricia_d,
+                    user_p=snapshot.user_p or snapshot.tricia_p,
                     user_s=snapshot.user_s,
                     user_d=snapshot.user_d,
                     acceptance_threshold=acceptance_threshold,

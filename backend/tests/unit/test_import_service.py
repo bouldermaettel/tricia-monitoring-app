@@ -112,3 +112,13 @@ def test_import_service_rejects_vk_numbers_already_in_database(db_session):
 
     with pytest.raises(ValueError, match=r"VK-NR 'Vk_20240523_001' is already in the database\."):
         service.process_file('duplicate.csv', duplicate_payload, 'bootstrap-admin')
+
+
+@pytest.mark.parametrize('probability', ['', '2'])
+def test_import_rejects_invalid_wimi_probability(db_session, probability):
+    payload = (
+        'vk_number,device_name,TRI-S,TRI-P,TRI-D,WIMI-S,WIMI-P,WIMI-D\n'
+        f'Vk_20261022_902,Device,5,5,10,3,{probability},5\n'
+    ).encode()
+    with pytest.raises(ValueError, match="column 'WIMI-P'"):
+        ImportService(db_session).preview_file('invalid.csv', payload)

@@ -15,7 +15,7 @@ describe('exportImportTemplateXlsx', () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       '/exports/table.xlsx',
       {
-        columns: ['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-D'],
+        columns: ['vk_number', 'device_name', 'TRI-S', 'TRI-P', 'TRI-D', 'WIMI-S', 'WIMI-P', 'WIMI-D'],
         rows: [],
       },
       { responseType: 'blob' },
