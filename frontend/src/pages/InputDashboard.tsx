@@ -1,11 +1,12 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Download, Save, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../app/auth';
 import { DuplicateDialog } from '../components/input/DuplicateDialog';
 import { AppShell } from '../components/common/AppShell';
 import { useCreateCase } from '../hooks/useCases';
 import { exportImportTemplateXlsx } from '../services/exports';
-import { previewImport, uploadImport } from '../services/imports';
+import { previewImport, uploadImport, type ImportDuplicateAction } from '../services/imports';
 import { useImportOverride } from '../state/importOverride';
 
 const S_OPTIONS = [1, 3, 5, 8, 10];
@@ -101,6 +102,66 @@ function splitImportErrorLines(message: string | null): string[] {
     .filter(Boolean);
 }
 
+type DuplicateConflictPayload = {
+  code?: string;
+  message?: string;
+  duplicates?: string[];
+};
+
+function resolveDuplicateConflict(error: unknown): DuplicateConflictPayload | null {
+  const response = typeof error === 'object' && error && 'response' in error
+    ? (error as { response?: { status?: number; data?: unknown } }).response
+    : undefined;
+  const statusCode = response?.status;
+  const responseData = response?.data;
+
+  if (statusCode !== 409 && statusCode !== 422) {
+    return null;
+  }
+
+  const detailFromEnvelope = responseData
+    && typeof responseData === 'object'
+    && 'error' in responseData
+    && (responseData as { error?: unknown }).error
+    && typeof (responseData as { error?: unknown }).error === 'object'
+    && 'details' in ((responseData as { error?: { details?: unknown } }).error ?? {})
+      ? (responseData as { error?: { details?: unknown } }).error?.details
+      : undefined;
+  const detailDirect = responseData && typeof responseData === 'object' && 'detail' in responseData
+    ? (responseData as { detail?: unknown }).detail
+    : undefined;
+
+  const detail = detailFromEnvelope ?? detailDirect;
+  if (detail && typeof detail === 'object') {
+    const payload = detail as DuplicateConflictPayload;
+    if (payload.code === 'duplicate_vk_conflict') {
+      return {
+        code: payload.code,
+        message: payload.message,
+        duplicates: Array.isArray(payload.duplicates) ? payload.duplicates : [],
+      };
+    }
+  }
+
+  const message = resolveBackendErrorMessage(error, '');
+  const looksLikeDuplicate = /already in the database|duplicate/i.test(message);
+  if (!looksLikeDuplicate) {
+    return null;
+  }
+
+  const duplicates = Array.from(
+    message.matchAll(/VK-NR\s*'([^']+)'/gi),
+    (match) => match[1],
+  );
+
+  return {
+    code: 'duplicate_vk_conflict',
+    message,
+    duplicates,
+  };
+
+}
+
 function CategorySelect({
   label,
   value,
@@ -137,6 +198,7 @@ function CategorySelect({
 }
 
 export function InputDashboard() {
+  const { session } = useAuth();
   const navigate = useNavigate();
   const [vkNumber, setVkNumber] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -144,8 +206,10 @@ export function InputDashboard() {
   const [triciaP, setTriciaP] = useState<number>(1);
   const [triciaD, setTriciaD] = useState<number>(1);
   const [userS, setUserS] = useState<number>(1);
+  const [userP, setUserP] = useState<number>(1);
   const [userD, setUserD] = useState<number>(1);
   const [userSManual, setUserSManual] = useState(false);
+  const [userPManual, setUserPManual] = useState(false);
   const [userDManual, setUserDManual] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [invalidVkFormatOpen, setInvalidVkFormatOpen] = useState(false);
@@ -159,6 +223,8 @@ export function InputDashboard() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
+  const [importDuplicateDialogOpen, setImportDuplicateDialogOpen] = useState(false);
+  const [importDuplicateVkNumbers, setImportDuplicateVkNumbers] = useState<string[]>([]);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const createCase = useCreateCase();
@@ -175,6 +241,10 @@ export function InputDashboard() {
   useEffect(() => {
     if (!userSManual) setUserS(triciaS);
   }, [triciaS, userSManual]);
+
+  useEffect(() => {
+    if (!userPManual) setUserP(triciaP);
+  }, [triciaP, userPManual]);
 
   // Autofill user_d from tricia_d if not manually overridden
   useEffect(() => {
@@ -195,19 +265,23 @@ export function InputDashboard() {
     if (isPreviewOverrideActive && previewSourceFileName && previewSourceFile) {
       const now = new Date().toISOString();
       const today = now.slice(0, 10);
+      const actorShortcut = session?.acronym?.trim() || undefined;
       const nextCase = {
         id: normalizedVkNumber,
         vk_number: normalizedVkNumber,
         device_name: deviceName.trim(),
         analysis_date: today,
         input_timestamp: now,
-        wimi_shortcut: undefined,
+        wimi_shortcut: actorShortcut,
         validation_status: 'saved',
         tricia_s: triciaS,
         tricia_p: triciaP,
         tricia_d: triciaD,
         user_s: userS,
+        user_p: userP,
         user_d: userD,
+        tri_risk: triciaS * triciaP * triciaD,
+        wimi_risk: userS * userP * userD,
         category_code: undefined,
         risk_level: 'none',
         is_excluded: false,
@@ -250,8 +324,10 @@ export function InputDashboard() {
       setTriciaP(1);
       setTriciaD(1);
       setUserS(1);
+      setUserP(1);
       setUserD(1);
       setUserSManual(false);
+      setUserPManual(false);
       setUserDManual(false);
       setDuplicateOpen(false);
       setImportStatus(`Analysis dataset updated in memory (${previewSourceFileName}).`);
@@ -265,6 +341,7 @@ export function InputDashboard() {
         tricia_p: triciaP,
         tricia_d: triciaD,
         user_s: userS,
+        user_p: userP,
         user_d: userD,
         validation_status: 'saved',
       });
@@ -275,8 +352,10 @@ export function InputDashboard() {
       setTriciaP(1);
       setTriciaD(1);
       setUserS(1);
+      setUserP(1);
       setUserD(1);
       setUserSManual(false);
+      setUserPManual(false);
       setUserDManual(false);
       setDuplicateOpen(false);
     } catch (error) {
@@ -383,7 +462,7 @@ export function InputDashboard() {
     }
   }
 
-  async function handleImportUpload() {
+  async function handleImportUpload(duplicateAction: ImportDuplicateAction = 'error') {
     if (!importFile) {
       importFileInputRef.current?.click();
       return;
@@ -394,13 +473,32 @@ export function InputDashboard() {
     setImportErrorDialogOpen(false);
     setImportStatus(null);
     try {
-      const result = await uploadImport(importFile);
+      const result = await uploadImport(importFile, duplicateAction);
       clearPreviewData();
+      const replacedRows = Number(result.replaced_rows ?? 0);
+      const skippedRows = Number(result.skipped_rows ?? 0);
+      const details: string[] = [];
+      if (replacedRows > 0) {
+        details.push(`${replacedRows} replaced`);
+      }
+      if (skippedRows > 0) {
+        details.push(`${skippedRows} skipped`);
+      }
+      const detailSuffix = details.length > 0 ? ` (${details.join(', ')})` : '';
       setImportStatus(
-        `Imported ${result.imported_rows ?? 0} of ${result.total_rows ?? 0} rows from ${importFile.name}.`
+        `Imported ${result.imported_rows ?? 0} of ${result.total_rows ?? 0} rows from ${importFile.name}${detailSuffix}.`
       );
       setModeDialogOpen(false);
+      setImportDuplicateDialogOpen(false);
+      setImportDuplicateVkNumbers([]);
     } catch (error) {
+      const duplicateConflict = resolveDuplicateConflict(error);
+      if (duplicateConflict) {
+        setImportDuplicateVkNumbers(duplicateConflict.duplicates ?? []);
+        setImportDuplicateDialogOpen(true);
+        setModeDialogOpen(false);
+        return;
+      }
       const message = resolveBackendErrorMessage(error, 'Import failed.');
       setImportError(message);
       setImportErrorDialogOpen(true);
@@ -489,6 +587,13 @@ export function InputDashboard() {
                 options={S_OPTIONS}
               />
               <CategorySelect
+                label="WIMI-P"
+                value={userP}
+                onChange={(v) => { setUserP(v); setUserPManual(true); }}
+                highlight={userPManual && userP !== triciaP}
+                options={PD_OPTIONS}
+              />
+              <CategorySelect
                 label="WIMI-D"
                 value={userD}
                 onChange={(v) => { setUserD(v); setUserDManual(true); }}
@@ -515,7 +620,7 @@ export function InputDashboard() {
           <div>
             <h2 className="text-base font-semibold text-stone-900">Upload CSV or Excel</h2>
             <p className="text-sm text-stone-500 mt-1">
-              Upload only the required columns: vk_number, device_name, TRI-S, TRI-P, TRI-D, WIMI-S, and WIMI-D.
+              Upload columns: vk_number, device_name, TRI-S, TRI-P, TRI-D, WIMI-S, WIMI-P, and WIMI-D. Legacy files without WIMI-P remain supported.
               The app fills in the derived metadata.
             </p>
           </div>
@@ -649,11 +754,61 @@ export function InputDashboard() {
               </button>
               <button
                 type="button"
-                onClick={handleImportUpload}
+                onClick={() => void handleImportUpload()}
                 disabled={isImporting || isPreviewing}
                 className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60"
               >
                 {isImporting ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {importDuplicateDialogOpen && (
+        <div
+          role="dialog"
+          aria-label="import-duplicate-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
+          onClick={() => setImportDuplicateDialogOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-stone-900">Duplicate VK-NR detected</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              Validation passed, but some VK-NR values already exist in the database. Choose how to continue.
+            </p>
+            {importDuplicateVkNumbers.length > 0 && (
+              <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-auto pl-5 text-sm text-stone-600">
+                {importDuplicateVkNumbers.map((vkNumber) => (
+                  <li key={vkNumber}>{vkNumber}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setImportDuplicateDialogOpen(false)}
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleImportUpload('skip')}
+                disabled={isImporting}
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100 disabled:opacity-60"
+              >
+                Skip existing, only import new cases
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleImportUpload('replace')}
+                disabled={isImporting}
+                className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-60"
+              >
+                Overwrite existing
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 const lowMemoryMode = process.env.VITEST_LOW_MEMORY === '1';
@@ -9,6 +9,7 @@ export default defineConfig({
         extensions: ['.mjs', '.ts', '.tsx', '.js', '.jsx', '.json'],
     },
     test: {
+        exclude: [...configDefaults.exclude, 'tests/e2e/**'],
         environment: 'jsdom',
         setupFiles: ['./tests/setup.ts'],
         globals: true,

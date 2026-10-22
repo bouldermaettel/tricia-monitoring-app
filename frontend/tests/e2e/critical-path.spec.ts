@@ -35,6 +35,9 @@ test.describe('Tricia Monitoring end-to-end flows', () => {
     await page.getByRole('link', { name: 'Matrix' }).click();
 
     await expect(page).toHaveURL(/\/matrix(?:$|\?)/);
+    for (const title of ['Severity Matrix', 'Probability Matrix', 'Detectability Matrix', 'Risk Class Matrix']) {
+      await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    }
     await expect(page.getByRole('button', { name: 'All Time' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'All' }).first()).toBeVisible();
 

@@ -391,10 +391,12 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
     expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
     expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
-    expect(screen.queryByText('Probability Matrix')).not.toBeInTheDocument();
+    expect(screen.getByText('Probability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
-    expect(screen.getAllByText('Very Low (0-10)').length).toBeGreaterThan(0);
+    const riskPanel = screen.getByTestId('risk-class-matrix-panel');
+    expect(within(riskPanel).getByText('Very Low (0-10)')).toBeInTheDocument();
+    expect(screen.getAllByText('Very Low (0-10)')).toHaveLength(1);
   });
 
   it('shows settings only to admins', () => {
@@ -755,6 +757,90 @@ describe('MatrixDashboard', () => {
     expect(screen.queryByRole('button', { name: '5' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '1' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '2' }).length).toBeGreaterThan(0);
+  });
+
+  it('requests a cross-filtered probability matrix without using probability as its own filter', async () => {
+    renderMatrixDashboard();
+
+    const initialProbabilityCellCount = getEnabledMatrixDataButtons('Probability Matrix').length;
+    expect(initialProbabilityCellCount).toBeGreaterThan(1);
+
+    fireEvent.click(getMatrixDataButton('Severity Matrix'));
+    await waitFor(() => {
+      expect(matrixRequests).toEqual(expect.arrayContaining([
+        expect.objectContaining({ severity_cells: expect.any(String) }),
+      ]));
+    });
+    expect(matrixRequests.some((params) => Boolean(params.severity_cells) && !params.probability_cells)).toBe(true);
+    await waitFor(() => {
+      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
+    });
+
+    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
+    await waitFor(() => {
+      expect(
+        matrixRequests.some(
+          (params) => Boolean(params.severity_cells) && Boolean(params.detectability_cells) && !params.probability_cells
+        )
+      ).toBe(true);
+    });
+
+    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
+    await waitFor(() => {
+      expect(matrixRequests.some((params) => Boolean(params.product_cells) && !params.probability_cells)).toBe(true);
+    });
+  });
+
+  it('keeps probability cross-filtering correct with multi-cell matrix selection', async () => {
+    renderMatrixDashboard();
+
+    const severityButtons = getEnabledMatrixDataButtons('Severity Matrix');
+    expect(severityButtons.length).toBeGreaterThan(1);
+
+    fireEvent.click(severityButtons[0]);
+    fireEvent.click(severityButtons[1]);
+    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
+
+    await waitFor(() => {
+      expect(
+        matrixRequests.some(
+          (params) =>
+            typeof params.severity_cells === 'string'
+            && params.severity_cells.includes(',')
+            && Boolean(params.detectability_cells)
+            && !params.probability_cells
+        )
+      ).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
+    });
+  });
+
+  it('filters other matrices and cases when probability cells are selected', async () => {
+    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
+    renderMatrixDashboard();
+
+    const probabilityButtons = getEnabledMatrixDataButtons('Probability Matrix');
+    expect(probabilityButtons.length).toBeGreaterThan(1);
+
+    fireEvent.click(probabilityButtons[0]);
+
+    await waitFor(() => {
+      const probabilityFilteredRequests = matrixRequests.filter((params) => Boolean(params.probability_cells));
+      expect(probabilityFilteredRequests.length).toBeGreaterThanOrEqual(3);
+      expect(probabilityFilteredRequests.every((params) => params.probability_cells === '1:5')).toBe(true);
+    });
+
+    expect(screen.getByText('VK-1')).toBeInTheDocument();
+    expect(screen.queryByText('VK-2')).not.toBeInTheDocument();
+
+    fireEvent.click(probabilityButtons[1]);
+    await waitFor(() => {
+      expect(screen.getByText('VK-1')).toBeInTheDocument();
+      expect(screen.getByText('VK-2')).toBeInTheDocument();
+    });
   });
 
   it('shows the total case count and paginates beyond the first 50 rows', async () => {

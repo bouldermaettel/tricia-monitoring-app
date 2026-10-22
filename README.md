@@ -1,17 +1,6 @@
 # Tricia Monitoring App
 
-Tricia Monitoring is a case-review and governance application for monitored product data. It combines a FastAPI backend with a React + TypeScript frontend to support structured data entry, risk review, matrix analysis, admin workflows, and exportable reporting.
-
-The product is built around a single operational goal: turn raw monitoring records into a reviewable, auditable, and filterable decision process for safety and quality teams.
-
-## Core capabilities
-
-- Case input and validation workflows
-- Matrix-based review and filtering
-- Risk/category evaluation and review state control
-- Admin user and access management
-- Spreadsheet import and export reporting
-- Browser-driven regression coverage for critical operational flows
+Monitoring web application with FastAPI backend and Vite React TypeScript frontend.
 
 ## Database modes
 
@@ -31,15 +20,6 @@ For instructions on how to deploy this application to Azure, please refer to the
 - Frontend: `cd frontend && npm run dev`
 - Backend tests: `PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q`
 - Frontend tests: `cd frontend && npm run test`
-
-### Repository hygiene and local cleanup
-
-Generated test artifacts should not be kept in the repository. Before committing or running a fresh verification cycle, remove local Playwright output and Python caches:
-
-```bash
-find . -type d \( -name test-results -o -name playwright-report -o -name .pytest_cache -o -name __pycache__ \) -prune -exec rm -rf {} +
-find . -type f -name "*.pyc" -delete
-```
 
 ### Local Postgres Parity (No Image Push Loop)
 
