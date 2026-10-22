@@ -53,9 +53,8 @@ class ImportService:
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
-        user_p: int = 1,
     ) -> bool:
-        expected_class = cls._resolve_risk_class(user_s * user_d * user_p, risk_categories)
+        expected_class = cls._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
         observed_class = cls._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
@@ -170,7 +169,7 @@ class ImportService:
         user_s = cls._parse_required_score(row, row_number, "WIMI-S", SEVERITY_SCORE_VALUES, errors)
         user_p = (
             cls._parse_required_score(row, row_number, "WIMI-P", PROBABILITY_DETECTABILITY_VALUES, errors)
-            if "wimi-p" in {str(column).lower() for column in row.index} else tricia_p
+            if "wimi-p" in {str(column).lower() for column in row.index} else 1
         )
         user_d = cls._parse_required_score(row, row_number, "WIMI-D", PROBABILITY_DETECTABILITY_VALUES, errors)
 
@@ -203,7 +202,6 @@ class ImportService:
         tricia_s = int(validated_row["tricia_s"])
         tricia_p = int(validated_row["tricia_p"])
         tricia_d = int(validated_row["tricia_d"])
-        user_p = int(validated_row["user_p"])
         user_s = int(validated_row["user_s"])
         user_d = int(validated_row["user_d"])
 
@@ -221,9 +219,7 @@ class ImportService:
             "tricia_s": tricia_s,
             "tricia_p": tricia_p,
             "tricia_d": tricia_d,
-            "user_p": user_p,
-            "tri_risk": tricia_s * tricia_p * tricia_d,
-            "wimi_risk": user_s * user_p * user_d,
+            "user_p": int(validated_row["user_p"]),
             "user_s": user_s,
             "user_d": user_d,
             "category_code": None,
@@ -327,8 +323,6 @@ class ImportService:
                     tricia_p=int(parsed["tricia_p"]),
                     tricia_d=int(parsed["tricia_d"]),
                     user_p=int(parsed["user_p"]),
-                    tri_risk=int(parsed["tri_risk"]),
-                    wimi_risk=int(parsed["wimi_risk"]),
                     user_s=int(parsed["user_s"]),
                     user_d=int(parsed["user_d"]),
                     deviation_s=abs(int(parsed["user_s"]) - int(parsed["tricia_s"])),
@@ -337,7 +331,6 @@ class ImportService:
                         tricia_s=int(parsed["tricia_s"]),
                         tricia_p=int(parsed["tricia_p"]),
                         tricia_d=int(parsed["tricia_d"]),
-                        user_p=int(parsed["user_p"]),
                         user_s=int(parsed["user_s"]),
                         user_d=int(parsed["user_d"]),
                         acceptance_threshold=acceptance_threshold,
@@ -350,8 +343,6 @@ class ImportService:
                 snapshot.tricia_p = int(parsed["tricia_p"])
                 snapshot.tricia_d = int(parsed["tricia_d"])
                 snapshot.user_p = int(parsed["user_p"])
-                snapshot.tri_risk = int(parsed["tri_risk"])
-                snapshot.wimi_risk = int(parsed["wimi_risk"])
                 snapshot.user_s = int(parsed["user_s"])
                 snapshot.user_d = int(parsed["user_d"])
                 snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
@@ -360,7 +351,6 @@ class ImportService:
                     tricia_s=snapshot.tricia_s,
                     tricia_p=snapshot.tricia_p,
                     tricia_d=snapshot.tricia_d,
-                    user_p=snapshot.user_p,
                     user_s=snapshot.user_s,
                     user_d=snapshot.user_d,
                     acceptance_threshold=acceptance_threshold,

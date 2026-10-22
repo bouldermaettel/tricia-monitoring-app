@@ -274,11 +274,9 @@ function getEnabledMatrixDataButtons(title: string) {
 }
 
 function expectSelectionSummary(expected: string) {
-  const match = expected.match(/P: (\d+) selected, S: (\d+) selected, D: (\d+) selected/);
-  if (!match) throw new Error(`Unexpected selection summary expectation: ${expected}`);
-  expect(screen.getByText(
-    `Risk Class, Severity, Probability and Detectability Matrices - Risk: ${match[1]} selected, S: ${match[2]} selected, P: 0 selected, D: ${match[3]} selected ▲`
-  )).toBeInTheDocument();
+  expect(
+    screen.getByText(`Risk Class, Severity and Detectability Matrices - ${expected} ▲`)
+  ).toBeInTheDocument();
 }
 
 function renderMatrixDashboard() {
@@ -393,7 +391,7 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('Matrix Dashboard')).toBeInTheDocument();
     expectSelectionSummary('P: 0 selected, S: 0 selected, D: 0 selected');
     expect(screen.getByText('Severity Matrix')).toBeInTheDocument();
-    expect(screen.getByText('Probability Matrix')).toBeInTheDocument();
+    expect(screen.queryByText('Probability Matrix')).not.toBeInTheDocument();
     expect(screen.getByText('Detectability Matrix')).toBeInTheDocument();
     expect(screen.getByText('Risk Class Matrix')).toBeInTheDocument();
     const riskPanel = screen.getByTestId('risk-class-matrix-panel');
@@ -505,36 +503,6 @@ describe('MatrixDashboard', () => {
     expect(screen.getByText('No cases for the selected filters.')).toBeInTheDocument();
   });
 
-  it('cross-filters preview matrices and cases when probability cells are selected', () => {
-    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
-    useImportOverride.getState().setPreviewData({
-      sourceFileName: 'probability.csv',
-      sourceFile: new File(['csv'], 'probability.csv', { type: 'text/csv' }),
-      cases: [
-        {
-          id: 'preview-p1', vk_number: 'VK-P1', device_name: 'Preview P1', analysis_date: '2026-05-01',
-          validation_status: 'saved', tricia_s: 1, tricia_p: 5, tricia_d: 1,
-          user_s: 1, user_p: 1, user_d: 1, is_excluded: false, is_reviewed: false,
-        },
-        {
-          id: 'preview-p2', vk_number: 'VK-P2', device_name: 'Preview P2', analysis_date: '2026-05-02',
-          validation_status: 'saved', tricia_s: 3, tricia_p: 5, tricia_d: 5,
-          user_s: 1, user_p: 10, user_d: 5, is_excluded: false, is_reviewed: false,
-        },
-      ],
-      controlItems: [],
-    });
-
-    renderMatrixDashboard();
-    const probabilityCells = getEnabledMatrixDataButtons('Probability Matrix');
-    expect(probabilityCells.length).toBeGreaterThan(1);
-    fireEvent.click(probabilityCells[1]);
-
-    expect(screen.getByText('VK-P2')).toBeInTheDocument();
-    expect(screen.queryByText('VK-P1')).not.toBeInTheDocument();
-    expect(screen.getByText(/P: 1 selected/)).toBeInTheDocument();
-  });
-
   it('uses preview problem flags for override problematic counts', () => {
     useImportOverride.getState().setPreviewData({
       sourceFileName: 'sample.csv',
@@ -576,11 +544,11 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(screen.getByText(/# Probl\. \(period\): 1/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 1')).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Problematic only'));
 
-    expect(screen.getByText(/# Probl\. \(period\): 1/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 1')).toBeInTheDocument();
     expect(screen.getByText('VK-2')).toBeInTheDocument();
     expect(screen.queryByText('VK-1')).not.toBeInTheDocument();
   });
@@ -634,13 +602,13 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(screen.getByText(/# Probl\. \(period\): 3/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'False Low' }));
-    expect(screen.getByText(/# Probl\. \(period\): 3/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'False High' }));
-    expect(screen.getByText(/# Probl\. \(period\): 3/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 3')).toBeInTheDocument();
   });
 
   it('excludes omitted cases from problematic count when Include omitted is disabled', () => {
@@ -692,7 +660,7 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(screen.getByText(/# Probl\. \(period\): 2/)).toBeInTheDocument();
+    expect(screen.getByText('#Problematic: 2')).toBeInTheDocument();
   });
 
   it('shows only the triggered period classes in All Time mode', async () => {
@@ -719,7 +687,7 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(await screen.findByText(/# Probl\. \(period\): 11 \/ limit .*Triggered: 3M/)).toBeInTheDocument();
+    expect(await screen.findByText('#Problematic: 11 (Triggered: 3M)')).toBeInTheDocument();
   });
 
   it('shows triggered period classes in Custom mode', async () => {
@@ -746,7 +714,7 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(await screen.findByText(/# Probl\. \(period\): 11 \/ limit .*Triggered: 3M/)).toBeInTheDocument();
+    expect(await screen.findByText('#Problematic: 11 (Triggered: 3M)')).toBeInTheDocument();
   });
 
   it('does not show 6M trigger when custom range is under 3 months', async () => {
@@ -774,7 +742,7 @@ describe('MatrixDashboard', () => {
 
     renderMatrixDashboard();
 
-    expect(await screen.findByText(/# Probl\. \(period\): 25 \/ limit .*Triggered: 3M/)).toBeInTheDocument();
+    expect(await screen.findByText('#Problematic: 25 (Triggered: 3M)')).toBeInTheDocument();
   });
 
   it('filters severity and detectability matrices when risk class selection is active', () => {
@@ -789,90 +757,6 @@ describe('MatrixDashboard', () => {
     expect(screen.queryByRole('button', { name: '5' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '1' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '2' }).length).toBeGreaterThan(0);
-  });
-
-  it('requests a cross-filtered probability matrix without using probability as its own filter', async () => {
-    renderMatrixDashboard();
-
-    const initialProbabilityCellCount = getEnabledMatrixDataButtons('Probability Matrix').length;
-    expect(initialProbabilityCellCount).toBeGreaterThan(1);
-
-    fireEvent.click(getMatrixDataButton('Severity Matrix'));
-    await waitFor(() => {
-      expect(matrixRequests).toEqual(expect.arrayContaining([
-        expect.objectContaining({ severity_cells: expect.any(String) }),
-      ]));
-    });
-    expect(matrixRequests.some((params) => Boolean(params.severity_cells) && !params.probability_cells)).toBe(true);
-    await waitFor(() => {
-      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
-    });
-
-    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
-    await waitFor(() => {
-      expect(
-        matrixRequests.some(
-          (params) => Boolean(params.severity_cells) && Boolean(params.detectability_cells) && !params.probability_cells
-        )
-      ).toBe(true);
-    });
-
-    fireEvent.click(getMatrixDataButton('Risk Class Matrix'));
-    await waitFor(() => {
-      expect(matrixRequests.some((params) => Boolean(params.product_cells) && !params.probability_cells)).toBe(true);
-    });
-  });
-
-  it('keeps probability cross-filtering correct with multi-cell matrix selection', async () => {
-    renderMatrixDashboard();
-
-    const severityButtons = getEnabledMatrixDataButtons('Severity Matrix');
-    expect(severityButtons.length).toBeGreaterThan(1);
-
-    fireEvent.click(severityButtons[0]);
-    fireEvent.click(severityButtons[1]);
-    fireEvent.click(getMatrixDataButton('Detectability Matrix'));
-
-    await waitFor(() => {
-      expect(
-        matrixRequests.some(
-          (params) =>
-            typeof params.severity_cells === 'string'
-            && params.severity_cells.includes(',')
-            && Boolean(params.detectability_cells)
-            && !params.probability_cells
-        )
-      ).toBe(true);
-    });
-
-    await waitFor(() => {
-      expect(getEnabledMatrixDataButtons('Probability Matrix')).toHaveLength(1);
-    });
-  });
-
-  it('filters other matrices and cases when probability cells are selected', async () => {
-    useFilters.setState({ dateWindow: 'ALL', dateFrom: undefined, dateTo: undefined });
-    renderMatrixDashboard();
-
-    const probabilityButtons = getEnabledMatrixDataButtons('Probability Matrix');
-    expect(probabilityButtons.length).toBeGreaterThan(1);
-
-    fireEvent.click(probabilityButtons[0]);
-
-    await waitFor(() => {
-      const probabilityFilteredRequests = matrixRequests.filter((params) => Boolean(params.probability_cells));
-      expect(probabilityFilteredRequests.length).toBeGreaterThanOrEqual(3);
-      expect(probabilityFilteredRequests.every((params) => params.probability_cells === '1:5')).toBe(true);
-    });
-
-    expect(screen.getByText('VK-1')).toBeInTheDocument();
-    expect(screen.queryByText('VK-2')).not.toBeInTheDocument();
-
-    fireEvent.click(probabilityButtons[1]);
-    await waitFor(() => {
-      expect(screen.getByText('VK-1')).toBeInTheDocument();
-      expect(screen.getByText('VK-2')).toBeInTheDocument();
-    });
   });
 
   it('shows the total case count and paginates beyond the first 50 rows', async () => {

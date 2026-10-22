@@ -18,7 +18,7 @@ class CaseService:
 
     @staticmethod
     def _score_fields() -> tuple[str, ...]:
-        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_p', 'user_d')
+        return ('tricia_s', 'tricia_p', 'tricia_d', 'user_s', 'user_d')
 
     def _resolve_case(self, case_ref: str) -> Case | None:
         normalized_ref = case_ref.strip()
@@ -67,7 +67,6 @@ class CaseService:
             tricia_s=derived_scores.get('tricia_s', 1),
             tricia_p=derived_scores.get('tricia_p', 1),
             tricia_d=derived_scores.get('tricia_d', 1),
-            user_p=derived_scores.get('user_p', derived_scores.get('tricia_p', 1)),
             user_s=derived_scores.get('user_s', 1),
             user_d=derived_scores.get('user_d', 1),
             deviation_s=abs(derived_scores.get('user_s', 1) - derived_scores.get('tricia_s', 1)),
@@ -94,9 +93,8 @@ class CaseService:
         user_d: int,
         acceptance_threshold: int,
         risk_categories: list[dict[str, int | str]],
-        user_p: int = 1,
     ) -> bool:
-        expected_class = self._resolve_risk_class(user_s * user_d * user_p, risk_categories)
+        expected_class = self._resolve_risk_class(user_s * user_d * tricia_p, risk_categories)
         observed_class = self._resolve_risk_class(tricia_s * tricia_d * tricia_p, risk_categories)
         if expected_class is None or observed_class is None:
             return False
@@ -141,8 +139,6 @@ class CaseService:
             tricia_p=payload.tricia_p,
             tricia_d=payload.tricia_d,
             user_p=payload.user_p if payload.user_p is not None else payload.tricia_p,
-            tri_risk=payload.tricia_s * payload.tricia_p * payload.tricia_d,
-            wimi_risk=payload.user_s * (payload.user_p if payload.user_p is not None else payload.tricia_p) * user_d,
             user_s=payload.user_s,
             user_d=user_d,
             deviation_s=abs(payload.user_s - payload.tricia_s),
@@ -151,7 +147,6 @@ class CaseService:
                 tricia_s=payload.tricia_s,
                 tricia_p=payload.tricia_p,
                 tricia_d=payload.tricia_d,
-                user_p=payload.user_p if payload.user_p is not None else payload.tricia_p,
                 user_s=payload.user_s,
                 user_d=user_d,
                 acceptance_threshold=acceptance_threshold,
@@ -511,15 +506,12 @@ class CaseService:
                     changes[field] = {'from': getattr(snapshot, field), 'to': new_val}
                     setattr(snapshot, field, new_val)
             if any(score_updates[field] is not None for field in score_fields):
-                snapshot.tri_risk = snapshot.tricia_s * snapshot.tricia_p * snapshot.tricia_d
-                snapshot.wimi_risk = snapshot.user_s * (snapshot.user_p or snapshot.tricia_p) * snapshot.user_d
                 snapshot.deviation_s = abs(snapshot.user_s - snapshot.tricia_s)
                 snapshot.deviation_d = abs(snapshot.user_d - snapshot.tricia_d)
                 snapshot.problem_flag = self._is_problematic_case(
                     tricia_s=snapshot.tricia_s,
                     tricia_p=snapshot.tricia_p,
                     tricia_d=snapshot.tricia_d,
-                    user_p=snapshot.user_p or snapshot.tricia_p,
                     user_s=snapshot.user_s,
                     user_d=snapshot.user_d,
                     acceptance_threshold=acceptance_threshold,
