@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, MessageSquare, MinusCircle, Pencil, Tag, X } from 'lucide-react';
 import { useCaseAuditTrail } from '../../hooks/useCases';
 import { formatIsoDateToGerman } from '../../utils/date';
 import { downloadCaseAuditTrailXlsx } from '../../services/cases';
 import { getExportColumnName } from '../../services/exports';
 
-type CaseItem = {
+export type CaseItem = {
   id: string;
   vk_number: string;
   wimi_shortcut?: string;
@@ -95,6 +95,9 @@ export type CaseTableServerFilters = {
   sort_dir?: SortDirection;
 };
 
+export type CaseReportRows = { columns: string[]; rows: Array<Record<string, unknown>> };
+export type CaseReportRowResolver = (items: CaseItem[], applyFilters?: boolean) => CaseReportRows;
+
 type Props = {
   items: CaseItem[];
   totalCount?: number;
@@ -110,6 +113,7 @@ type Props = {
   onEditCase?: (id: string, payload: Partial<EditValues>) => void | Promise<unknown>;
   onDeleteCase?: (id: string) => void;
   onExportStateChange?: (payload: { columns: string[]; rows: Array<Record<string, unknown>>; filters: CaseTableServerFilters }) => void;
+  onReportRowsChange?: (resolveRows: CaseReportRowResolver) => void;
   onServerFilterChange?: (filters: CaseTableServerFilters) => void;
 };
 
@@ -288,6 +292,7 @@ export function CaseTable({
   onDeleteCase,
   onExportStateChange,
   onServerFilterChange,
+  onReportRowsChange,
 }: Props) {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -476,13 +481,7 @@ export function CaseTable({
     [items]
   );
 
-  const filteredItems = useMemo(() => {
-    // When server-side filtering is enabled, avoid filtering the current page locally.
-    // Otherwise the table can appear empty while waiting for the server response.
-    if (onServerFilterChange) {
-      return items;
-    }
-
+  const filterReportItems = useCallback((sourceItems: CaseItem[]) => {
     const normalized = Object.fromEntries(
       (Object.entries(filters) as Array<[ColumnId, string]>).map(([key, value]) => [key, value.trim().toLowerCase()])
     ) as Record<ColumnId, string>;
@@ -490,7 +489,7 @@ export function CaseTable({
     const matchesNumeric = (value: number | undefined, term: string) =>
       term === '' || (value !== undefined && String(value) === term);
 
-    return items.filter((item) => {
+    return sourceItems.filter((item) => {
       const isEdited = Boolean(changedCaseIds[item.id] || item.has_edits);
       if (normalized.vk_number && !item.vk_number.toLowerCase().includes(normalized.vk_number)) return false;
       if (normalized.wimi_shortcut && !(item.wimi_shortcut ?? '').toLowerCase().includes(normalized.wimi_shortcut)) return false;
@@ -521,12 +520,16 @@ export function CaseTable({
       }
       return true;
     });
-  }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters, items, onServerFilterChange]);
+  }, [changedCaseIds, commentInputs, dateFilterFrom, dateFilterTo, filters]);
 
-  const itemOrderById = useMemo(() => new Map(items.map((item, index) => [item.id, index])), [items]);
+  const filteredItems = useMemo(
+    () => onServerFilterChange ? items : filterReportItems(items),
+    [filterReportItems, items, onServerFilterChange],
+  );
 
-  const sortedItems = useMemo(() => {
-    if (!sortBy) return filteredItems;
+  const sortReportItems = useCallback((sourceItems: CaseItem[]) => {
+    if (!sortBy) return sourceItems;
+    const itemOrderById = new Map(sourceItems.map((item, index) => [item.id, index]));
 
     const directionFactor = sortBy.direction === 'asc' ? 1 : -1;
 
@@ -571,7 +574,7 @@ export function CaseTable({
       }
     };
 
-    return [...filteredItems].sort((left, right) => {
+    return [...sourceItems].sort((left, right) => {
       const leftValue = getSortValue(left);
       const rightValue = getSortValue(right);
 
@@ -580,7 +583,9 @@ export function CaseTable({
 
       return (itemOrderById.get(left.id) ?? 0) - (itemOrderById.get(right.id) ?? 0);
     });
-  }, [changedCaseIds, commentInputs, filteredItems, itemOrderById, sortBy]);
+  }, [changedCaseIds, commentInputs, sortBy]);
+
+  const sortedItems = useMemo(() => sortReportItems(filteredItems), [filteredItems, sortReportItems]);
 
   function toggleSort(column: ColumnId) {
     setSortBy((previous) => {
@@ -660,12 +665,8 @@ export function CaseTable({
     return () => window.clearTimeout(timeoutId);
   }, [onServerFilterChange, serverFilters]);
 
-  useEffect(() => {
-    if (!onExportStateChange) return;
-
-    const exportColumns = columns.map((columnId) => getExportColumnName(COLUMN_DB_NAMES[columnId]));
-
-    const exportRows = sortedItems.map((item) => {
+  const buildExportRows = useCallback((sourceItems: CaseItem[]) => {
+    return sourceItems.map((item) => {
       const row: Record<string, unknown> = {};
       columns.forEach((columnId) => {
         const exportColumnName = getExportColumnName(COLUMN_DB_NAMES[columnId]);
@@ -683,9 +684,24 @@ export function CaseTable({
       row._case_id = item.id;
       return row;
     });
+  }, [changedCaseIds, columns, commentInputs]);
+
+  const resolveReportRows = useCallback<CaseReportRowResolver>((sourceItems, applyFilters = false) => ({
+    columns: columns.map((columnId) => getExportColumnName(COLUMN_DB_NAMES[columnId])),
+    rows: buildExportRows(sortReportItems(applyFilters ? filterReportItems(sourceItems) : sourceItems)),
+  }), [buildExportRows, columns, filterReportItems, sortReportItems]);
+
+  useEffect(() => {
+    onReportRowsChange?.(resolveReportRows);
+  }, [onReportRowsChange, resolveReportRows]);
+
+  useEffect(() => {
+    if (!onExportStateChange) return;
+    const exportColumns = columns.map((columnId) => getExportColumnName(COLUMN_DB_NAMES[columnId]));
+    const exportRows = buildExportRows(sortedItems);
 
     onExportStateChange({ columns: exportColumns, rows: exportRows, filters: serverFilters });
-  }, [changedCaseIds, columns, commentInputs, onExportStateChange, serverFilters, sortedItems]);
+  }, [buildExportRows, columns, onExportStateChange, serverFilters, sortedItems]);
 
   const editingItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,

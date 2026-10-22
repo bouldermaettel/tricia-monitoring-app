@@ -17,10 +17,11 @@ type MatrixSection = {
 type Props = {
   fileNamePrefix: string;
   generatedAt: string;
-  filters: Record<string, string | boolean | undefined>;
+  filters: Record<string, string | number | boolean | undefined>;
   matrixSections: MatrixSection[];
   tableColumns: string[];
   tableRows: Array<Record<string, unknown>>;
+  onBeforeExport?: () => Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }>;
 };
 
 type ReportHtmlParams = Omit<Props, 'fileNamePrefix'> & { matrixImageData: (string | null)[] };
@@ -361,41 +362,49 @@ export function MatrixReportExportButton({
   matrixSections,
   tableColumns,
   tableRows,
+  onBeforeExport,
 }: Props) {
   const disabled = tableColumns.length === 0;
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   async function getHtml() {
+    const data = onBeforeExport ? await onBeforeExport() : { columns: tableColumns, rows: tableRows };
     const matrixImageData = matrixSections.map((section) => matrixToImageDataUrl(section));
     return buildReportHtml({
       generatedAt,
       filters,
       matrixSections,
-      tableColumns,
-      tableRows,
+      tableColumns: data.columns,
+      tableRows: data.rows,
       matrixImageData,
     });
   }
 
   async function exportHtml() {
     setIsGenerating(true);
+    setExportError(null);
     try {
       const html = await getHtml();
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       triggerDownload(blob, `${fileNamePrefix}.html`);
+    } catch {
+      setExportError('Report export failed. Unable to load all filtered cases. Please try again.');
     } finally {
       setIsGenerating(false);
     }
   }
 
   async function exportPdf() {
+    setExportError(null);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setExportError('Please allow popups to export the PDF report.');
+      return;
+    }
     setIsGenerating(true);
     try {
       const html = await getHtml();
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        return;
-      }
       printWindow.document.open();
       printWindow.document.write(html);
       printWindow.document.close();
@@ -424,29 +433,35 @@ export function MatrixReportExportButton({
       await waitForImages();
       printWindow.focus();
       printWindow.print();
+    } catch {
+      printWindow.close();
+      setExportError('Report export failed. Unable to load all filtered cases. Please try again.');
     } finally {
       setIsGenerating(false);
     }
   }
 
   return (
-    <div className="flex gap-2">
-      <button
-        onClick={exportHtml}
-        disabled={disabled || isGenerating}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
-      >
-        <FileText size={14} />
-        {isGenerating ? 'Generating...' : 'Report HTML'}
-      </button>
-      <button
-        onClick={exportPdf}
-        disabled={disabled || isGenerating}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
-      >
-        <Download size={14} />
-        {isGenerating ? 'Generating...' : 'Report PDF'}
-      </button>
+    <div>
+      {exportError && <p role="alert" className="mb-2 text-sm text-red-700">{exportError}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={exportHtml}
+          disabled={disabled || isGenerating}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        >
+          <FileText size={14} />
+          {isGenerating ? 'Generating...' : 'Report HTML'}
+        </button>
+        <button
+          onClick={exportPdf}
+          disabled={disabled || isGenerating}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
+        >
+          <Download size={14} />
+          {isGenerating ? 'Generating...' : 'Report PDF'}
+        </button>
+      </div>
     </div>
   );
 }

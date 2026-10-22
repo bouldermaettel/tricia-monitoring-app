@@ -95,3 +95,19 @@ The suite is intentionally structured as a repeatable critical-path battery. It 
 - CI gating for deployments to dev and prod
 
 This makes the battery suitable for both manual QA and automated regression control.
+
+## Report pagination regression tests
+
+The deterministic report suite intercepts API requests with known data and verifies
+complete HTML and PDF print-document rows, page/page-size independence, sorting,
+and probability/severity selection intersections. It does not create application data.
+
+To test local report changes, start the frontend with `npm run dev -- --host 127.0.0.1 --port 4173 --strictPort`, then run:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 \
+  npx playwright test tests/e2e/report-pagination.spec.ts --workers=1
+```
+
+The PDF assertions inspect the document sent to the browser print workflow;
+they do not automate the operating system's Save as PDF dialog.

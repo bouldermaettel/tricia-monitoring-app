@@ -72,6 +72,7 @@ const baseMockCases: MockCase[] = [
 ];
 let currentCases: MockCase[] = [...baseMockCases];
 let lastUseCasesParams: Record<string, unknown> | undefined;
+let reportProps: { onBeforeExport?: () => Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }> } = {};
 const activeClients: QueryClient[] = [];
 const activeUnmounts: Array<() => void> = [];
 
@@ -237,7 +238,7 @@ vi.mock('../../src/hooks/useThresholds', () => ({
   useUpdateThresholds: () => ({ mutate: updateThresholdsMock, isPending: false }),
 }));
 vi.mock('../../src/components/matrix/MatrixReportExportButton', () => ({
-  MatrixReportExportButton: () => null,
+  MatrixReportExportButton: (props: typeof reportProps) => { reportProps = props; return null; },
 }));
 vi.mock('../../src/components/common/ExportButton', () => ({
   ExportButton: () => null,
@@ -841,6 +842,50 @@ describe('MatrixDashboard', () => {
       expect(screen.getByText('VK-1')).toBeInTheDocument();
       expect(screen.getByText('VK-2')).toBeInTheDocument();
     });
+  });
+
+  it('report rows include every page and preserve the active probability filter', async () => {
+    useFilters.setState({ dateWindow: 'ALL' });
+    currentCases = Array.from({ length: 75 }, (_, i) => ({ ...baseMockCases[0], id: `report-${i}`, vk_number: `REPORT-${i}`, user_p: 1 }));
+    renderMatrixDashboard();
+    await waitFor(() => expect(reportProps.onBeforeExport).toBeDefined());
+    const first = await reportProps.onBeforeExport!();
+    expect(first.rows).toHaveLength(75);
+    expect(first.rows[74].vk_number).toBe('REPORT-74');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const second = await reportProps.onBeforeExport!();
+    expect(second.rows).toEqual(first.rows);
+    fireEvent.click(within(screen.getByText('Probability Matrix').parentElement!).getAllByRole('button', { name: '1' })[0]);
+    fireEvent.click(within(screen.getByText('Severity Matrix').parentElement!).getAllByRole('button', { name: '1' })[0]);
+    await reportProps.onBeforeExport!();
+    const query = listCasesParamsHistory.at(-1)!;
+    expect(query).toMatchObject({ all: true, probability_cells: '1:5', severity_cells: '1:1' });
+    expect(query).not.toHaveProperty('page');
+    expect(query).not.toHaveProperty('page_size');
+  });
+
+  it('report resolution rejects an incomplete all-results response instead of using the visible page', async () => {
+    useFilters.setState({ dateWindow: 'ALL' });
+    renderMatrixDashboard();
+    const { listCases } = await import('../../src/services/cases');
+    vi.mocked(listCases).mockResolvedValueOnce({ items: [baseMockCases[0]], total: 75 });
+    await expect(reportProps.onBeforeExport!()).rejects.toThrow('Unable to load all filtered cases.');
+  });
+
+  it('preview report rows filter and sort the complete upload without requesting database cases', async () => {
+    useFilters.setState({ dateWindow: 'ALL' });
+    const cases = Array.from({ length: 75 }, (_, i) => ({ ...baseMockCases[0], id: `preview-${i}`, vk_number: `PREVIEW-${String(i).padStart(2, '0')}`, wimi_shortcut: i < 60 ? 'abc' : 'other', validation_status: 'saved' }));
+    useImportOverride.getState().setPreviewData({ sourceFileName: 'preview.csv', sourceFile: new File([''], 'preview.csv'), cases, controlItems: [] });
+    renderMatrixDashboard();
+    fireEvent.change(getColumnFilterInput('WIMI'), { target: { value: 'abc' } });
+    fireEvent.click(getColumnSortButton('VK'));
+    fireEvent.click(getColumnSortButton('VK'));
+    const before = listCasesParamsHistory.length;
+    const data = await reportProps.onBeforeExport!();
+    expect(data.rows).toHaveLength(60);
+    expect(data.rows[0].vk_number).toBe('PREVIEW-59');
+    expect(data.rows[59].vk_number).toBe('PREVIEW-00');
+    expect(listCasesParamsHistory).toHaveLength(before);
   });
 
   it('shows the total case count and paginates beyond the first 50 rows', async () => {

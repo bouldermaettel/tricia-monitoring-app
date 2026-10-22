@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { AppShell } from '../components/common/AppShell';
 import { ExportButton } from '../components/common/ExportButton';
 import { ThresholdConfigPanel } from '../components/common/ThresholdConfigPanel';
-import { CaseTable, type CaseTableServerFilters } from '../components/matrix/CaseTable';
+import { CaseTable, type CaseTableServerFilters, type CaseReportRowResolver, type CaseItem } from '../components/matrix/CaseTable';
 import { ConfusionMatrixGrid } from '../components/matrix/ConfusionMatrixGrid';
 import { FilterPanel } from '../components/matrix/FilterPanel';
 import { MatrixReportExportButton } from '../components/matrix/MatrixReportExportButton';
@@ -250,6 +250,10 @@ export function MatrixDashboard() {
   const [casePage, setCasePage] = useState(1);
   const [casePageSize, setCasePageSize] = useState<number | undefined>(DEFAULT_CASES_PAGE_SIZE);
   const [tableServerFilters, setTableServerFilters] = useState<CaseTableServerFilters>({});
+  const reportRowsResolver = useRef<CaseReportRowResolver>();
+  const handleReportRowsChange = useCallback((resolver: CaseReportRowResolver) => {
+    reportRowsResolver.current = resolver;
+  }, []);
   const [exportState, setExportState] = useState<{ columns: string[]; rows: Array<Record<string, unknown>>; filters: CaseTableServerFilters }>({
     columns: [],
     rows: [],
@@ -968,6 +972,23 @@ export function MatrixDashboard() {
     ...exportState.filters,
   }), [dateParams, exportState.filters, includeExcluded, problematicOnly, requestedVkNumber, riskDirectionParam, selectedCellsByDimension, selectedProductRawCells]);
 
+  async function resolveAllReportRows() {
+    const formatRows = reportRowsResolver.current;
+    if (!formatRows) throw new Error('The case table is still loading. Please try again.');
+    if (isOverrideActive) {
+      return formatRows(selectedCases as CaseItem[], true);
+    }
+    const data = await listCases({
+      ...currentFilters,
+      vk_number: requestedVkNumber || undefined,
+      all: true,
+    });
+    if (!Array.isArray(data?.items) || (typeof data.total === 'number' && data.items.length !== data.total)) {
+      throw new Error('Unable to load all filtered cases.');
+    }
+    return formatRows(data.items);
+  }
+
   return (
     <AppShell>
       <div className="flex items-center justify-between mb-6">
@@ -983,6 +1004,7 @@ export function MatrixDashboard() {
             fileNamePrefix="matrix-report"
             generatedAt={new Date().toLocaleString('de-DE')}
             filters={{
+              ...currentFilters,
               include_excluded: includeExcluded,
               problematic_only: problematicOnly,
               date_window: dateWindow,
@@ -1020,6 +1042,7 @@ export function MatrixDashboard() {
             ]}
             tableColumns={exportState.columns}
             tableRows={exportState.rows}
+            onBeforeExport={resolveAllReportRows}
           />
         </div>
       </div>
@@ -1135,6 +1158,7 @@ export function MatrixDashboard() {
 
         <CaseTable
           items={displayedCases}
+          onReportRowsChange={handleReportRowsChange}
           totalCount={selectedRequests.length > 0 || isOverrideActive ? selectedCases.length : (baseCases.data?.total ?? displayedCases.length)}
           page={casePage}
           pageSize={casePageSize}
