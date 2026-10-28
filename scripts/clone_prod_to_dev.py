@@ -192,21 +192,29 @@ def foreign_key_violations(connection: Connection) -> list[str]:
     return violations
 
 
-def backup_target(url: str, backup_dir: Path) -> Path:
-    backup_dir.mkdir(parents=True, exist_ok=True)
+def backup_target(url: str, backup_dir: Path, label: str = "database") -> Path:
+    backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output = backup_dir / f"dev-before-prod-clone-{timestamp}.dump"
+    output = backup_dir / f"{timestamp}-{label}-database-backup.dump"
     parsed = make_url(url)
     password = parsed.password
     dump_url = parsed.set(drivername="postgresql", password=None).render_as_string(hide_password=False)
     environment = os.environ.copy()
     if password is not None:
         environment["PGPASSWORD"] = password
-    subprocess.run(
-        ["pg_dump", "--format=custom", "--no-owner", "--file", str(output), dump_url],
-        check=True,
-        env=environment,
-    )
+    previous_umask = os.umask(0o077)
+    try:
+        subprocess.run(
+            ["pg_dump", "--format=custom", "--no-owner", "--file", str(output), dump_url],
+            check=True,
+            env=environment,
+        )
+    except Exception:
+        output.unlink(missing_ok=True)
+        raise
+    finally:
+        os.umask(previous_umask)
+    output.chmod(0o600)
     return output
 
 
@@ -387,10 +395,29 @@ def verify_parity(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--source-url", help="Production PostgreSQL URL; defaults to SOURCE_DATABASE_URL")
-    parser.add_argument("--target-url", help="Development PostgreSQL URL; defaults to TARGET_DATABASE_URL")
-    parser.add_argument("--backup-dir", type=Path, default=ROOT / "migration-backups")
-    parser.add_argument("--apply", action="store_true", help="Perform the destructive dev replacement")
+    parser.add_argument("--source-url", help="Source PostgreSQL URL; defaults to SOURCE_DATABASE_URL")
+    parser.add_argument("--target-url", help="Target PostgreSQL URL; defaults to TARGET_DATABASE_URL")
+    parser.add_argument("--source-name", default="source", help="Name used in audit and backup output")
+    parser.add_argument("--target-name", default="target", help="Name used in audit and backup output")
+    parser.add_argument(
+        "--backup-dir",
+        type=Path,
+        default=Path(os.environ.get(
+            "MIGRATION_BACKUP_DIR", str(Path.home() / "tricia-monitoring-migration-backups")
+        )),
+        help="Local directory for private custom-format database dumps",
+    )
+    parser.add_argument(
+        "--backup-source",
+        action="store_true",
+        help="Also back up the source database locally before replacing the target",
+    )
+    parser.add_argument(
+        "--backup-only",
+        action="store_true",
+        help="Back up the source database without connecting to or changing a target",
+    )
+    parser.add_argument("--apply", action="store_true", help="Perform the destructive target replacement")
     parser.add_argument("--verify-only", action="store_true", help="Only compare source and target data")
     return parser.parse_args()
 
@@ -399,7 +426,13 @@ def main() -> int:
     args = parse_args()
     if args.apply and args.verify_only:
         raise SystemExit("--apply and --verify-only cannot be combined")
+    if args.backup_only and (args.apply or args.verify_only or args.backup_source):
+        raise SystemExit("--backup-only cannot be combined with copy or verification options")
     source_url = database_url(args.source_url, "SOURCE_DATABASE_URL")
+    if args.backup_only:
+        backup = backup_target(source_url, args.backup_dir, args.source_name)
+        print(f"Source backup created: {backup}")
+        return 0
     target_url = database_url(args.target_url, "TARGET_DATABASE_URL")
     source_identity = make_url(source_url).set(password=None).render_as_string()
     target_identity = make_url(target_url).set(password=None).render_as_string()
@@ -427,7 +460,13 @@ def main() -> int:
         assert_compatible_columns(source, target, source_tables)
         dependencies = table_dependencies(source, source_tables)
         order = insertion_order(source_tables, dependencies)
-        print(f"Schema revision: {source_revision or 'unknown'}")
+        print(f"Source: {args.source_name}; target: {args.target_name}")
+        print(f"Schema revisions: source={source_revision or 'unknown'} target={target_revision or 'unknown'}")
+        schema_columns = {
+            "source": {table: table_columns(source, table) for table in sorted(source_tables)},
+            "target": {table: table_columns(target, table) for table in sorted(target_tables)},
+        }
+        print(f"Schema columns: {json.dumps(schema_columns, sort_keys=True)}")
         print(f"Tables: {len(source_tables)}; copy order: {', '.join(order)}")
         print(f"Source counts: {snapshot_counts(source, source_tables)}")
         print(f"Target counts: {snapshot_counts(target, target_tables)}")
@@ -442,11 +481,15 @@ def main() -> int:
             return 0
 
         if not args.apply:
-            print("Dry run only. Re-run with --apply to back up and replace the dev database.")
+            print("Dry run only. Re-run with --apply to back up and replace the target database.")
             return 0
 
-        backup = backup_target(target_url, args.backup_dir)
-        print(f"Development backup: {backup}")
+        if args.backup_source:
+            source_backup = backup_target(source_url, args.backup_dir, args.source_name)
+            print(f"Source backup created: {source_backup}")
+
+        backup = backup_target(target_url, args.backup_dir, args.target_name)
+        print(f"Target backup created: {backup}")
         copy_tables(source, target, source_tables, order)
         source_columns_by_table = {
             table: table_columns(source, table) for table in source_tables
@@ -466,7 +509,10 @@ def main() -> int:
             target.rollback()
             raise RuntimeError("Foreign-key validation failed:\n" + "\n".join(violations))
         target.commit()
-        print("Full data clone completed, including users and password hashes.")
+        print(
+            f"Full data clone completed from {args.source_name} to {args.target_name}, "
+            "including users and password hashes."
+        )
         return 0
 
 

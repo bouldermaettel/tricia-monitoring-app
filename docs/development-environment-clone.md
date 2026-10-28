@@ -1,119 +1,164 @@
-# Development Environment Clone Strategy
+# PROD and DEV data migration runbook
 
-This document records how the productive Tricia Monitoring environment was cloned into an isolated development environment and how the data was copied safely.
+This runbook describes a reversible PROD→DEV clone followed by promotion of
+the validated DEV dataset and the exact running DEV app images to PROD. It does
+not itself authorize or execute a production deployment.
 
-## Source environment
+## Environments
 
-The live productive deployment is in the `smc-sandbox-smc-four-point-zero` subscription and resource group `tricia-monitoring-rg`:
+The live productive split frontend/backend deployment is in subscription
+`smc-sandbox-smc-four-point-zero`, resource group `tricia-monitoring-rg`:
 
 - Frontend: `tricia-monitoring-frontend`
 - Backend: `tricia-monitoring-backend`
-- Container Apps environment: `tricia-monitoring-env`
 - PostgreSQL: `tricia-monitoring-pg`
-- Container image tag: `20260722161758`
-- Region: Switzerland North
 
-The productive split frontend/backend deployment is the source of truth. The older repository Bicep template describes a different, simpler deployment and must not be used to infer the live production configuration.
-
-## Development deployment
-
-The isolated development resources are in `tricia-monitoring-dev-rg`:
+DEV is in `tricia-monitoring-dev-rg`:
 
 - Frontend: `tricia-monitoring-dev-frontend`
 - Backend: `tricia-monitoring-dev-backend`
-- Container Apps environment: `tricia-monitoring-dev-env`
 - PostgreSQL: `tricia-monitoring-dev-pg`
-- Log Analytics: `tricia-monitoring-dev-logs`
 
-The dev apps use the same pinned frontend and backend image tag as production. Runtime behavior, CPU, memory, scaling, ingress, and database version were replicated. Dev has separate hostnames, database credentials, JWT secret, bootstrap credentials, and CORS configuration.
+Do not use the archived Bicep deployment to infer the live configuration.
+DEV has separate database credentials, JWT secret, bootstrap credentials,
+and CORS configuration.
 
-The existing ACR is reused only to pull the pinned images. The dev apps do not share the productive database or application secrets.
+## Clone utility and local backups
 
-## Database network strategy
+`scripts/clone_prod_to_dev.py` is direction-neutral despite its historical
+filename. It is dry-run by default, rejects identical database URLs, checks
+table and column compatibility, preserves all public application tables
+including users, resets sequences, and verifies counts and shared-column row
+contents. Use `--verify-only` only after source and target are expected to
+match.
 
-The dev PostgreSQL server uses public access with the standard Azure-services firewall rule required for Azure Container Apps connectivity. In addition, the known dev Container Apps outbound addresses are explicitly configured as firewall rules.
+Every apply run first creates a custom-format `pg_dump` of the target in the
+operator's local backup directory. PROD→DEV apply also creates a source PROD
+dump. By default, files are stored under
+`$HOME/tricia-monitoring-migration-backups`; override this with
+`MIGRATION_BACKUP_DIR`. The directory is created with owner-only access and
+dump files use mode `0600`. Keep the dumps locally for 30 days, then delete
+them. Record the file paths and app image references in the migration log.
 
-Temporary operator firewall rules were used only during migration and were removed afterward. The public PostgreSQL tunnel containers from production were not cloned and are not part of the dev runtime.
+The launcher `scripts/launch_database_clone.sh` runs the migration directly
+from the operator's machine and reads database secrets through the Azure CLI.
+The machine needs `az`, `pg_dump`, Python dependencies, and network access to
+both PostgreSQL servers. It does not pause the apps or deploy images. Check
+database connectivity during preflight; if the local machine cannot reach the
+servers, do not apply the clone until connectivity has been arranged.
 
-## Exact data-copy strategy
+## Runbook
 
-The productive database is treated as read-only. The repeatable
-`scripts/clone_prod_to_dev.py` command copies the complete application dataset,
-including `users`, into dev after both databases have the same Alembic revision.
-The preferred execution path is the dedicated Azure Container Instance
-launcher `scripts/launch_prod_to_dev_clone.sh`, because local PostgreSQL access
-may be blocked. The clone is dry-run by default and requires `--apply` before it
-can replace dev data.
+1. **Preflight.** Confirm PROD and DEV identities, current app image references
+   (prefer immutable digests), active revisions, schema revisions, and database
+   reachability. Ensure the local backup directory has enough free space. Take
+   a separate PROD backup and restore it to an isolated database; verify the
+   restored schema and counts before proceeding:
 
-The copy preserves:
+   ```bash
+   bash scripts/launch_database_clone.sh prod-backup --apply
+   ```
 
-- cases, classifications, reviews, thresholds, categories, import jobs, audit
-  events, comments, filenames, record timestamps, statuses, and relationships;
-- original VK numbers, WIMI shortcuts, device names, comments, and categories;
-- the complete `users` table, including IDs, acronyms, names, roles, active
-  status, and password hashes.
+2. **Freeze PROD writes.** Pause case creation, imports, and any other database
+   writes for the initial clone. Keep PROD serving read-only if that is
+   supported operationally; otherwise use a brief maintenance window.
+3. **Inspect PROD→DEV.** Run the dry-run command below. Review source/target
+   schema revisions, full column lists, table counts, and compatibility errors.
+   Resolve unsupported schema differences first.
+4. **Clone PROD→DEV.** Apply the clone. The existing target DEV database is
+   backed up locally before replacement. Keep DEV read-only during validation.
+5. **Validate DEV.** Confirm table/column structure, row counts, row contents
+   on all shared columns, foreign keys, and complete user rows including
+   password hashes. Confirm `user_p = tricia_p`, `tri_risk = tricia_s *
+   tricia_p * tricia_d`, and `wimi_risk = user_s * user_p * user_d` wherever
+   inputs are complete. Verify UI rendering, login, and authenticated case
+   access without creating or editing records. Keep PROD writes paused until
+   final cutover so both environments represent the same data snapshot.
+6. **Prepare PROD image deployment.** Record the immutable frontend and
+   backend image references currently running in DEV:
 
-Before modifying dev, the command creates a custom-format `pg_dump` backup in
-the dedicated migration container. The launcher retains the stopped container
-by default so the backup remains available for recovery. Deleting the
-container deletes the backup.
-The copy uses transactional `TRUNCATE ... RESTART IDENTITY CASCADE`, derives a
-foreign-key-safe insertion order, resets sequences, and validates table counts
-and row contents. PostgreSQL administrative trigger settings are not changed.
-If the source is on an older additive schema, shared columns are copied and
-known derived columns (`user_p`, `tri_risk`, and `wimi_risk`) are backfilled.
-Unknown schema differences still abort before dev is modified.
+   ```bash
+   az containerapp show --name tricia-monitoring-dev-backend \
+     --resource-group tricia-monitoring-dev-rg \
+     --query 'properties.template.containers[].image' --output tsv
+   az containerapp show --name tricia-monitoring-dev-frontend \
+     --resource-group tricia-monitoring-dev-rg \
+     --query 'properties.template.containers[].image' --output tsv
+   ```
 
-## Migration workflow
+   Before deploying to PROD, obtain the required explicit PROD confirmation.
+   Deploy those exact images to the existing PROD apps without changing PROD
+   secrets or database target. The deployment script accepts independent image
+   references so frontend and backend do not need to share a tag:
 
-1. Provision the new resource group, Log Analytics workspace, Container Apps environment, and PostgreSQL server.
-2. Create the dev database and deploy the pinned backend image.
-3. Allow backend migrations to create the dev schema.
-4. Build and run the dedicated Azure migration container with
-   `scripts/launch_prod_to_dev_clone.sh`.
-5. Keep the stopped migration container until parity and application checks pass.
-6. Deploy/restart the dev backend with a separate dev-only bootstrap account so
-   startup configuration does not overwrite copied production users.
-7. Verify the dev frontend and API.
+   ```bash
+   ENV_FILE=.env.tricia-prod ./deploy-live.sh prod \
+     '<backend-image-reference>' '<frontend-image-reference>'
+   ```
 
-Example:
+   Wait for healthy revisions and confirm the backend migrations have advanced
+   PROD to the DEV schema revision. Do not continue if schemas differ or apps
+   are unhealthy.
+7. **Freeze DEV writes and clone DEV→PROD.** Run the final dry run, inspect the
+   report, then apply with the explicit production replacement guard below.
+   This first saves a fresh PROD database backup locally. The process checks
+   counts, shared-column contents, derived values, and foreign keys before
+   committing.
+8. **Accept and unfreeze.** Verify PROD counts and data against the validated
+   DEV snapshot; check login, case totals, UI, and app health. Resume PROD
+   writes only after these checks pass. Retain the local PROD backup for 30
+   days. If validation fails, keep writes paused, restore the pre-cutover PROD
+   dump to an isolated database first, and follow the approved production
+   recovery procedure.
+
+Dry-run / inspection:
 
 ```bash
-bash scripts/launch_prod_to_dev_clone.sh
+bash scripts/launch_database_clone.sh prod-to-dev
 ```
 
-## Verification checklist
-
-- Both dev Container App revisions are `Healthy` and `Running`.
-- Each dev app has 100% traffic on its latest revision.
-- Frontend returns HTTP `200`.
-- Backend `/docs` returns HTTP `200`.
-- Frontend-to-backend CORS preflight returns HTTP `200` with the dev origin.
-- User login works with the copied production user records and password hashes.
-- Authenticated case access returns HTTP `200`.
-- A recoverable backup of the previous dev database exists inside the retained
-  migration container.
-- Every copied table, including `users`, has matching counts and row contents.
-- Dev API case totals and visible totals match prod with identical filters.
-- Production backend remains healthy with 100% traffic.
-- Production database and application resources are not changed by the clone process.
-
-## Operational cautions
-
-- Never copy productive secret values into source control or normal dev configuration.
-- Never point the dev backend at the productive database.
-- Do not recreate the public production PostgreSQL tunnels for normal development.
-- Pin image tags when reproducing a known-good deployment.
-- The productive database credential should be rotated after the migration-terminal credential exposure encountered during setup. The rotation requires an explicit production-change approval because it updates the live backend secret and restarts the productive backend.
-
-## Infrastructure as code
-
-The live prod/dev Container Apps configuration is managed by `infra/live/main.bicep` and selected with `deploy-live.sh`:
+Apply PROD→DEV after write freeze:
 
 ```bash
-WHAT_IF=1 ENV_FILE=.env.tricia-dev ./deploy-live.sh dev 20260722161758
-ENV_FILE=.env.tricia-dev ./deploy-live.sh dev 20260722161758
-ENV_FILE=.env.tricia-prod ./deploy-live.sh prod 20260722161758
+bash scripts/launch_database_clone.sh prod-to-dev --apply
 ```
 
-The environment files are intentionally not committed. They must define `DATABASE_URL`, `SECRET_KEY`, `BOOTSTRAP_ADMIN_USERNAME`, and `BOOTSTRAP_ADMIN_PASSWORD`; frontend/backend origins are discovered from the selected existing apps unless explicitly provided. The template references the existing ACR, Container Apps environment, and PostgreSQL server for the selected target, so it manages application configuration without recreating or copying database data.
+Verify a completed copy:
+
+```bash
+bash scripts/launch_database_clone.sh prod-to-dev --verify-only
+```
+
+After deploying the DEV app images to PROD and freezing writes in both
+environments, inspect then apply DEV→PROD:
+
+```bash
+bash scripts/launch_database_clone.sh dev-to-prod
+bash scripts/launch_database_clone.sh dev-to-prod --apply --confirm-prod-replacement
+```
+
+The production data replacement guard prevents accidental DEV→PROD apply
+without `--confirm-prod-replacement`. It is separate from, and does not replace,
+the explicit approval required before deploying application images to PROD.
+
+## Restore procedure
+
+Restore the exact local target dump into an isolated PostgreSQL database first,
+never directly over PROD as a first step:
+
+```bash
+pg_restore --no-owner --clean --if-exists --dbname "$RESTORE_DATABASE_URL" \
+  "$HOME/tricia-monitoring-migration-backups/<timestamp>-prod-database-backup.dump"
+```
+
+Verify the restored schema revision, table counts, and application access in
+isolation. Restoring over the live PROD database is a separate destructive
+operation and must follow the production recovery approval process.
+
+## Infrastructure notes
+
+The live application configuration is managed by `infra/live/main.bicep` and
+`deploy-live.sh`, which use environment files that are intentionally
+uncommitted. The clone launcher does not use the archived Bicep template and
+does not alter app configuration. Never commit database dumps, database URLs,
+or production secrets.

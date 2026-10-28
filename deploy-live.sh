@@ -4,17 +4,23 @@
 # This manages the existing live resources; it does not create or copy databases.
 #
 # Usage:
-#   ENV_FILE=.env.tricia-dev ./deploy-live.sh dev [image-tag]
-#   ENV_FILE=.env.tricia-prod ./deploy-live.sh prod [image-tag]
+#   ENV_FILE=.env.tricia-dev ./deploy-live.sh dev [backend-image-reference] [frontend-image-reference]
+#   ENV_FILE=.env.tricia-prod ./deploy-live.sh prod [backend-image-reference] [frontend-image-reference]
 #   WHAT_IF=1 ENV_FILE=.env.tricia-dev ./deploy-live.sh dev
 
 set -euo pipefail
 
 TARGET="${1:-}"
-IMAGE_TAG="${2:-20260722161758}"
+DEFAULT_IMAGE_TAG="${DEFAULT_IMAGE_TAG:-20260722161758}"
+BACKEND_IMAGE_INPUT="${2:-}"
+FRONTEND_IMAGE_INPUT="${3:-}"
 
 if [[ "$TARGET" != "prod" && "$TARGET" != "dev" ]]; then
-  echo "Usage: ENV_FILE=<untracked-secret-file> ./deploy-live.sh <prod|dev> [image-tag]"
+  echo "Usage: ENV_FILE=<untracked-secret-file> ./deploy-live.sh <prod|dev> [backend-image-reference] [frontend-image-reference]"
+  exit 2
+fi
+if [[ $# -gt 3 ]]; then
+  echo "Too many arguments. Supply at most one backend and one frontend image reference." >&2
   exit 2
 fi
 
@@ -56,8 +62,18 @@ require_var BOOTSTRAP_ADMIN_PASSWORD
 BACKEND_APP="${APP_BASE}-backend"
 FRONTEND_APP="${APP_BASE}-frontend"
 ACR_NAME="${ACR_NAME:-triciamonitoringacr}"
-BACKEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-backend:${IMAGE_TAG}"
-FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/tricia-monitoring-frontend:${IMAGE_TAG}"
+resolve_image() {
+  local image_name="$1" input="$2"
+  if [[ -z "$input" ]]; then
+    printf '%s.azurecr.io/%s:%s' "$ACR_NAME" "$image_name" "$DEFAULT_IMAGE_TAG"
+  elif [[ "$input" == */* ]]; then
+    printf '%s' "$input"
+  else
+    printf '%s.azurecr.io/%s:%s' "$ACR_NAME" "$image_name" "$input"
+  fi
+}
+BACKEND_IMAGE="$(resolve_image tricia-monitoring-backend "$BACKEND_IMAGE_INPUT")"
+FRONTEND_IMAGE="$(resolve_image tricia-monitoring-frontend "$FRONTEND_IMAGE_INPUT")"
 
 if ! command -v az >/dev/null 2>&1; then
   echo "Azure CLI is required." >&2
