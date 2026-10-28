@@ -1,5 +1,6 @@
 from pathlib import Path
 import importlib.util
+import sys
 
 import pytest
 
@@ -50,3 +51,50 @@ def test_adapt_json_rows_wraps_jsonb_values():
     assert rows[0][0] == 1
     assert rows[0][1].obj == {"3M": 3}
     assert rows[0][2].obj == [1, 2]
+
+
+def test_backup_target_writes_private_local_dump(monkeypatch, tmp_path):
+    calls = {}
+
+    def fake_pg_dump(command, check, env):
+        calls["command"] = command
+        calls["check"] = check
+        calls["env"] = env
+        Path(command[command.index("--file") + 1]).write_bytes(b"custom-format-dump")
+
+    monkeypatch.setattr(clone.subprocess, "run", fake_pg_dump)
+    backup = clone.backup_target(
+        "postgresql://monitoring:secret@example.test/monitoring", tmp_path, "prod"
+    )
+
+    assert backup.parent == tmp_path
+    assert backup.name.endswith("-prod-database-backup.dump")
+    assert backup.read_bytes() == b"custom-format-dump"
+    assert backup.stat().st_mode & 0o777 == 0o600
+    assert calls["check"] is True
+    assert calls["env"]["PGPASSWORD"] == "secret"
+
+
+def test_main_rejects_identical_database_urls(monkeypatch):
+    database_url = "postgresql://monitoring:secret@example.test/monitoring"
+    monkeypatch.setenv("SOURCE_DATABASE_URL", database_url)
+    monkeypatch.setenv("TARGET_DATABASE_URL", database_url)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
+
+    with pytest.raises(SystemExit, match="same database"):
+        clone.main()
+
+
+def test_assert_compatible_columns_rejects_unknown_target_columns():
+    class FakeConnection:
+        def __init__(self, columns):
+            self.columns = columns
+
+        def execute(self, statement, parameters):
+            return [(column,) for column in self.columns[parameters["table"]]]
+
+    source = FakeConnection({"cases": ["id", "name"]})
+    target = FakeConnection({"cases": ["id", "name", "unexpected"]})
+
+    with pytest.raises(RuntimeError, match="unsupported extra columns"):
+        clone.assert_compatible_columns(source, target, {"cases"})
