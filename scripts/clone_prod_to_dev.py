@@ -218,6 +218,45 @@ def backup_target(url: str, backup_dir: Path, label: str = "database") -> Path:
     return output
 
 
+def upload_backup(backup: Path, container_url: str, blob_name: str | None = None) -> tuple[str, str]:
+    """Transfer a local dump through a private, short-lived Azure Blob SAS."""
+    try:
+        from azure.storage.blob import ContainerClient
+    except ImportError as error:
+        raise RuntimeError("Azure backup transfer requires azure-storage-blob") from error
+
+    digest = hashlib.sha256()
+    with backup.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+        sha256 = digest.hexdigest()
+        stream.seek(0)
+        blob = ContainerClient.from_container_url(container_url).get_blob_client(
+            blob_name or backup.name
+        )
+        blob.upload_blob(
+            stream,
+            overwrite=False,
+            metadata={"sha256": sha256, "size": str(backup.stat().st_size)},
+        )
+    properties = blob.get_blob_properties()
+    if properties.size != backup.stat().st_size:
+        raise RuntimeError(
+            f"Transferred backup size mismatch: local={backup.stat().st_size} "
+            f"remote={properties.size}"
+        )
+    if (properties.metadata or {}).get("sha256") != sha256:
+        raise RuntimeError(f"Transferred backup digest mismatch for {backup.name}")
+    return backup.name, sha256
+
+
+def transfer_backup_if_configured(backup: Path, container_url: str | None) -> None:
+    if not container_url:
+        return
+    blob_name, digest = upload_backup(backup, container_url)
+    print(f"Backup transfer ready: {blob_name} sha256={digest}")
+
+
 def reset_sequences(connection: Connection, tables: set[str]) -> None:
     rows = connection.execute(
         text(
@@ -408,6 +447,11 @@ def parse_args() -> argparse.Namespace:
         help="Local directory for private custom-format database dumps",
     )
     parser.add_argument(
+        "--transfer-container-url",
+        default=os.environ.get("BACKUP_TRANSFER_CONTAINER_URL"),
+        help="Optional private Azure Blob SAS URL for secure transfer from an Azure runner",
+    )
+    parser.add_argument(
         "--backup-source",
         action="store_true",
         help="Also back up the source database locally before replacing the target",
@@ -432,6 +476,7 @@ def main() -> int:
     if args.backup_only:
         backup = backup_target(source_url, args.backup_dir, args.source_name)
         print(f"Source backup created: {backup}")
+        transfer_backup_if_configured(backup, args.transfer_container_url)
         return 0
     target_url = database_url(args.target_url, "TARGET_DATABASE_URL")
     source_identity = make_url(source_url).set(password=None).render_as_string()
@@ -487,9 +532,11 @@ def main() -> int:
         if args.backup_source:
             source_backup = backup_target(source_url, args.backup_dir, args.source_name)
             print(f"Source backup created: {source_backup}")
+            transfer_backup_if_configured(source_backup, args.transfer_container_url)
 
         backup = backup_target(target_url, args.backup_dir, args.target_name)
         print(f"Target backup created: {backup}")
+        transfer_backup_if_configured(backup, args.transfer_container_url)
         copy_tables(source, target, source_tables, order)
         source_columns_by_table = {
             table: table_columns(source, table) for table in source_tables

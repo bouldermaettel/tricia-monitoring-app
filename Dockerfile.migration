@@ -1,14 +1,17 @@
-FROM python:3.11-slim
+FROM postgres:16-bookworm
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install --no-install-recommends -y curl python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/migration-venv \
+    && /opt/migration-venv/bin/pip install --no-cache-dir \
+        "SQLAlchemy>=2.0.31" \
+        "psycopg[binary]>=3.2.1" \
+        "azure-storage-blob>=12.20.0"
 
+ENV PATH="/opt/migration-venv/bin:${PATH}"
 WORKDIR /migration
 COPY scripts/clone_prod_to_dev.py /migration/clone_prod_to_dev.py
-
-RUN pip install --no-cache-dir \
-    "SQLAlchemy>=2.0.31" \
-    "psycopg[binary]>=3.2.1"
+COPY scripts/restore_backup_check.sh /migration/restore_backup_check.sh
 
 ENTRYPOINT ["python", "/migration/clone_prod_to_dev.py"]

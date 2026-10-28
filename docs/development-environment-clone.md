@@ -47,6 +47,15 @@ both PostgreSQL servers. It does not pause the apps or deploy images. Check
 database connectivity during preflight; if the local machine cannot reach the
 servers, do not apply the clone until connectivity has been arranged.
 
+When PostgreSQL is not reachable from the operator machine, use
+`scripts/launch_azure_database_clone.sh`. It builds a PostgreSQL 16 runner in
+ACR, runs it as a one-off Azure Container Instance, and transfers custom-format
+dumps through a private Blob container using a short-lived user-delegation SAS.
+The runner downloads dumps to the local backup directory and verifies their
+size and SHA-256. The transfer account and temporary Blob role assignments
+must be removed after the last migration direction completes. The local
+workflow remains useful where direct database network access is available.
+
 ## Runbook
 
 1. **Preflight.** Confirm PROD and DEV identities, current app image references
@@ -154,6 +163,50 @@ pg_restore --no-owner --clean --if-exists --dbname "$RESTORE_DATABASE_URL" \
 Verify the restored schema revision, table counts, and application access in
 isolation. Restoring over the live PROD database is a separate destructive
 operation and must follow the production recovery approval process.
+
+## Completed promotion: 2026-10-28
+
+The PROD→DEV data copy, application promotion, and DEV→PROD data copy were
+completed on 2026-10-28. Both backends were write-frozen during the final
+cutover and ingress was restored after validation. All four apps are healthy.
+
+The PROD and DEV frontends and backends now use the image references
+`triciamonitoringacr.azurecr.io/tricia-monitoring-frontend:97fcb59` and
+`triciamonitoringacr.azurecr.io/tricia-monitoring-backend:97fcb59`. The PROD
+backend and frontend ready revisions are `tricia-monitoring-backend--0000041`
+and `tricia-monitoring-frontend--0000034`. ACR digest lookup was unavailable
+from the operator environment, so the live revision tags were used and recorded
+instead of immutable digests.
+
+The final database copy verified all 10 public tables, matching column
+definitions, row counts and shared-column contents, derived fields, and foreign
+keys. PROD has 230 cases, 230 classification snapshots, 230 reviews, and 24
+users. The 24 users are the 23 PROD users plus the configured DEV bootstrap
+account; that account was matched against the DEV bootstrap setting. The
+probability and risk fields use `user_p = tricia_p`,
+`tri_risk = tricia_s * tricia_p * tricia_d`, and
+`wimi_risk = user_s * user_p * user_d`.
+
+Private custom-format dumps are in
+`$HOME/tricia-monitoring-migration-backups` with mode `0600`. Retain them until
+2026-11-27, then delete the directory. The pre-cutover PROD dump is the first
+restore point if rollback is needed:
+
+- `20261028T082733Z-prod-database-backup.dump` — PROD immediately before the
+  final replacement; 230 cases and 23 users, with the promoted schema.
+- `20261028T075109Z-prod-database-backup.dump` — original PROD backup; its
+  isolated restore was verified with 230 cases, 230 snapshots, and 23 users.
+- `20261028T075903Z-prod-database-backup.dump` and
+  `20261028T082046Z-prod-database-backup.dump` — PROD source backups captured
+  during the two PROD→DEV copies.
+- `20261028T082047Z-dev-database-backup.dump` — DEV before the final refresh.
+- `20261028T075904Z-dev-database-backup.dump` — DEV before the initial copy.
+
+The input pages, backend docs, and cases endpoints returned HTTP 200 in both
+environments. Authenticated login was not exercised because no user credentials
+were available; users should verify sign-in and case access through the UI.
+Temporary Blob role assignments, the empty transfer account, and one-off
+migration containers were removed after downloads were checksum-verified.
 
 ## Infrastructure notes
 

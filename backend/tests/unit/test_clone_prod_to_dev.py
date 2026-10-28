@@ -1,6 +1,7 @@
 from pathlib import Path
 import importlib.util
 import sys
+import types
 
 import pytest
 
@@ -73,6 +74,53 @@ def test_backup_target_writes_private_local_dump(monkeypatch, tmp_path):
     assert backup.stat().st_mode & 0o777 == 0o600
     assert calls["check"] is True
     assert calls["env"]["PGPASSWORD"] == "secret"
+
+
+def test_upload_backup_checks_blob_size_and_digest(monkeypatch, tmp_path):
+    remote = {}
+
+    class FakeBlobClient:
+        def upload_blob(self, stream, overwrite, metadata):
+            remote["bytes"] = stream.read()
+            remote["overwrite"] = overwrite
+            remote["metadata"] = metadata
+
+        def get_blob_properties(self):
+            return types.SimpleNamespace(
+                size=len(remote["bytes"]), metadata=remote["metadata"]
+            )
+
+    class FakeContainerClient:
+        @classmethod
+        def from_container_url(cls, container_url):
+            remote["container_url"] = container_url
+            return cls()
+
+        def get_blob_client(self, blob_name):
+            remote["blob_name"] = blob_name
+            return FakeBlobClient()
+
+    azure = types.ModuleType("azure")
+    storage = types.ModuleType("azure.storage")
+    blob = types.ModuleType("azure.storage.blob")
+    blob.ContainerClient = FakeContainerClient
+    azure.storage = storage
+    storage.blob = blob
+    monkeypatch.setitem(sys.modules, "azure", azure)
+    monkeypatch.setitem(sys.modules, "azure.storage", storage)
+    monkeypatch.setitem(sys.modules, "azure.storage.blob", blob)
+
+    backup = tmp_path / "prod.dump"
+    backup.write_bytes(b"private dump")
+    blob_name, digest = clone.upload_backup(
+        backup, "https://account/container?short-lived-sas"
+    )
+
+    assert remote["bytes"] == b"private dump"
+    assert remote["overwrite"] is False
+    assert blob_name == "prod.dump"
+    assert digest == remote["metadata"]["sha256"]
+    assert remote["metadata"]["size"] == str(len(b"private dump"))
 
 
 def test_main_rejects_identical_database_urls(monkeypatch):
